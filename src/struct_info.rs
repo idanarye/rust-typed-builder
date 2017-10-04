@@ -10,6 +10,8 @@ pub struct StructInfo<'a> {
     pub builder_name: syn::Ident,
     pub generics: &'a syn::Generics,
     pub fields: Vec<FieldInfo<'a>>,
+    pub conversion_helper_trait_name: syn::Ident,
+    pub conversion_helper_method_name: syn::Ident,
 }
 
 impl<'a> StructInfo<'a> {
@@ -20,6 +22,12 @@ impl<'a> StructInfo<'a> {
             builder_name: format!("{}Builder", ast.ident).into(),
             generics: &ast.generics,
             fields: fields.iter().enumerate().map(|(i, f)| FieldInfo::new(i, f)).collect(),
+            conversion_helper_trait_name: format!("_TypedBuilder__conversionHelperTraitFor_{}",
+                                                  ast.ident)
+                .into(),
+            conversion_helper_method_name: format!("_TypedBuilder__conversionHelperMethodFor_{}",
+                                                   ast.ident)
+                .into(),
         }
     }
 
@@ -40,12 +48,7 @@ impl<'a> StructInfo<'a> {
             let generic_idents = self.fields.iter().map(|f| &f.generic_ident);
             quote!(#( #names: #generic_idents ),*)
         };
-        let StructInfo {
-            ref vis,
-            ref name,
-            ref builder_name,
-            ..
-        } = *self;
+        let StructInfo { ref vis, ref name, ref builder_name, .. } = *self;
         let (impl_generics, ty_generics, where_clause) = self.generics.split_for_impl();
         let b_generics = self.modify_generics(|g| {
             for field in self.fields.iter() {
@@ -86,17 +89,40 @@ impl<'a> StructInfo<'a> {
         }
     }
 
+    // TODO: once the proc-macro crate limitation is lifted, make this an util trait of this
+    // crate.
+    pub fn conversion_helper_impl(&self) -> Tokens {
+        let &StructInfo { conversion_helper_trait_name: ref trait_name,
+                          conversion_helper_method_name: ref method_name,
+                          .. } = self;
+        quote! {
+            #[allow(dead_code, non_camel_case_types, non_snake_case)]
+            pub trait #trait_name<T> {
+                fn #method_name(self, default: T) -> T;
+            }
+
+            impl<T> #trait_name<T> for () {
+                fn #method_name(self, default: T) -> T {
+                    default
+                }
+            }
+
+            impl<T> #trait_name<T> for (T,) {
+                fn #method_name(self, _: T) -> T {
+                    self.0
+                }
+            }
+        }
+    }
+
     pub fn field_impl(&self, field: &FieldInfo) -> Tokens {
         let ref builder_name = self.builder_name;
-        let other_fields_name = self.fields.iter().filter(|f| f.ordinal != field.ordinal).map(|f| f.name);
+        let other_fields_name =
+            self.fields.iter().filter(|f| f.ordinal != field.ordinal).map(|f| f.name);
         // not really "value", since we just use to self.name - but close enough.
-        let other_fields_value = self.fields.iter().filter(|f| f.ordinal != field.ordinal).map(|f| f.name);
-        let &FieldInfo {
-            name: ref field_name,
-            ty: ref field_type,
-            ref generic_ident,
-            ..
-        } = field;
+        let other_fields_value =
+            self.fields.iter().filter(|f| f.ordinal != field.ordinal).map(|f| f.name);
+        let &FieldInfo { name: ref field_name, ty: ref field_type, ref generic_ident, .. } = field;
         let generics = self.modify_generics(|g| {
             for f in self.fields.iter() {
                 if f.ordinal != field.ordinal {
@@ -140,30 +166,61 @@ impl<'a> StructInfo<'a> {
     }
 
     pub fn build_method_impl(&self) -> Tokens {
-        let StructInfo {
-            ref name,
-            ref builder_name,
-            ..
-        } = *self;
+        let StructInfo { ref name, ref builder_name, .. } = *self;
 
-        let modified_generics = self.modify_generics(|g| {
+        let generics = self.modify_generics(|g| {
             for field in self.fields.iter() {
-                g.ty_params.push(field.tuplized_type_ty_param());
+                if field.default.is_some() {
+                    let mut ty_param = field.generic_ty_param();
+                    let poly_trait_ref = syn::PolyTraitRef {
+                        bound_lifetimes: Vec::new(),
+                        // trait_ref: self.conversion_helper_trait_name.clone().into(),
+                        trait_ref: syn::PathSegment {
+                            ident: self.conversion_helper_trait_name.clone(),
+                            parameters: syn::PathParameters::AngleBracketed(
+                                syn::AngleBracketedParameterData{
+                                    lifetimes: Vec::new(),
+                                    types: vec![field.ty.clone()],
+                                    bindings: Vec::new(),
+                                })
+                        }.into(),
+                    };
+                    ty_param.bounds.push(syn::TyParamBound::Trait(poly_trait_ref, syn::TraitBoundModifier::None));
+                    g.ty_params.push(ty_param);
+                }
             }
         });
-        let (_, modified_ty_generics, _) = modified_generics.split_for_impl();
-        let (impl_generics, ty_generics, where_clause) = self.generics.split_for_impl();
+        let (impl_generics, _, _) = generics.split_for_impl();
 
-        let assignments_name = self.fields.iter().map(|f| f.name);
-        // not really "value", since for now we just use to self.name.0 - but close enough.
-        let assignments_value = self.fields.iter().map(|f| f.name);
+        let generics = self.modify_generics(|g| {
+            for field in self.fields.iter() {
+                if field.default.is_some() {
+                    g.ty_params.push(field.generic_ty_param());
+                } else {
+                    g.ty_params.push(field.tuplized_type_ty_param());
+                }
+            }
+        });
+        let (_, modified_ty_generics, _) = generics.split_for_impl();
+
+        let (_, ty_generics, where_clause) = self.generics.split_for_impl();
+
+        let ref helper_trait_method_name = self.conversion_helper_method_name;
+        let assignments = self.fields.iter().map(|field| {
+            let ref name = field.name;
+            if let Some(ref default) = field.default {
+                quote!(#name: self.#name.#helper_trait_method_name(#default))
+            } else {
+                quote!(#name: self.#name.0)
+            }
+        });
 
         quote! {
-            #[allow(dead_code)]
+            #[allow(dead_code, non_camel_case_types)]
             impl #impl_generics #builder_name #modified_ty_generics #where_clause {
                 pub fn build(self) -> #name #ty_generics {
                     #name {
-                        #( #assignments_name: self.#assignments_value.0 ),*
+                        #( #assignments ),*
                     }
                 }
             }

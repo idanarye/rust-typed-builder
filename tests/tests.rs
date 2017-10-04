@@ -10,6 +10,7 @@ fn test_simple() {
     }
 
     assert!(Foo::builder().x(1).y(2).build() == Foo { x: 1, y: 2 });
+    assert!(Foo::builder().y(1).x(2).build() == Foo { x: 2, y: 1 });
 }
 
 #[test]
@@ -42,4 +43,20 @@ fn test_into() {
     }
 
     assert!(Foo::builder().x(1u8).build() == Foo { x: 1 });
+}
+
+#[test]
+fn test_default() {
+    #[derive(PartialEq, TypedBuilder)]
+    struct Foo {
+        #[default]
+        x: Option<i32>,
+        #[default="-1"]
+        y: i32,
+    }
+
+    assert!(Foo::builder().build() == Foo { x: None, y: -1 });
+    assert!(Foo::builder().x(1).build() == Foo { x: Some(1), y: -1 });
+    assert!(Foo::builder().y(2).build() == Foo { x: None, y: 2 });
+    assert!(Foo::builder().x(1).y(2).build() == Foo { x: Some(1), y: 2 });
 }
