@@ -92,7 +92,7 @@ impl<'a> StructInfo<'a> {
 
     fn builder_doc(&self) -> String {
         format!("Create a builder for building `{name}`.
-                On the builder, call {setters} to set the values of the fields.
+                On the builder, call {setters} to set the values of the fields(they accept `Into` values).
                 Finally, call `.build()` to create the instance of `{name}`.",
                 name=self.name,
                 setters={

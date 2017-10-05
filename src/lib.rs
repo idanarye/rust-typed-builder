@@ -2,8 +2,9 @@
 //!
 //! This crate provides a custom derive for `TypedBuilder`. `TypedBuilder` is not a real type -
 //! deriving it will generate a `::builder()` method on your struct that will return a compile-time
-//! checked builder. Set the fields using methods with the same name as the struct's fields, and
-//! call `.build()` when you are done to create your object.
+//! checked builder. Set the fields using setters with the same name as the struct's fields that
+//! accept `Into` types for the type of the field, and call `.build()` when you are done to create
+//! your object.
 //!
 //! Trying to set the same fields twice will generate a compile-time error. Trying to build without
 //! setting one of the fields will also generate a compile-time error - unless that field is marked

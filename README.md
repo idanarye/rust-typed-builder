@@ -3,7 +3,7 @@ PLACEHOLDER
 [![Latest Version](https://img.shields.io/crates/v/typed-builder.svg)](https://crates.io/crates/typed-builder)
 [![Rust Documentation](https://img.shields.io/badge/api-rustdoc-blue.svg)](https://idanarye.github.io/rust-typed-builder/)
 
-# Rust TypedBuilder
+# Rust Typed Builder
 
 Creates a compile-time verified builder:
 
@@ -43,7 +43,24 @@ Foo::builder().build(); // missing x
 Foo::builder().x(1).y(2).y(3); // y is specified twice
 ```
 
+# Features
+
+* Custom derive for generating the builder pattern.
+* All setters are accepting `Into` values.
+* Compile time verification that all fields are set before calling `.build()`.
+* Compile time verification that no field is set more than once.
+* Ability to annotate fields with `#[default]` to make them optional and specify a default value when the user does not set them.
+* Generates simple documentation for the `.builder()` method.
+
+# Limitations
+
+* No custom build error - if you neglect to set a field or set a field twice you'll get regular `no method` error that doesn't tell you what you did wrong.
+    * If there is a way to generate proper errors I'll gladly implement it.
+* The generated builder type has ugly internal name and many generic parameters. It is not meant for passing around and doing fancy builder tricks - only for nicer object creation syntax(constructor with named arguments and optional arguments).
+    * For the that reason, all builder methods are call-by-move and the builder is not cloneable. Saves the trouble of determining if the fields are cloneable...
+    * If you want a builder you can pass around, check out [derive-builder](https://crates.io/crates/derive_builder). It's API does not conflict with typed-builder's so you can be able to implement them both on the same type.
+
 # Alternatives - and why typed-builder is better
 
 * [derive-builder](https://crates.io/crates/derive_builder) - does all the checks in runtime, returning a `Result` you need to unwrap.
-* [safe-builder-derive](https://crates.io/crates/safe-builder-derive) - this one does compile-time checks - by generating a type for each possible state of the builder. Rust can remove the dead code, but your build time will still be exponential. TypedBuilder is encoding the builder's state in the generics arguments - so Rust will only generate the path you actually use.
+* [safe-builder-derive](https://crates.io/crates/safe-builder-derive) - this one does compile-time checks - by generating a type for each possible state of the builder. Rust can remove the dead code, but your build time will still be exponential. typed-builder is encoding the builder's state in the generics arguments - so Rust will only generate the path you actually use.
