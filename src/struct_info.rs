@@ -3,13 +3,15 @@ use syn;
 use quote::Tokens;
 
 use field_info::FieldInfo;
+use util::make_identifier;
 
 pub struct StructInfo<'a> {
     pub vis: &'a syn::Visibility,
     pub name: &'a syn::Ident,
-    pub builder_name: syn::Ident,
     pub generics: &'a syn::Generics,
     pub fields: Vec<FieldInfo<'a>>,
+
+    pub builder_name: syn::Ident,
     pub conversion_helper_trait_name: syn::Ident,
     pub conversion_helper_method_name: syn::Ident,
 }
@@ -19,15 +21,11 @@ impl<'a> StructInfo<'a> {
         StructInfo {
             vis: &ast.vis,
             name: &ast.ident,
-            builder_name: format!("{}Builder", ast.ident).into(),
             generics: &ast.generics,
             fields: fields.iter().enumerate().map(|(i, f)| FieldInfo::new(i, f)).collect(),
-            conversion_helper_trait_name: format!("_TypedBuilder__conversionHelperTraitFor_{}",
-                                                  ast.ident)
-                .into(),
-            conversion_helper_method_name: format!("_TypedBuilder__conversionHelperMethodFor_{}",
-                                                   ast.ident)
-                .into(),
+            builder_name: make_identifier("BuilderFor", &ast.ident),
+            conversion_helper_trait_name: make_identifier("conversionHelperTrait", &ast.ident),
+            conversion_helper_method_name: make_identifier("conversionHelperMethod", &ast.ident),
         }
     }
 
@@ -71,7 +69,6 @@ impl<'a> StructInfo<'a> {
         };
         quote! {
             impl #impl_generics #name #ty_generics #where_clause {
-                // #[doc = #doc]
                 #[allow(dead_code)]
                 #vis fn builder() -> #builder_name #generics_with_empty {
                     #builder_name {
@@ -81,6 +78,8 @@ impl<'a> StructInfo<'a> {
                 }
             }
 
+            #[must_use]
+            #[doc(hidden)]
             #[allow(dead_code, non_camel_case_types, non_snake_case)]
             #vis struct #builder_name #b_generics {
                 _TypedBuilder__phantomGenerics_: (#phantom_generics),
@@ -96,6 +95,7 @@ impl<'a> StructInfo<'a> {
                           conversion_helper_method_name: ref method_name,
                           .. } = self;
         quote! {
+            #[doc(hidden)]
             #[allow(dead_code, non_camel_case_types, non_snake_case)]
             pub trait #trait_name<T> {
                 fn #method_name(self, default: T) -> T;

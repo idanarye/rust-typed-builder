@@ -1,7 +1,8 @@
 use syn;
 use quote::Tokens;
 
-#[derive(Debug)]
+use util::{make_identifier, map_only_one};
+
 pub struct FieldInfo<'a> {
     pub ordinal: usize,
     pub name: &'a syn::Ident,
@@ -16,7 +17,7 @@ impl<'a> FieldInfo<'a> {
             FieldInfo {
                 ordinal: ordinal,
                 name: &name,
-                generic_ident: format!("_TypedBuilder_genericType__{}_", name).into(),
+                generic_ident: make_identifier("genericType", name),
                 ty: &field.ty,
                 default: Self::find_field_default(field).unwrap_or_else(|f| panic!("Field {}: {}", name, f)),
             }
@@ -56,22 +57,4 @@ impl<'a> FieldInfo<'a> {
     pub fn empty_ty_param() -> syn::TyParam {
         syn::TyParam::from(syn::Ident::from("()"))
     }
-}
-
-/// Return the value that fulfills the predicate if there is one in the slice. Panic if there is
-/// more than one.
-fn map_only_one<S, T, F>(iter: &[S], dlg: F) -> Result<Option<T>, String>
-where
-	F: Fn(&S) -> Result<Option<T>, String>,
-{
-    let mut result = None;
-    for item in iter {
-        if let Some(answer) = dlg(item)? {
-            if result.is_some() {
-                return Err("multiple defaults".into());
-            }
-            result = Some(answer);
-        }
-    }
-    Ok(result)
 }
