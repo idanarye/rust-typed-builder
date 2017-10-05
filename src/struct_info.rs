@@ -67,8 +67,10 @@ impl<'a> StructInfo<'a> {
                 #( ::std::marker::PhantomData<#types>, )*
             }
         };
+        let doc = self.builder_doc();
         quote! {
             impl #impl_generics #name #ty_generics #where_clause {
+                #[doc=#doc]
                 #[allow(dead_code)]
                 #vis fn builder() -> #builder_name #generics_with_empty {
                     #builder_name {
@@ -86,6 +88,30 @@ impl<'a> StructInfo<'a> {
                 #builder_generics
             }
         }
+    }
+
+    fn builder_doc(&self) -> String {
+        format!("Create a builder for building `{name}`.
+                On the builder, call {setters} to set the values of the fields.
+                Finally, call `.build()` to create the instance of `{name}`.",
+                name=self.name,
+                setters={
+                    let mut result = String::new();
+                    let mut is_first = true;
+                    for field in self.fields.iter() {
+                        use std::fmt::Write;
+                        if is_first {
+                            is_first = false;
+                        } else {
+                            write!(&mut result, ", ").unwrap();
+                        }
+                        write!(&mut result, "`.{}(...)`", field.name).unwrap();
+                        if field.default.is_some() {
+                            write!(&mut result, "(optional)").unwrap();
+                        }
+                    }
+                    result
+                })
     }
 
     // TODO: once the proc-macro crate limitation is lifted, make this an util trait of this
