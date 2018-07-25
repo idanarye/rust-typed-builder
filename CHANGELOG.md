@@ -6,6 +6,9 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+## 0.1.1 - 2018-07-24
+- Allow missing docs in structs that derive `TypedBuilder`.
+
 ## 0.1.0 - 2017-10-05
 ### Added
 - Custom derive for generating the builder pattern.
