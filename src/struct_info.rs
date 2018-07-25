@@ -178,7 +178,7 @@ impl<'a> StructInfo<'a> {
         });
         let (_, target_generics, _) = generics.split_for_impl();
         quote!{
-            #[allow(dead_code, non_camel_case_types)]
+            #[allow(dead_code, non_camel_case_types, missing_docs)]
             impl #impl_generics #builder_name #ty_generics #where_clause {
                 pub fn #field_name<#generic_ident: ::std::convert::Into<#field_type>>(self, value: #generic_ident) -> #builder_name #target_generics {
                     #builder_name {
@@ -242,7 +242,7 @@ impl<'a> StructInfo<'a> {
         });
 
         quote! {
-            #[allow(dead_code, non_camel_case_types)]
+            #[allow(dead_code, non_camel_case_types, missing_docs)]
             impl #impl_generics #builder_name #modified_ty_generics #where_clause {
                 pub fn build(self) -> #name #ty_generics {
                     #name {
