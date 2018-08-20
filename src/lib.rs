@@ -75,10 +75,16 @@ pub fn derive_typed_builder(input: TokenStream) -> TokenStream {
 }
 
 fn impl_my_derive(ast: &syn::DeriveInput) -> quote::Tokens {
-
     match ast.body {
-        syn::Body::Struct(syn::VariantData::Struct(ref body)) => {
-            let struct_info = struct_info::StructInfo::new(&ast, body);
+        syn::Body::Struct(ref body) => {
+            let kind = match *body {
+                syn::VariantData::Struct(_) => struct_info::StructKind::Struct,
+                syn::VariantData::Tuple(_) => struct_info::StructKind::Tuple,
+                syn::VariantData::Unit => struct_info::StructKind::Unit,
+            };
+
+
+            let struct_info = struct_info::StructInfo::new(&ast, body.fields(), kind);
             let builder_creation = struct_info.builder_creation_impl();
             let conversion_helper = struct_info.conversion_helper_impl();
             let fields = struct_info.fields.iter().map(|f| struct_info.field_impl(f));
@@ -90,8 +96,6 @@ fn impl_my_derive(ast: &syn::DeriveInput) -> quote::Tokens {
                 #build_method
             }
         },
-        syn::Body::Struct(syn::VariantData::Unit) => panic!("SmartBuilder is not supported for unit types"),
-        syn::Body::Struct(syn::VariantData::Tuple(_)) => panic!("SmartBuilder is not supported for tuples"),
         syn::Body::Enum(_) => panic!("SmartBuilder is not supported for enums"),
     }
 }
