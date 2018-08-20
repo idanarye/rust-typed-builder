@@ -5,7 +5,7 @@ use util::{make_identifier, map_only_one};
 
 pub struct FieldInfo<'a> {
     pub ordinal: usize,
-    pub name: &'a syn::Ident,
+    pub name: ::std::borrow::Cow<'a, syn::Ident>,
     pub generic_ident: syn::Ident,
     pub ty: &'a syn::Ty,
     pub default: Option<Tokens>,
@@ -13,16 +13,14 @@ pub struct FieldInfo<'a> {
 
 impl<'a> FieldInfo<'a> {
     pub fn new(ordinal: usize, field: &syn::Field) -> FieldInfo {
-        if let Some(ref name) = field.ident {
-            FieldInfo {
-                ordinal: ordinal,
-                name: &name,
-                generic_ident: make_identifier("genericType", name),
-                ty: &field.ty,
-                default: Self::find_field_default(field).unwrap_or_else(|f| panic!("Field {}: {}", name, f)),
-            }
-        } else {
-            panic!("Nameless field in struct");
+        let name = field.ident.as_ref().map(::std::borrow::Cow::Borrowed).unwrap_or_else(|| ::std::borrow::Cow::Owned(format!("_{}", ordinal).into()));
+
+        FieldInfo {
+            ordinal: ordinal,
+            generic_ident: make_identifier("genericType", &name),
+            default: Self::find_field_default(field).unwrap_or_else(|f| panic!("Field {}: {}", name, f)),
+            name,
+            ty: &field.ty,
         }
     }
 
@@ -42,6 +40,10 @@ impl<'a> FieldInfo<'a> {
                 _ => Ok(None)
             }
         })
+    }
+
+    pub fn name(&self) -> &syn::Ident {
+        &self.name
     }
 
     pub fn generic_ty_param(&self) -> syn::TyParam {

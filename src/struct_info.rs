@@ -5,11 +5,18 @@ use quote::Tokens;
 use field_info::FieldInfo;
 use util::make_identifier;
 
+pub enum StructKind {
+    Struct,
+    Tuple,
+    Unit,
+}
+
 pub struct StructInfo<'a> {
     pub vis: &'a syn::Visibility,
     pub name: &'a syn::Ident,
     pub generics: &'a syn::Generics,
     pub fields: Vec<FieldInfo<'a>>,
+    pub kind: StructKind,
 
     pub builder_name: syn::Ident,
     pub conversion_helper_trait_name: syn::Ident,
@@ -17,12 +24,13 @@ pub struct StructInfo<'a> {
 }
 
 impl<'a> StructInfo<'a> {
-    pub fn new(ast: &'a syn::DeriveInput, fields: &'a [syn::Field]) -> StructInfo<'a> {
+    pub fn new(ast: &'a syn::DeriveInput, fields: &'a [syn::Field], kind: StructKind) -> StructInfo<'a> {
         StructInfo {
             vis: &ast.vis,
             name: &ast.ident,
             generics: &ast.generics,
             fields: fields.iter().enumerate().map(|(i, f)| FieldInfo::new(i, f)).collect(),
+            kind,
             builder_name: make_identifier("BuilderFor", &ast.ident),
             conversion_helper_trait_name: make_identifier("conversionHelperTrait", &ast.ident),
             conversion_helper_method_name: make_identifier("conversionHelperMethod", &ast.ident),
@@ -36,13 +44,13 @@ impl<'a> StructInfo<'a> {
     }
 
     pub fn builder_creation_impl(&self) -> Tokens {
-        let _ = self.modify_generics(|g| g.ty_params.push(self.fields[0].generic_ty_param()));
+        let _ = self.modify_generics(|g| self.fields.iter().for_each(|f| g.ty_params.push(f.generic_ty_param())));
         let init_empties = {
-            let names = self.fields.iter().map(|f| f.name);
+            let names = self.fields.iter().map(|f| f.name());
             quote!(#( #names: () ),*)
         };
         let builder_generics = {
-            let names = self.fields.iter().map(|f| f.name);
+            let names = self.fields.iter().map(|f| f.name());
             let generic_idents = self.fields.iter().map(|f| &f.generic_ident);
             quote!(#( #names: #generic_idents ),*)
         };
@@ -105,7 +113,7 @@ impl<'a> StructInfo<'a> {
                         } else {
                             write!(&mut result, ", ").unwrap();
                         }
-                        write!(&mut result, "`.{}(...)`", field.name).unwrap();
+                        write!(&mut result, "`.{}(...)`", field.name()).unwrap();
                         if field.default.is_some() {
                             write!(&mut result, "(optional)").unwrap();
                         }
@@ -144,10 +152,10 @@ impl<'a> StructInfo<'a> {
     pub fn field_impl(&self, field: &FieldInfo) -> Tokens {
         let ref builder_name = self.builder_name;
         let other_fields_name =
-            self.fields.iter().filter(|f| f.ordinal != field.ordinal).map(|f| f.name);
-        // not really "value", since we just use to self.name - but close enough.
+            self.fields.iter().filter(|f| f.ordinal != field.ordinal).map(|f| f.name());
+        // not really "value", since we just use to self.name() - but close enough.
         let other_fields_value =
-            self.fields.iter().filter(|f| f.ordinal != field.ordinal).map(|f| f.name);
+            self.fields.iter().filter(|f| f.ordinal != field.ordinal).map(|f| f.name());
         let &FieldInfo { name: ref field_name, ty: ref field_type, ref generic_ident, .. } = field;
         let generics = self.modify_generics(|g| {
             for f in self.fields.iter() {
@@ -232,21 +240,57 @@ impl<'a> StructInfo<'a> {
         let (_, ty_generics, where_clause) = self.generics.split_for_impl();
 
         let ref helper_trait_method_name = self.conversion_helper_method_name;
-        let assignments = self.fields.iter().map(|field| {
-            let ref name = field.name;
-            if let Some(ref default) = field.default {
-                quote!(#name: self.#name.#helper_trait_method_name(#default))
-            } else {
-                quote!(#name: self.#name.0)
-            }
-        });
 
-        quote! {
-            #[allow(dead_code, non_camel_case_types, missing_docs)]
-            impl #impl_generics #builder_name #modified_ty_generics #where_clause {
-                pub fn build(self) -> #name #ty_generics {
-                    #name {
-                        #( #assignments ),*
+        match self.kind {
+            StructKind::Struct => {
+                let assignments = self.fields.iter().map(|field| {
+                    let ref name = field.name();
+                    if let Some(ref default) = field.default {
+                        quote!(#name: self.#name.#helper_trait_method_name(#default))
+                    } else {
+                        quote!(#name: self.#name.0)
+                    }
+                });
+
+                quote! {
+                    #[allow(dead_code, non_camel_case_types, missing_docs)]
+                    impl #impl_generics #builder_name #modified_ty_generics #where_clause {
+                        pub fn build(self) -> #name #ty_generics {
+                            #name {
+                                #( #assignments ),*
+                            }
+                        }
+                    }
+                }
+            }
+            StructKind::Tuple => {
+                let assignments = self.fields.iter().map(|field| {
+                    let ref name = field.name();
+                    if let Some(ref default) = field.default {
+                        quote!(self.#name.#helper_trait_method_name(#default))
+                    } else {
+                        quote!(self.#name.0)
+                    }
+                });
+
+                quote! {
+                    #[allow(dead_code, non_camel_case_types, missing_docs)]
+                    impl #impl_generics #builder_name #modified_ty_generics #where_clause {
+                        pub fn build(self) -> #name #ty_generics {
+                            #name (
+                                #( #assignments ),*
+                            )
+                        }
+                    }
+                }
+            }
+            StructKind::Unit => {
+                quote! {
+                    #[allow(dead_code, non_camel_case_types, missing_docs)]
+                    impl #impl_generics #builder_name #modified_ty_generics #where_clause {
+                        pub fn build(self) -> #name #ty_generics {
+                            #name
+                        }
                     }
                 }
             }
