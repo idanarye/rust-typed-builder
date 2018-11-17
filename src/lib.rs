@@ -1,3 +1,4 @@
+#![allow(unused_macros, unused_imports, unused_variables, dead_code)]
 //! # Typed Builder
 //!
 //! This crate provides a custom derive for `TypedBuilder`. `TypedBuilder` is not a real type -
@@ -55,44 +56,103 @@
 //! }
 //! ```
 extern crate proc_macro;
+extern crate proc_macro2;
 extern crate syn;
 
-#[macro_use]
 extern crate quote;
 
-use proc_macro::TokenStream;
+use proc_macro2::TokenStream;
+
+use syn::{
+    parse_macro_input,
+    DeriveInput,
+};
+use syn::parse::Error;
+use syn::spanned::Spanned;
+
+use quote::quote;
 
 mod util;
 mod field_info;
 mod struct_info;
+mod builder_attr;
 
 
 #[doc(hidden)]
 #[proc_macro_derive(TypedBuilder, attributes(default))]
-pub fn derive_typed_builder(input: TokenStream) -> TokenStream {
-    let ast = syn::parse_derive_input(&input.to_string()).unwrap();
-    impl_my_derive(&ast).parse().unwrap()
-}
-
-fn impl_my_derive(ast: &syn::DeriveInput) -> quote::Tokens {
-
-    match ast.body {
-        syn::Body::Struct(syn::VariantData::Struct(ref body)) => {
-            let struct_info = struct_info::StructInfo::new(&ast, body);
-            let builder_creation = struct_info.builder_creation_impl();
-            let conversion_helper = struct_info.conversion_helper_impl();
-            let fields = struct_info.fields.iter().map(|f| struct_info.field_impl(f));
-            let build_method = struct_info.build_method_impl();
-            quote!{
-                #builder_creation
-                #conversion_helper
-                #( #fields )*
-                #build_method
-            }
+pub fn derive_typed_builder(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
+    let input = parse_macro_input!(input as DeriveInput);
+    match impl_my_derive(&input) {
+        Ok(output) => {
+            output.into()
         },
-        syn::Body::Struct(syn::VariantData::Unit) => panic!("SmartBuilder is not supported for unit types"),
-        syn::Body::Struct(syn::VariantData::Tuple(_)) => panic!("SmartBuilder is not supported for tuples"),
-        syn::Body::Enum(_) => panic!("SmartBuilder is not supported for enums"),
+        Err(error) =>{
+            error.to_compile_error().into()
+        }
     }
 }
+
+fn impl_my_derive(ast: &syn::DeriveInput) -> Result<TokenStream, Error> {
+    let data = match &ast.data {
+        syn::Data::Struct(data) => {
+            match &data.fields {
+                syn::Fields::Named(fields) => {
+                    let struct_info = struct_info::StructInfo::new(&ast, fields.named.iter())?;
+                    // let builder_creation = struct_info.builder_creation_impl();
+                    // let conversion_helper = struct_info.conversion_helper_impl();
+                    // let fields = struct_info.fields.iter().map(|f| struct_info.field_impl(f));
+                    // let build_method = struct_info.build_method_impl();
+                    // quote!{
+                    // #builder_creation
+                    // #conversion_helper
+                    // #( #fields )*
+                    // #build_method
+                    // }
+                }
+                syn::Fields::Unnamed(_) => return Err(Error::new(ast.span(), "SmartBuilder is not supported for tuple structs")),
+                syn::Fields::Unit => return Err(Error::new(ast.span(), "SmartBuilder is not supported for unit structs")),
+            }
+        }
+        syn::Data::Enum(_) => return Err(Error::new(ast.span(), "SmartBuilder is not supported for enums")),
+        syn::Data::Union(_) => return Err(Error::new(ast.span(), "SmartBuilder is not supported for unions")),
+        // syn::Data::Struct(syn::VariantData::Struct(ref body)) => {
+            // let struct_info = struct_info::StructInfo::new(&ast, body);
+            // let builder_creation = struct_info.builder_creation_impl();
+            // let conversion_helper = struct_info.conversion_helper_impl();
+            // let fields = struct_info.fields.iter().map(|f| struct_info.field_impl(f));
+            // let build_method = struct_info.build_method_impl();
+            // quote!{
+                // #builder_creation
+                // #conversion_helper
+                // #( #fields )*
+                // #build_method
+            // }
+        // },
+        // syn::Data::Struct(syn::VariantData::Unit) => panic!("SmartBuilder is not supported for unit types"),
+        // syn::Data::Struct(syn::VariantData::Tuple(_)) => panic!("SmartBuilder is not supported for tuples"),
+        // syn::Data::Enum(_) => panic!("SmartBuilder is not supported for enums"),
+    };
+    panic!()
+}
+// fn impl_my_derive(ast: &syn::DeriveInput) -> TokenStream {
+
+    // match ast.body {
+        // syn::Body::Struct(syn::VariantData::Struct(ref body)) => {
+            // let struct_info = struct_info::StructInfo::new(&ast, body);
+            // let builder_creation = struct_info.builder_creation_impl();
+            // let conversion_helper = struct_info.conversion_helper_impl();
+            // let fields = struct_info.fields.iter().map(|f| struct_info.field_impl(f));
+            // let build_method = struct_info.build_method_impl();
+            // quote!{
+                // #builder_creation
+                // #conversion_helper
+                // #( #fields )*
+                // #build_method
+            // }
+        // },
+        // syn::Body::Struct(syn::VariantData::Unit) => panic!("SmartBuilder is not supported for unit types"),
+        // syn::Body::Struct(syn::VariantData::Tuple(_)) => panic!("SmartBuilder is not supported for tuples"),
+        // syn::Body::Enum(_) => panic!("SmartBuilder is not supported for enums"),
+    // }
+// }
 
