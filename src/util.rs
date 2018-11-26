@@ -47,3 +47,25 @@ pub fn expr_to_single_string(expr: &syn::Expr) -> Option<String> {
         None
     }
 }
+
+pub fn ident_to_type(ident: syn::Ident) -> syn::Type {
+    let mut path = syn::Path {
+        leading_colon: None,
+        segments: Default::default(),
+    };
+    path.segments.push(syn::PathSegment {
+        ident: ident,
+        arguments: Default::default(),
+    });
+    syn::Type::Path(syn::TypePath {
+        qself: None,
+        path: path,
+    })
+}
+
+pub fn empty_type() -> syn::Type {
+    syn::TypeTuple {
+        paren_token: Default::default(),
+        elems: Default::default(),
+    }.into()
+}

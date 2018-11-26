@@ -2,10 +2,11 @@ use syn;
 use proc_macro2::TokenStream;
 use syn::parse::Error;
 use syn::spanned::Spanned;
+use quote::quote;
 
-use util::expr_to_single_string;
+use util::{expr_to_single_string, path_to_single_string};
 
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct BuilderAttr {
     pub default: Option<syn::Expr>,
 }
@@ -48,7 +49,20 @@ impl BuilderAttr {
                         Ok(())
                     }
                     _ => {
-                        Err(Error::new_spanned(&name, format!("Unknown parameter {:?}", name)))
+                        Err(Error::new_spanned(&assign, format!("Unknown parameter {:?}", name)))
+                    }
+                }
+            }
+            syn::Expr::Path(path) => {
+                let name = path_to_single_string(&path.path).ok_or_else(
+                    || Error::new_spanned(&path, "Expected identifier"))?;
+                match name.as_str() {
+                    "default" => {
+                        self.default = Some(syn::parse(quote!(Default::default()).into()).unwrap());
+                        Ok(())
+                    }
+                    _ => {
+                        Err(Error::new_spanned(&path, format!("Unknown parameter {:?}", name)))
                     }
                 }
             }

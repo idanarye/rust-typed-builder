@@ -7,7 +7,7 @@ struct Foo {
     x: i32,
 
     // #[default] without parameter - use the type's default
-    #[builder]
+    #[builder(default)]
     y: Option<i32>,
 
     // Or you can set the default(encoded as string)
