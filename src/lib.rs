@@ -79,7 +79,7 @@ mod builder_attr;
 
 
 #[doc(hidden)]
-#[proc_macro_derive(TypedBuilder, attributes(default))]
+#[proc_macro_derive(TypedBuilder, attributes(builder))]
 pub fn derive_typed_builder(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     let input = parse_macro_input!(input as DeriveInput);
     match impl_my_derive(&input) {
@@ -103,18 +103,20 @@ fn impl_my_derive(ast: &syn::DeriveInput) -> Result<TokenStream, Error> {
                     let conversion_helper = struct_info.conversion_helper_impl()?;
                     // println!("conversion_helper\n==============\n{}\n==============", conversion_helper);
                     let fields = struct_info.fields.iter().map(|f| struct_info.field_impl(f).unwrap());
-                    for field in fields {
-                        println!("field\n==============\n{}\n==============", quote!(#field));
-                    }
-                    // let fields = quote!(#(#fields)*);
-                    // println!("fields\n==============\n{}\n==============", fields);
-                    // let build_method = struct_info.build_method_impl();
-                    // quote!{
-                    // #builder_creation
-                    // #conversion_helper
-                    // #( #fields )*
-                    // #build_method
+                    // for field in fields {
+                        // println!("field\n==============\n{}\n==============", quote!(#field));
                     // }
+                    let fields = quote!(#(#fields)*);
+                    // println!("Fields be {}", fields);
+                    // println!("fields\n==============\n{}\n==============", fields);
+                    let build_method = struct_info.build_method_impl();
+
+                    quote!{
+                        #builder_creation
+                        #conversion_helper
+                        #( #fields )*
+                        #build_method
+                    }
                 }
                 syn::Fields::Unnamed(_) => return Err(Error::new(ast.span(), "SmartBuilder is not supported for tuple structs")),
                 syn::Fields::Unit => return Err(Error::new(ast.span(), "SmartBuilder is not supported for unit structs")),
@@ -139,7 +141,9 @@ fn impl_my_derive(ast: &syn::DeriveInput) -> Result<TokenStream, Error> {
         // syn::Data::Struct(syn::VariantData::Tuple(_)) => panic!("SmartBuilder is not supported for tuples"),
         // syn::Data::Enum(_) => panic!("SmartBuilder is not supported for enums"),
     };
-    panic!()
+    // println!("{}", data);
+    Ok(data)
+    // Ok(quote!())
 }
 // fn impl_my_derive(ast: &syn::DeriveInput) -> TokenStream {
 

@@ -3,10 +3,10 @@ use syn;
 use proc_macro2::TokenStream;
 use syn::parse::Error;
 use syn::spanned::Spanned;
-use quote::quote;
+use quote::{quote, ToTokens};
 
 use field_info::FieldInfo;
-use util::{make_identifier, empty_type};
+use util::{make_identifier, empty_type, make_punctuated_single, modify_types_generics_hack};
 
 #[derive(Debug)]
 pub struct StructInfo<'a> {
@@ -60,6 +60,11 @@ impl<'a> StructInfo<'a> {
                 g.params.push(field.generic_ty_param());
             }
         });
+        let generics_with_empty = modify_types_generics_hack(&ty_generics, |args| {
+            for _ in self.fields.iter() {
+                args.push(syn::GenericArgument::Type(FieldInfo::empty_type()));
+            }
+        });
         // println!("b_generics {:?}", b_generics);
         // let generics_with_empty = self.modify_generics(|g| {
             // for _ in self.fields.iter() {
@@ -82,7 +87,7 @@ impl<'a> StructInfo<'a> {
             impl #impl_generics #name #ty_generics #where_clause {
                 #[doc=#doc]
                 #[allow(dead_code)]
-                #vis fn builder() -> #builder_name /*#generics_with_empty*/ {
+                #vis fn builder() -> #builder_name #generics_with_empty {
                     #builder_name {
                         _TypedBuilder__phantomGenerics_: ::std::default::Default::default(),
                         #init_empties
@@ -203,65 +208,68 @@ impl<'a> StructInfo<'a> {
         })
     }
 
-    // pub fn build_method_impl(&self) -> TokenStream {
-        // let StructInfo { ref name, ref builder_name, .. } = *self;
+    pub fn build_method_impl(&self) -> TokenStream {
+        let StructInfo { ref name, ref builder_name, .. } = *self;
 
-        // let generics = self.modify_generics(|g| {
-            // for field in self.fields.iter() {
-                // if field.default.is_some() {
-                    // let mut ty_param = field.generic_ty_param();
-                    // let poly_trait_ref = syn::PolyTraitRef {
-                        // bound_lifetimes: Vec::new(),
-                        // // trait_ref: self.conversion_helper_trait_name.clone().into(),
-                        // trait_ref: syn::PathSegment {
-                            // ident: self.conversion_helper_trait_name.clone(),
-                            // parameters: syn::PathParameters::AngleBracketed(
-                                // syn::AngleBracketedParameterData{
-                                    // lifetimes: Vec::new(),
-                                    // types: vec![field.ty.clone()],
-                                    // bindings: Vec::new(),
-                                // })
-                        // }.into(),
-                    // };
-                    // ty_param.bounds.push(syn::TyParamBound::Trait(poly_trait_ref, syn::TraitBoundModifier::None));
-                    // g.ty_params.push(ty_param);
-                // }
-            // }
-        // });
-        // let (impl_generics, _, _) = generics.split_for_impl();
+        let generics = self.modify_generics(|g| {
+            for field in self.fields.iter() {
+                if field.builder_attr.default.is_some() {
+                    let mut ty_param = field.generic_ty_param();
+                    let trait_ref = syn::TraitBound {
+                        paren_token: None,
+                        lifetimes: None,
+                        modifier: syn::TraitBoundModifier::None,
+                        path: syn::PathSegment {
+                            ident: self.conversion_helper_trait_name.clone(),
+                            arguments: syn::PathArguments::AngleBracketed(
+                                syn::AngleBracketedGenericArguments{
+                                    // colon2_token: Some(Default::default()),
+                                    colon2_token: None,
+                                    lt_token: Default::default(),
+                                    args: make_punctuated_single(syn::GenericArgument::Type(field.ty.clone())),
+                                    gt_token: Default::default(),
+                                })
+                        }.into(),
+                    };
+                    let mut generic_param: syn::TypeParam = field.generic_ident.clone().into();
+                    generic_param.bounds.push(trait_ref.into());
+                    g.params.push(generic_param.into());
+                }
+            }
+        });
+        let (impl_generics, _, _) = generics.split_for_impl();
 
-        // let generics = self.modify_generics(|g| {
-            // for field in self.fields.iter() {
-                // if field.default.is_some() {
-                    // g.ty_params.push(field.generic_ty_param());
-                // } else {
-                    // g.ty_params.push(field.tuplized_type_ty_param());
-                // }
-            // }
-        // });
-        // let (_, modified_ty_generics, _) = generics.split_for_impl();
+        let (_, ty_generics, where_clause) = self.generics.split_for_impl();
 
-        // let (_, ty_generics, where_clause) = self.generics.split_for_impl();
+        let modified_ty_generics = modify_types_generics_hack(&ty_generics, |args| {
+            for field in self.fields.iter() {
+                let required_type = if field.builder_attr.default.is_some() {
+                    field.type_ident()
+                } else {
+                    field.tuplized_type_ty_param()
+                };
+                args.push(syn::GenericArgument::Type(required_type));
+            }
+        });
 
-        // let ref helper_trait_method_name = self.conversion_helper_method_name;
-        // let assignments = self.fields.iter().map(|field| {
-            // let ref name = field.name;
-            // if let Some(ref default) = field.default {
-                // quote!(#name: self.#name.#helper_trait_method_name(#default))
-            // } else {
-                // quote!(#name: self.#name.0)
-            // }
-        // });
-
-        // quote! {
-            // #[allow(dead_code, non_camel_case_types, missing_docs)]
-            // impl #impl_generics #builder_name #modified_ty_generics #where_clause {
-                // pub fn build(self) -> #name #ty_generics {
-                    // #name {
-                        // #( #assignments ),*
-                    // }
-                // }
-            // }
-        // }
-    // }
+        let ref helper_trait_method_name = self.conversion_helper_method_name;
+        let assignments = self.fields.iter().map(|field| {
+            let ref name = field.name;
+            if let Some(ref default) = field.builder_attr.default {
+                quote!(#name: self.#name.#helper_trait_method_name(#default))
+            } else {
+                quote!(#name: self.#name.0)
+            }
+        });
+        quote!(
+            #[allow(dead_code, non_camel_case_types, missing_docs)]
+            impl #impl_generics #builder_name #modified_ty_generics #where_clause {
+                pub fn build(self) -> #name #ty_generics {
+                    #name {
+                        #( #assignments ),*
+                    }
+                }
+            }
+        ).into()
+    }
 }

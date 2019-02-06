@@ -14,7 +14,6 @@ pub struct FieldInfo<'a> {
     pub generic_ident: syn::Ident,
     pub ty: &'a syn::Type,
     pub builder_attr: BuilderAttr,
-    // pub default: Option<TokenStream>,
 }
 
 impl<'a> FieldInfo<'a> {
@@ -63,6 +62,13 @@ impl<'a> FieldInfo<'a> {
         syn::TypeTuple {
             paren_token: Default::default(),
             elems: types,
+        }.into()
+    }
+
+    pub fn empty_type() -> syn::Type {
+        syn::TypeTuple {
+            paren_token: Default::default(),
+            elems: Default::default(),
         }.into()
     }
 

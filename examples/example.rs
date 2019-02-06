@@ -36,3 +36,4 @@ fn main() {
     // This will not compile - because we set y twice:
     // Foo::builder().x(1).y(2).y(3);
 }
+
