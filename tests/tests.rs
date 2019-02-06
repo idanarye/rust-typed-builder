@@ -49,14 +49,14 @@ fn test_into() {
 fn test_default() {
     #[derive(PartialEq, TypedBuilder)]
     struct Foo {
-        #[default]
+        #[builder(default)]
         x: Option<i32>,
-        #[default="-1"]
+        #[builder(default=10)]
         y: i32,
     }
 
-    assert!(Foo::builder().build() == Foo { x: None, y: -1 });
-    assert!(Foo::builder().x(1).build() == Foo { x: Some(1), y: -1 });
+    assert!(Foo::builder().build() == Foo { x: None, y: 10 });
+    assert!(Foo::builder().x(1).build() == Foo { x: Some(1), y: 10 });
     assert!(Foo::builder().y(2).build() == Foo { x: None, y: 2 });
     assert!(Foo::builder().x(1).y(2).build() == Foo { x: Some(1), y: 2 });
 }

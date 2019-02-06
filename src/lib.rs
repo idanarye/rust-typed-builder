@@ -25,11 +25,11 @@
 //!     x: i32,
 //!
 //!     // #[default] without parameter - use the type's default
-//!     #[default]
+//!     #[builder(default)]
 //!     y: Option<i32>,
 //!
 //!     // Or you can set the default(encoded as string)
-//!     #[default="20"]
+//!     #[builder(default=20)]
 //!     z: i32,
 //! }
 //!
@@ -111,6 +111,8 @@ fn impl_my_derive(ast: &syn::DeriveInput) -> Result<TokenStream, Error> {
                     // println!("fields\n==============\n{}\n==============", fields);
                     let build_method = struct_info.build_method_impl();
 
+                    // eprintln!("===\n{}\n===", builder_creation);
+                    // println!("{}", builder_creation);
                     quote!{
                         #builder_creation
                         #conversion_helper

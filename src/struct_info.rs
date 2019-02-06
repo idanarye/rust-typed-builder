@@ -73,15 +73,25 @@ impl<'a> StructInfo<'a> {
         // });
         // let (_, generics_with_empty, _) = generics_with_empty.split_for_impl();
         // println!("generics_with_empty {:?}", generics_with_empty);
-        let phantom_generics = {
-            let lifetimes = self.generics.lifetimes().map(|l| &l.lifetime);
-            let types = self.generics.params.clone();//.iter().map(|t| &t.ident);
-            quote!{
-                #( ::std::marker::PhantomData<&#lifetimes ()>, )*
-                #( ::std::marker::PhantomData<#types>, )*
+        let phantom_generics = self.generics.params.iter().map(|param| {
+            match param {
+                syn::GenericParam::Lifetime(lifetime) => quote!(&#lifetime ()),
+                syn::GenericParam::Type(ty) => {
+                    let ty = &ty.ident;
+                    quote!(#ty)
+                },
+                syn::GenericParam::Const(cnst) => {
+                    let cnst = &cnst.ident;
+                    quote!(#cnst)
+                },
             }
-        };
-        // println!("phantom_generics {}", quote!(#phantom_generics));
+            // let lifetimes = self.generics.lifetimes().map(|l| &l.lifetime);
+            // let types = self.generics.params.clone();//.iter().map(|t| &t.ident);
+            // quote!{
+                // #( ::std::marker::PhantomData<&#lifetimes ()>, )*
+                // #( ::std::marker::PhantomData<#types>, )*
+            // }
+        });
         let doc = self.builder_doc();
         Ok(quote! {
             impl #impl_generics #name #ty_generics #where_clause {
@@ -99,7 +109,7 @@ impl<'a> StructInfo<'a> {
             #[doc(hidden)]
             #[allow(dead_code, non_camel_case_types, non_snake_case)]
             #vis struct #builder_name #b_generics {
-                _TypedBuilder__phantomGenerics_: (#phantom_generics),
+                _TypedBuilder__phantomGenerics_: (#( ::std::marker::PhantomData<#phantom_generics> ),*),
                 #builder_generics
             }
         })
