@@ -1,5 +1,6 @@
-#[macro_use]
 extern crate typed_builder;
+
+use typed_builder::TypedBuilder;
 
 #[test]
 fn test_simple() {

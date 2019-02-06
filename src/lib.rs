@@ -9,9 +9,8 @@
 //!
 //! Trying to set the same fields twice will generate a compile-time error. Trying to build without
 //! setting one of the fields will also generate a compile-time error - unless that field is marked
-//! as `#[default]`, in which case the `::default()` value of it's type will be picked. If you want
-//! to set a different default, use `#[default="..."]` - note that it has to be encoded in a
-//! string, so `1` is `#[default="1"]` and `"hello"` is `#[default="\"hello\""]`.
+//! as `#[builder(default)]`, in which case the `::default()` value of it's type will be picked. If
+//! you want to set a different default, use `#[builder(default=...)]`.
 //!
 //! # Examples
 //!
@@ -28,7 +27,7 @@
 //!     #[builder(default)]
 //!     y: Option<i32>,
 //!
-//!     // Or you can set the default(encoded as string)
+//!     // Or you can set the default
 //!     #[builder(default=20)]
 //!     z: i32,
 //! }
@@ -99,20 +98,11 @@ fn impl_my_derive(ast: &syn::DeriveInput) -> Result<TokenStream, Error> {
                 syn::Fields::Named(fields) => {
                     let struct_info = struct_info::StructInfo::new(&ast, fields.named.iter())?;
                     let builder_creation = struct_info.builder_creation_impl()?;
-                    // println!("builder_creation\n==============\n{}\n==============", builder_creation);
                     let conversion_helper = struct_info.conversion_helper_impl()?;
-                    // println!("conversion_helper\n==============\n{}\n==============", conversion_helper);
                     let fields = struct_info.fields.iter().map(|f| struct_info.field_impl(f).unwrap());
-                    // for field in fields {
-                        // println!("field\n==============\n{}\n==============", quote!(#field));
-                    // }
                     let fields = quote!(#(#fields)*);
-                    // println!("Fields be {}", fields);
-                    // println!("fields\n==============\n{}\n==============", fields);
                     let build_method = struct_info.build_method_impl();
 
-                    // eprintln!("===\n{}\n===", builder_creation);
-                    // println!("{}", builder_creation);
                     quote!{
                         #builder_creation
                         #conversion_helper
@@ -126,45 +116,6 @@ fn impl_my_derive(ast: &syn::DeriveInput) -> Result<TokenStream, Error> {
         }
         syn::Data::Enum(_) => return Err(Error::new(ast.span(), "SmartBuilder is not supported for enums")),
         syn::Data::Union(_) => return Err(Error::new(ast.span(), "SmartBuilder is not supported for unions")),
-        // syn::Data::Struct(syn::VariantData::Struct(ref body)) => {
-            // let struct_info = struct_info::StructInfo::new(&ast, body);
-            // let builder_creation = struct_info.builder_creation_impl();
-            // let conversion_helper = struct_info.conversion_helper_impl();
-            // let fields = struct_info.fields.iter().map(|f| struct_info.field_impl(f));
-            // let build_method = struct_info.build_method_impl();
-            // quote!{
-                // #builder_creation
-                // #conversion_helper
-                // #( #fields )*
-                // #build_method
-            // }
-        // },
-        // syn::Data::Struct(syn::VariantData::Unit) => panic!("SmartBuilder is not supported for unit types"),
-        // syn::Data::Struct(syn::VariantData::Tuple(_)) => panic!("SmartBuilder is not supported for tuples"),
-        // syn::Data::Enum(_) => panic!("SmartBuilder is not supported for enums"),
     };
-    // println!("{}", data);
     Ok(data)
-    // Ok(quote!())
 }
-// fn impl_my_derive(ast: &syn::DeriveInput) -> TokenStream {
-
-    // match ast.body {
-        // syn::Body::Struct(syn::VariantData::Struct(ref body)) => {
-            // let struct_info = struct_info::StructInfo::new(&ast, body);
-            // let builder_creation = struct_info.builder_creation_impl();
-            // let conversion_helper = struct_info.conversion_helper_impl();
-            // let fields = struct_info.fields.iter().map(|f| struct_info.field_impl(f));
-            // let build_method = struct_info.build_method_impl();
-            // quote!{
-                // #builder_creation
-                // #conversion_helper
-                // #( #fields )*
-                // #build_method
-            // }
-        // },
-        // syn::Body::Struct(syn::VariantData::Unit) => panic!("SmartBuilder is not supported for unit types"),
-        // syn::Body::Struct(syn::VariantData::Tuple(_)) => panic!("SmartBuilder is not supported for tuples"),
-        // syn::Body::Enum(_) => panic!("SmartBuilder is not supported for enums"),
-    // }
-// }

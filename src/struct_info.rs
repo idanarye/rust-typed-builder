@@ -5,8 +5,8 @@ use syn::parse::Error;
 use syn::spanned::Spanned;
 use quote::{quote, ToTokens};
 
-use field_info::FieldInfo;
-use util::{make_identifier, empty_type, make_punctuated_single, modify_types_generics_hack};
+use crate::field_info::FieldInfo;
+use crate::util::{make_identifier, empty_type, make_punctuated_single, modify_types_generics_hack};
 
 #[derive(Debug)]
 pub struct StructInfo<'a> {
@@ -41,18 +41,15 @@ impl<'a> StructInfo<'a> {
 
     pub fn builder_creation_impl(&self) -> Result<TokenStream, Error> {
         let modif = self.modify_generics(|g| g.params.push(self.fields[0].generic_ty_param()));
-        // println!("modif {:?}", modif);
         let init_empties = {
             let names = self.fields.iter().map(|f| f.name);
             quote!(#( #names: () ),*)
         };
-        // println!("empties {}", init_empties);
         let builder_generics = {
             let names = self.fields.iter().map(|f| f.name);
             let generic_idents = self.fields.iter().map(|f| &f.generic_ident);
             quote!(#( #names: #generic_idents ),*)
         };
-        // println!("builder_generics {}", builder_generics);
         let StructInfo { ref vis, ref name, ref builder_name, .. } = *self;
         let (impl_generics, ty_generics, where_clause) = self.generics.split_for_impl();
         let b_generics = self.modify_generics(|g| {
@@ -62,17 +59,9 @@ impl<'a> StructInfo<'a> {
         });
         let generics_with_empty = modify_types_generics_hack(&ty_generics, |args| {
             for _ in self.fields.iter() {
-                args.push(syn::GenericArgument::Type(FieldInfo::empty_type()));
+                args.push(syn::GenericArgument::Type(empty_type()));
             }
         });
-        // println!("b_generics {:?}", b_generics);
-        // let generics_with_empty = self.modify_generics(|g| {
-            // for _ in self.fields.iter() {
-                // g.params.push(FieldInfo::empty_ty_param().into());
-            // }
-        // });
-        // let (_, generics_with_empty, _) = generics_with_empty.split_for_impl();
-        // println!("generics_with_empty {:?}", generics_with_empty);
         let phantom_generics = self.generics.params.iter().map(|param| {
             match param {
                 syn::GenericParam::Lifetime(lifetime) => quote!(&#lifetime ()),
@@ -85,12 +74,6 @@ impl<'a> StructInfo<'a> {
                     quote!(#cnst)
                 },
             }
-            // let lifetimes = self.generics.lifetimes().map(|l| &l.lifetime);
-            // let types = self.generics.params.clone();//.iter().map(|t| &t.ident);
-            // quote!{
-                // #( ::std::marker::PhantomData<&#lifetimes ()>, )*
-                // #( ::std::marker::PhantomData<#types>, )*
-            // }
         });
         let doc = self.builder_doc();
         Ok(quote! {
@@ -233,7 +216,6 @@ impl<'a> StructInfo<'a> {
                             ident: self.conversion_helper_trait_name.clone(),
                             arguments: syn::PathArguments::AngleBracketed(
                                 syn::AngleBracketedGenericArguments{
-                                    // colon2_token: Some(Default::default()),
                                     colon2_token: None,
                                     lt_token: Default::default(),
                                     args: make_punctuated_single(syn::GenericArgument::Type(field.ty.clone())),

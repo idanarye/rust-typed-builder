@@ -4,7 +4,7 @@ use syn::parse::Error;
 use syn::spanned::Spanned;
 use quote::quote;
 
-use util::{expr_to_single_string, path_to_single_string};
+use crate::util::{expr_to_single_string, path_to_single_string};
 
 #[derive(Debug, Default)]
 pub struct BuilderAttr {

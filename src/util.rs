@@ -8,7 +8,7 @@ pub fn make_identifier(kind: &str, name: &syn::Ident) -> syn::Ident {
     syn::Ident::new(&format!("TypedBuilder_{}_{}", kind, name), proc_macro2::Span::call_site())
 }
 
-// Panic if there is more than one.
+// Returns error if there is more than one.
 pub fn map_only_one<S, T, F>(iter: &[S], dlg: F) -> Result<Option<T>, Error>
 where F: Fn(&S) -> Result<Option<T>, Error>,
       S: Spanned,

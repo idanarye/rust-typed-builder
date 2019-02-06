@@ -4,8 +4,8 @@ use syn::spanned::Spanned;
 use syn::parse::Error;
 use quote::quote;
 
-use util::{make_identifier, map_only_one, path_to_single_string, ident_to_type};
-use builder_attr::BuilderAttr;
+use crate::util::{make_identifier, map_only_one, path_to_single_string, ident_to_type};
+use crate::builder_attr::BuilderAttr;
 
 #[derive(Debug)]
 pub struct FieldInfo<'a> {
@@ -47,7 +47,6 @@ impl<'a> FieldInfo<'a> {
     }
 
     pub fn type_param(&self) -> syn::TypeParam {
-        // syn::TypeParam::Type(self.generic_ident.clone().into())
         self.generic_ident.clone().into()
     }
 
@@ -63,16 +62,5 @@ impl<'a> FieldInfo<'a> {
             paren_token: Default::default(),
             elems: types,
         }.into()
-    }
-
-    pub fn empty_type() -> syn::Type {
-        syn::TypeTuple {
-            paren_token: Default::default(),
-            elems: Default::default(),
-        }.into()
-    }
-
-    pub fn empty_ty_param() -> syn::TypeParam {
-        syn::TypeParam::from(syn::Ident::new("x", proc_macro2::Span::call_site()))
     }
 }

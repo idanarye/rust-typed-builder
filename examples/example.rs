@@ -1,5 +1,6 @@
-#[macro_use]
 extern crate typed_builder;
+
+use typed_builder::TypedBuilder;
 
 #[derive(PartialEq, TypedBuilder)]
 struct Foo {

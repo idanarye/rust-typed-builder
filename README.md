@@ -15,12 +15,12 @@ struct Foo {
     // Mandatory Field:
     x: i32,
 
-    // #[default] without parameter - use the type's default
-    #[default]
+    // #[builder(default)] without parameter - use the type's default
+    #[builder(default)]
     y: Option<i32>,
 
-    // Or you can set the default(encoded as string)
-    #[default="20"]
+    // Or you can set the default
+    #[builder(default=20)]
     z: i32,
 }
 ```
@@ -48,7 +48,7 @@ Foo::builder().x(1).y(2).y(3); // y is specified twice
 * All setters are accepting `Into` values.
 * Compile time verification that all fields are set before calling `.build()`.
 * Compile time verification that no field is set more than once.
-* Ability to annotate fields with `#[default]` to make them optional and specify a default value when the user does not set them.
+* Ability to annotate fields with `#[builder(default)]` to make them optional and specify a default value when the user does not set them.
 * Generates simple documentation for the `.builder()` method.
 
 # Limitations
