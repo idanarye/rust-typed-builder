@@ -1,8 +1,6 @@
 use syn;
-use proc_macro2::TokenStream;
 use syn::spanned::Spanned;
 use syn::parse::Error;
-use quote::quote;
 
 use crate::util::{make_identifier, map_only_one, path_to_single_string, ident_to_type};
 use crate::builder_attr::BuilderAttr;
@@ -44,10 +42,6 @@ impl<'a> FieldInfo<'a> {
 
     pub fn generic_ty_param(&self) -> syn::GenericParam {
         syn::GenericParam::Type(self.generic_ident.clone().into())
-    }
-
-    pub fn type_param(&self) -> syn::TypeParam {
-        self.generic_ident.clone().into()
     }
 
     pub fn type_ident(&self) -> syn::Type {

@@ -2,8 +2,7 @@ use syn;
 
 use proc_macro2::TokenStream;
 use syn::parse::Error;
-use syn::spanned::Spanned;
-use quote::{quote, ToTokens};
+use quote::quote;
 
 use crate::field_info::FieldInfo;
 use crate::util::{make_identifier, empty_type, make_punctuated_single, modify_types_generics_hack};
@@ -40,7 +39,6 @@ impl<'a> StructInfo<'a> {
     }
 
     pub fn builder_creation_impl(&self) -> Result<TokenStream, Error> {
-        let modif = self.modify_generics(|g| g.params.push(self.fields[0].generic_ty_param()));
         let init_empties = {
             let names = self.fields.iter().map(|f| f.name);
             quote!(#( #names: () ),*)
@@ -207,7 +205,6 @@ impl<'a> StructInfo<'a> {
         let generics = self.modify_generics(|g| {
             for field in self.fields.iter() {
                 if field.builder_attr.default.is_some() {
-                    let mut ty_param = field.generic_ty_param();
                     let trait_ref = syn::TraitBound {
                         paren_token: None,
                         lifetimes: None,

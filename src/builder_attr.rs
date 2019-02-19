@@ -1,7 +1,6 @@
 use syn;
 use proc_macro2::TokenStream;
 use syn::parse::Error;
-use syn::spanned::Spanned;
 use quote::quote;
 
 use crate::util::{expr_to_single_string, path_to_single_string};
