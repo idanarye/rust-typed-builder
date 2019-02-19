@@ -9,6 +9,9 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - `#[builder(default_code = "...")]` syntax for defaults that cannot be parsed
   as attributes no matter what.
 
+### Changed
+- Move the docs from the crate to the custom derive proc macro.
+
 ## 0.2.0 - 2019-02-06
 ### Changed
 - Upgraded `syn` version to support Rust 2018.
