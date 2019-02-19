@@ -54,10 +54,13 @@ fn test_default() {
         x: Option<i32>,
         #[builder(default=10)]
         y: i32,
+        #[builder(default_code="vec![20, 30, 40]")]
+        z: Vec<i32>
     }
 
-    assert!(Foo::builder().build() == Foo { x: None, y: 10 });
-    assert!(Foo::builder().x(1).build() == Foo { x: Some(1), y: 10 });
-    assert!(Foo::builder().y(2).build() == Foo { x: None, y: 2 });
-    assert!(Foo::builder().x(1).y(2).build() == Foo { x: Some(1), y: 2 });
+    assert!(Foo::builder().build() == Foo { x: None, y: 10, z: vec![20, 30, 40] });
+    assert!(Foo::builder().x(1).build() == Foo { x: Some(1), y: 10, z: vec![20, 30, 40] });
+    assert!(Foo::builder().y(2).build() == Foo { x: None, y: 2, z: vec![20, 30, 40] });
+    assert!(Foo::builder().x(1).y(2).build() == Foo { x: Some(1), y: 2, z: vec![20, 30, 40] });
+    assert!(Foo::builder().z(vec![1, 2, 3]).build() == Foo { x: None, y: 10, z: vec![1, 2, 3] });
 }

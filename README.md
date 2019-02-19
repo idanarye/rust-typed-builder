@@ -22,13 +22,17 @@ struct Foo {
     // Or you can set the default
     #[builder(default=20)]
     z: i32,
+
+    // If the default cannot be parsed, you must encode it as a string:
+    #[builder(default_code="vec![30, 40]")]
+    w: Vec<u32>,
 }
 ```
 
 Build in any order:
 ```rust
-Foo::builder().x(1).y(2).z(3).build();
-Foo::builder().z(1).x(2).y(3).build();
+Foo::builder().x(1).y(2).z(3).w(vec![4, 5]).build();
+Foo::builder().z(1).x(2).w(vec![4, 5]).y(3).build();
 ```
 
 Omit optional fields(the one marked with `#[default]`):

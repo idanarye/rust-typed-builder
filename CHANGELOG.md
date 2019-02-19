@@ -4,6 +4,11 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+### Added
+- `#[builder(default_code = "...")]` syntax for defaults that cannot be parsed
+  as attributes no matter what.
+
 ## 0.2.0 - 2019-02-06
 ### Changed
 - Upgraded `syn` version to support Rust 2018.
