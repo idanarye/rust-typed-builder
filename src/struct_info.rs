@@ -17,6 +17,7 @@ pub struct StructInfo<'a> {
     pub builder_name: syn::Ident,
     pub conversion_helper_trait_name: syn::Ident,
     pub conversion_helper_method_name: syn::Ident,
+    pub core: syn::Ident,
 }
 
 impl<'a> StructInfo<'a> {
@@ -29,6 +30,7 @@ impl<'a> StructInfo<'a> {
             builder_name: make_identifier("BuilderFor", &ast.ident),
             conversion_helper_trait_name: make_identifier("conversionHelperTrait", &ast.ident),
             conversion_helper_method_name: make_identifier("conversionHelperMethod", &ast.ident),
+            core: make_identifier("core", &ast.ident),
         })
     }
 
@@ -48,7 +50,7 @@ impl<'a> StructInfo<'a> {
             let generic_idents = self.fields.iter().map(|f| &f.generic_ident);
             quote!(#( #names: #generic_idents ),*)
         };
-        let StructInfo { ref vis, ref name, ref builder_name, .. } = *self;
+        let StructInfo { ref vis, ref name, ref builder_name, ref core, .. } = *self;
         let (impl_generics, ty_generics, where_clause) = self.generics.split_for_impl();
         let b_generics = self.modify_generics(|g| {
             for field in self.fields.iter() {
@@ -61,7 +63,7 @@ impl<'a> StructInfo<'a> {
             }
         });
         let phantom_generics = self.generics.params.iter().map(|param| {
-            match param {
+            let t = match param {
                 syn::GenericParam::Lifetime(lifetime) => quote!(&#lifetime ()),
                 syn::GenericParam::Type(ty) => {
                     let ty = &ty.ident;
@@ -71,16 +73,18 @@ impl<'a> StructInfo<'a> {
                     let cnst = &cnst.ident;
                     quote!(#cnst)
                 },
-            }
+            };
+            quote!(#core::marker::PhantomData<#t>)
         });
         let doc = self.builder_doc();
         Ok(quote! {
+            extern crate core as #core;
             impl #impl_generics #name #ty_generics #where_clause {
                 #[doc=#doc]
                 #[allow(dead_code)]
                 #vis fn builder() -> #builder_name #generics_with_empty {
                     #builder_name {
-                        _TypedBuilder__phantomGenerics_: ::std::default::Default::default(),
+                        _TypedBuilder__phantomGenerics_: #core::default::Default::default(),
                         #init_empties
                     }
                 }
@@ -90,7 +94,7 @@ impl<'a> StructInfo<'a> {
             #[doc(hidden)]
             #[allow(dead_code, non_camel_case_types, non_snake_case)]
             #vis struct #builder_name #b_generics {
-                _TypedBuilder__phantomGenerics_: (#( ::std::marker::PhantomData<#phantom_generics> ),*),
+                _TypedBuilder__phantomGenerics_: (#( #phantom_generics ),*),
                 #builder_generics
             }
         })
@@ -148,7 +152,7 @@ impl<'a> StructInfo<'a> {
     }
 
     pub fn field_impl(&self, field: &FieldInfo) -> Result<TokenStream, Error> {
-        let ref builder_name = self.builder_name;
+        let StructInfo { ref builder_name, ref core, .. } = *self;
         let other_fields_name =
             self.fields.iter().filter(|f| f.ordinal != field.ordinal).map(|f| f.name);
         // not really "value", since we just use to self.name - but close enough.
@@ -188,7 +192,7 @@ impl<'a> StructInfo<'a> {
         Ok(quote!{
             #[allow(dead_code, non_camel_case_types, missing_docs)]
             impl #impl_generics #builder_name < #( #ty_generics ),* > #where_clause {
-                pub fn #field_name<#generic_ident: ::std::convert::Into<#field_type>>(self, value: #generic_ident) -> #builder_name < #( #target_generics ),* > {
+                pub fn #field_name<#generic_ident: #core::convert::Into<#field_type>>(self, value: #generic_ident) -> #builder_name < #( #target_generics ),* > {
                     #builder_name {
                         _TypedBuilder__phantomGenerics_: self._TypedBuilder__phantomGenerics_,
                         #field_name: (value.into(),),
