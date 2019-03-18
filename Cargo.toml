@@ -8,6 +8,7 @@ repository = "https://github.com/idanarye/rust-typed-builder"
 documentation = "https://idanarye.github.io/rust-typed-builder/"
 readme = "README.md"
 keywords = ["builder"]
+categories = ["rust-patterns"]
 
 [lib]
 proc-macro = true
