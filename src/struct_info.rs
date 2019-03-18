@@ -19,7 +19,6 @@ pub struct StructInfo<'a> {
     pub builder_attr: TypeBuilderAttr,
     pub builder_name: syn::Ident,
     pub conversion_helper_trait_name: syn::Ident,
-    pub conversion_helper_method_name: syn::Ident,
     pub core: syn::Ident,
 }
 
@@ -30,19 +29,21 @@ impl<'a> StructInfo<'a> {
 
     pub fn new(ast: &'a syn::DeriveInput, fields: impl Iterator<Item = &'a syn::Field>) -> Result<StructInfo<'a>, Error> {
         let builder_attr = Self::find_builder_attr(&ast)?;
-        let builder_name = syn::Ident::new(&match builder_attr.name {
+        let builder_name = &match builder_attr.name {
             Some(ref name) => quote!(#name).to_string(),
             None => format!("{}Builder", ast.ident),
-        }, proc_macro2::Span::call_site());
+        };
         Ok(StructInfo {
             vis: &ast.vis,
             name: &ast.ident,
             generics: &ast.generics,
             fields: fields.enumerate().map(|(i, f)| FieldInfo::new(i, f)).collect::<Result<_, _>>()?,
             builder_attr: builder_attr,
-            builder_name: builder_name,
-            conversion_helper_trait_name: make_identifier("conversionHelperTrait", &ast.ident),
-            conversion_helper_method_name: make_identifier("conversionHelperMethod", &ast.ident),
+            builder_name: syn::Ident::new(builder_name, proc_macro2::Span::call_site()),
+            conversion_helper_trait_name: syn::Ident::new(
+                &format!("{}_Optional", builder_name),
+                proc_macro2::Span::call_site(),
+            ),
             core: make_identifier("core", &ast.ident),
         })
     }
@@ -165,24 +166,22 @@ impl<'a> StructInfo<'a> {
     // TODO: once the proc-macro crate limitation is lifted, make this an util trait of this
     // crate.
     pub fn conversion_helper_impl(&self) -> Result<TokenStream, Error> {
-        let &StructInfo { conversion_helper_trait_name: ref trait_name,
-                          conversion_helper_method_name: ref method_name,
-                          .. } = self;
+        let trait_name = &self.conversion_helper_trait_name;
         Ok(quote! {
             #[doc(hidden)]
             #[allow(dead_code, non_camel_case_types, non_snake_case)]
             pub trait #trait_name<T> {
-                fn #method_name(self, default: T) -> T;
+                fn into_value(self, default: T) -> T;
             }
 
             impl<T> #trait_name<T> for () {
-                fn #method_name(self, default: T) -> T {
+                fn into_value(self, default: T) -> T {
                     default
                 }
             }
 
             impl<T> #trait_name<T> for (T,) {
-                fn #method_name(self, _: T) -> T {
+                fn into_value(self, _: T) -> T {
                     self.0
                 }
             }
@@ -288,7 +287,7 @@ impl<'a> StructInfo<'a> {
             }
         });
 
-        let ref helper_trait_method_name = self.conversion_helper_method_name;
+        let ref helper_trait_name = self.conversion_helper_trait_name;
         // The default_code of a field can refer to earlier-defined fields, which we handle by
         // writing out a bunch of `let` statements first, which can each refer to earlier ones.
         // This means that field ordering may actually be significant, which isn’t ideal. We could
@@ -300,7 +299,7 @@ impl<'a> StructInfo<'a> {
                 if field.builder_attr.exclude {
                     quote!(let #name = #default;)
                 } else {
-                    quote!(let #name = self.#name.#helper_trait_method_name(#default);)
+                    quote!(let #name = #helper_trait_name::into_value(self.#name, #default);)
                 }
             } else {
                 quote!(let #name = self.#name.0;)
