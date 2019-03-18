@@ -20,6 +20,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Changed
 - [**BREAKING**] Renamed the generated builder type from `TypedBuilder_BuilderFor_Foo` to `FooBuilder`, for improved ergonomics, especially when you enable documentation of the builder type. You can also now change it to something else with `#[builder(name = SomethingElse)]` on the type you are deriving TypedBuilder on.
+  - Generic identifiers were also changed, from `TypedBuilder_genericType_x` to `__x`. This is still expected to avoid all name collisions, but is easier to read in the builder type docs if you enable them.
 
 ## 0.3.0 - 2019-02-19
 ### Added

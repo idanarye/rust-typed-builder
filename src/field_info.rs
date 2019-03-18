@@ -2,7 +2,7 @@ use syn;
 use syn::spanned::Spanned;
 use syn::parse::Error;
 
-use crate::util::{make_identifier, map_only_one, path_to_single_string, ident_to_type};
+use crate::util::{map_only_one, path_to_single_string, ident_to_type};
 use crate::builder_attr::FieldBuilderAttr;
 
 #[derive(Debug)]
@@ -21,7 +21,10 @@ impl<'a> FieldInfo<'a> {
             Ok(FieldInfo {
                 ordinal: ordinal,
                 name: &name,
-                generic_ident: make_identifier("genericType", name),
+                generic_ident: syn::Ident::new(
+                    &format!("__{}", name),
+                    proc_macro2::Span::call_site(),
+                ),
                 ty: &field.ty,
                 builder_attr: builder_attr,
             })
