@@ -2,7 +2,7 @@
 name = "typed-builder"
 description = "Compile-time type-checked builder derive"
 version = "0.3.0"
-authors = ["IdanArye <idanarye@gmail.com>"]
+authors = ["IdanArye <idanarye@gmail.com>", "Chris Morgan <me@chrismorgan.info>"]
 license = "MIT"
 repository = "https://github.com/idanarye/rust-typed-builder"
 documentation = "https://idanarye.github.io/rust-typed-builder/"
