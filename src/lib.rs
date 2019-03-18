@@ -50,8 +50,9 @@ mod builder_attr;
 ///     #[builder(default=20)]
 ///     z: i32,
 ///
-///     // If the default cannot be parsed, you must encode it as a string
-///     #[builder(default_code="vec![30, 40]")]
+///     // If the default cannot be parsed, you must encode it as a string.
+///     // This also allows you to refer to the values of earlier-declared fields.
+///     #[builder(default_code="vec![z as u32, 40]")]
 ///     w: Vec<u32>,
 /// }
 ///
@@ -68,7 +69,7 @@ mod builder_attr;
 ///     // Optional fields are optional:
 ///     assert!(
 ///         Foo::builder().x(1).build()
-///         == Foo { x: 1, y: None, z: 20, w: vec![30, 40] });
+///         == Foo { x: 1, y: None, z: 20, w: vec![20, 40] });
 ///
 ///     // This will not compile - because we did not set x:
 ///     // Foo::builder().build();

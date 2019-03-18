@@ -246,20 +246,27 @@ impl<'a> StructInfo<'a> {
         });
 
         let ref helper_trait_method_name = self.conversion_helper_method_name;
+        // The default_code of a field can refer to earlier-defined fields, which we handle by
+        // writing out a bunch of `let` statements first, which can each refer to earlier ones.
+        // This means that field ordering may actually be significant, which isn’t ideal. We could
+        // relax that restriction by calculating a DAG of field default_code dependencies and
+        // reordering based on that, but for now this much simpler thing is a reasonable approach.
         let assignments = self.fields.iter().map(|field| {
             let ref name = field.name;
             if let Some(ref default) = field.builder_attr.default {
-                quote!(#name: self.#name.#helper_trait_method_name(#default))
+                quote!(let #name = self.#name.#helper_trait_method_name(#default);)
             } else {
-                quote!(#name: self.#name.0)
+                quote!(let #name = self.#name.0;)
             }
         });
+        let field_names = self.fields.iter().map(|field| field.name);
         quote!(
             #[allow(dead_code, non_camel_case_types, missing_docs)]
             impl #impl_generics #builder_name #modified_ty_generics #where_clause {
                 pub fn build(self) -> #name #ty_generics {
+                    #( #assignments )*
                     #name {
-                        #( #assignments ),*
+                        #( #field_names ),*
                     }
                 }
             }
