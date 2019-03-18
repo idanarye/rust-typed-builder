@@ -22,6 +22,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - [**BREAKING**] Renamed the generated builder type from `TypedBuilder_BuilderFor_Foo` to `FooBuilder`, for improved ergonomics, especially when you enable documentation of the builder type. You can also now change it to something else with `#[builder(name = SomethingElse)]` on the type you are deriving TypedBuilder on.
   - Generic identifiers were also changed, from `TypedBuilder_genericType_x` to `__x`. This is still expected to avoid all name collisions, but is easier to read in the builder type docs if you enable them.
   - Renamed the conversion helper trait for documentation purposes (`TypedBuilder_conversionHelperTrait_Foo` to `FooBuilder_Optional`), and its method name for simpler code.
+- [**BREAKING**] `default_code` is now lazily evaluated instead of eagerly; any side-effects that there might have been will no longer occur. As is usual in this release, this is very unlikely to affect you.
 
 ## 0.3.0 - 2019-02-19
 ### Added

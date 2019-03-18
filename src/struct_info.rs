@@ -171,17 +171,17 @@ impl<'a> StructInfo<'a> {
             #[doc(hidden)]
             #[allow(dead_code, non_camel_case_types, non_snake_case)]
             pub trait #trait_name<T> {
-                fn into_value(self, default: T) -> T;
+                fn into_value<F: FnOnce() -> T>(self, default: F) -> T;
             }
 
             impl<T> #trait_name<T> for () {
-                fn into_value(self, default: T) -> T {
-                    default
+                fn into_value<F: FnOnce() -> T>(self, default: F) -> T {
+                    default()
                 }
             }
 
             impl<T> #trait_name<T> for (T,) {
-                fn into_value(self, _: T) -> T {
+                fn into_value<F: FnOnce() -> T>(self, _: F) -> T {
                     self.0
                 }
             }
@@ -299,7 +299,7 @@ impl<'a> StructInfo<'a> {
                 if field.builder_attr.exclude {
                     quote!(let #name = #default;)
                 } else {
-                    quote!(let #name = #helper_trait_name::into_value(self.#name, #default);)
+                    quote!(let #name = #helper_trait_name::into_value(self.#name, || #default);)
                 }
             } else {
                 quote!(let #name = self.#name.0;)
