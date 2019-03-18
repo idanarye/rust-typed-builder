@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - `#![no_std]` is now supported out of the box. (You don’t need to opt into any features, it just works.)
 - [**BREAKING**] a `default_code` expression can now refer to the values of earlier fields by name.
   (This is extremely unlikely to break your code, but could in theory due to shadowing.)
+- `#[builder(exclude)]` on fields, to not provide a method to set that field.
 
 ## 0.3.0 - 2019-02-19
 ### Added

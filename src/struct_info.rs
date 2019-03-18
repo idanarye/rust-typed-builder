@@ -21,6 +21,10 @@ pub struct StructInfo<'a> {
 }
 
 impl<'a> StructInfo<'a> {
+    pub fn included_fields(&self) -> impl Iterator<Item = &FieldInfo<'a>> {
+        self.fields.iter().filter(|f| !f.builder_attr.exclude)
+    }
+
     pub fn new(ast: &'a syn::DeriveInput, fields: impl Iterator<Item = &'a syn::Field>) -> Result<StructInfo<'a>, Error> {
         Ok(StructInfo {
             vis: &ast.vis,
@@ -42,23 +46,23 @@ impl<'a> StructInfo<'a> {
 
     pub fn builder_creation_impl(&self) -> Result<TokenStream, Error> {
         let init_empties = {
-            let names = self.fields.iter().map(|f| f.name);
+            let names = self.included_fields().map(|f| f.name);
             quote!(#( #names: () ),*)
         };
         let builder_generics = {
-            let names = self.fields.iter().map(|f| f.name);
-            let generic_idents = self.fields.iter().map(|f| &f.generic_ident);
+            let names = self.included_fields().map(|f| f.name);
+            let generic_idents = self.included_fields().map(|f| &f.generic_ident);
             quote!(#( #names: #generic_idents ),*)
         };
         let StructInfo { ref vis, ref name, ref builder_name, ref core, .. } = *self;
         let (impl_generics, ty_generics, where_clause) = self.generics.split_for_impl();
         let b_generics = self.modify_generics(|g| {
-            for field in self.fields.iter() {
+            for field in self.included_fields() {
                 g.params.push(field.generic_ty_param());
             }
         });
         let generics_with_empty = modify_types_generics_hack(&ty_generics, |args| {
-            for _ in self.fields.iter() {
+            for _ in self.included_fields() {
                 args.push(syn::GenericArgument::Type(empty_type()));
             }
         });
@@ -108,7 +112,7 @@ impl<'a> StructInfo<'a> {
                 setters={
                     let mut result = String::new();
                     let mut is_first = true;
-                    for field in self.fields.iter() {
+                    for field in self.included_fields() {
                         use std::fmt::Write;
                         if is_first {
                             is_first = false;
@@ -154,10 +158,10 @@ impl<'a> StructInfo<'a> {
     pub fn field_impl(&self, field: &FieldInfo) -> Result<TokenStream, Error> {
         let StructInfo { ref builder_name, ref core, .. } = *self;
         let other_fields_name =
-            self.fields.iter().filter(|f| f.ordinal != field.ordinal).map(|f| f.name);
+            self.included_fields().filter(|f| f.ordinal != field.ordinal).map(|f| f.name);
         // not really "value", since we just use to self.name - but close enough.
         let other_fields_value =
-            self.fields.iter().filter(|f| f.ordinal != field.ordinal).map(|f| f.name);
+            self.included_fields().filter(|f| f.ordinal != field.ordinal).map(|f| f.name);
         let &FieldInfo { name: ref field_name, ty: ref field_type, ref generic_ident, .. } = field;
         let mut ty_generics: Vec<syn::GenericArgument> = self.generics.params.iter().map(|generic_param| {
             match generic_param {
@@ -176,7 +180,7 @@ impl<'a> StructInfo<'a> {
         }).collect();
         let mut target_generics = ty_generics.clone();
         let generics = self.modify_generics(|g| {
-            for f in self.fields.iter() {
+            for f in self.included_fields() {
                 if f.ordinal == field.ordinal {
                     ty_generics.push(syn::GenericArgument::Type(empty_type()));
                     target_generics.push(syn::GenericArgument::Type(f.tuplized_type_ty_param()));
@@ -207,7 +211,7 @@ impl<'a> StructInfo<'a> {
         let StructInfo { ref name, ref builder_name, .. } = *self;
 
         let generics = self.modify_generics(|g| {
-            for field in self.fields.iter() {
+            for field in self.included_fields() {
                 if field.builder_attr.default.is_some() {
                     let trait_ref = syn::TraitBound {
                         paren_token: None,
@@ -235,7 +239,7 @@ impl<'a> StructInfo<'a> {
         let (_, ty_generics, where_clause) = self.generics.split_for_impl();
 
         let modified_ty_generics = modify_types_generics_hack(&ty_generics, |args| {
-            for field in self.fields.iter() {
+            for field in self.included_fields() {
                 let required_type = if field.builder_attr.default.is_some() {
                     field.type_ident()
                 } else {
@@ -254,7 +258,11 @@ impl<'a> StructInfo<'a> {
         let assignments = self.fields.iter().map(|field| {
             let ref name = field.name;
             if let Some(ref default) = field.builder_attr.default {
-                quote!(let #name = self.#name.#helper_trait_method_name(#default);)
+                if field.builder_attr.exclude {
+                    quote!(let #name = #default;)
+                } else {
+                    quote!(let #name = self.#name.#helper_trait_method_name(#default);)
+                }
             } else {
                 quote!(let #name = self.#name.0;)
             }

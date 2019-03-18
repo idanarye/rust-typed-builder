@@ -7,12 +7,14 @@ use crate::util::{expr_to_single_string, path_to_single_string};
 
 #[derive(Debug, Default)]
 pub struct BuilderAttr {
+    pub exclude: bool,
     pub default: Option<syn::Expr>,
 }
 
 impl BuilderAttr {
     pub fn new(tts: &TokenStream) -> Result<BuilderAttr, Error> {
         let mut result = BuilderAttr {
+            exclude: false,
             default: None,
         };
         if tts.is_empty() {
@@ -32,6 +34,10 @@ impl BuilderAttr {
             _ => {
                 return Err(Error::new_spanned(tts, "Expected (<...>)"));
             }
+        }
+
+        if result.exclude && result.default.is_none() {
+            return Err(Error::new_spanned(tts, "#[builder(exclude)] must be accompanied by default or default_code"));
         }
 
         Ok(result)
@@ -66,6 +72,10 @@ impl BuilderAttr {
                 let name = path_to_single_string(&path.path).ok_or_else(
                     || Error::new_spanned(&path, "Expected identifier"))?;
                 match name.as_str() {
+                    "exclude" => {
+                        self.exclude = true;
+                        Ok(())
+                    }
                     "default" => {
                         self.default = Some(syn::parse(quote!(Default::default()).into()).unwrap());
                         Ok(())

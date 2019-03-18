@@ -99,7 +99,8 @@ fn impl_my_derive(ast: &syn::DeriveInput) -> Result<TokenStream, Error> {
                     let struct_info = struct_info::StructInfo::new(&ast, fields.named.iter())?;
                     let builder_creation = struct_info.builder_creation_impl()?;
                     let conversion_helper = struct_info.conversion_helper_impl()?;
-                    let fields = struct_info.fields.iter().map(|f| struct_info.field_impl(f).unwrap());
+                    let fields = struct_info.included_fields()
+                        .map(|f| struct_info.field_impl(f).unwrap());
                     let fields = quote!(#(#fields)*);
                     let build_method = struct_info.build_method_impl();
 
@@ -119,3 +120,48 @@ fn impl_my_derive(ast: &syn::DeriveInput) -> Result<TokenStream, Error> {
     };
     Ok(data)
 }
+
+// It’d be nice for the compilation tests to live in tests/ with the rest, but short of pulling in
+// some other test runner for that purpose (e.g. compiletest_rs), rustdoc compile_fail in this
+// crate is all we can use.
+
+#[doc(hidden)]
+/// When a property is excluded, you can’t set it:
+/// (“method `y` not found for this”)
+///
+/// ```compile_fail
+/// #[macro_use] extern crate typed_builder;
+/// #[derive(PartialEq, TypedBuilder)]
+/// struct Foo {
+///     #[builder(exclude, default)]
+///     y: i8,
+/// }
+///
+/// let _ = Foo::builder().y(1i8).build();
+/// ```
+///
+/// But you can build a record:
+///
+/// ```
+/// #[macro_use] extern crate typed_builder;
+/// #[derive(PartialEq, TypedBuilder)]
+/// struct Foo {
+///     #[builder(exclude, default)]
+///     y: i8,
+/// }
+///
+/// let _ = Foo::builder().build();
+/// ```
+///
+/// `exclude` without `default` or `default_code` is disallowed:
+/// (“error: #[builder(exclude)] must be accompanied by default or default_code”)
+///
+/// ```compile_fail
+/// #[macro_use] extern crate typed_builder;
+/// #[derive(PartialEq, TypedBuilder)]
+/// struct Foo {
+///     #[builder(exclude)]
+///     y: i8,
+/// }
+/// ```
+fn _compile_fail_tests() {}

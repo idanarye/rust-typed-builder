@@ -83,3 +83,19 @@ fn test_field_dependencies_in_build() {
     assert!(Foo::builder().x(1).y(2).build() == Foo { x: Some(1), y: 2, z: vec![2, 30, 40] });
     assert!(Foo::builder().z(vec![1, 2, 3]).build() == Foo { x: None, y: 10, z: vec![1, 2, 3] });
 }
+
+// compile-fail tests for exclude are in src/lib.rs out of necessity. These are just the bland
+// successful cases.
+#[test]
+fn test_exclude() {
+    #[derive(PartialEq, TypedBuilder)]
+    struct Foo {
+        #[builder(exclude, default)]
+        x: i32,
+        y: i32,
+        #[builder(exclude, default_code = "y + 1")]
+        z: i32,
+    }
+
+    assert!(Foo::builder().y(1u8).build() == Foo { x: 0, y: 1, z: 2 });
+}
