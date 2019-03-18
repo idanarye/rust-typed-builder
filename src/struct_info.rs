@@ -5,7 +5,9 @@ use syn::parse::Error;
 use quote::quote;
 
 use crate::field_info::FieldInfo;
+use crate::builder_attr::TypeBuilderAttr;
 use crate::util::{make_identifier, empty_type, make_punctuated_single, modify_types_generics_hack};
+use crate::util::{path_to_single_string, map_only_one};
 
 #[derive(Debug)]
 pub struct StructInfo<'a> {
@@ -14,6 +16,7 @@ pub struct StructInfo<'a> {
     pub generics: &'a syn::Generics,
     pub fields: Vec<FieldInfo<'a>>,
 
+    pub builder_attr: TypeBuilderAttr,
     pub builder_name: syn::Ident,
     pub conversion_helper_trait_name: syn::Ident,
     pub conversion_helper_method_name: syn::Ident,
@@ -31,11 +34,22 @@ impl<'a> StructInfo<'a> {
             name: &ast.ident,
             generics: &ast.generics,
             fields: fields.enumerate().map(|(i, f)| FieldInfo::new(i, f)).collect::<Result<_, _>>()?,
+            builder_attr: Self::find_builder_attr(&ast)?,
             builder_name: make_identifier("BuilderFor", &ast.ident),
             conversion_helper_trait_name: make_identifier("conversionHelperTrait", &ast.ident),
             conversion_helper_method_name: make_identifier("conversionHelperMethod", &ast.ident),
             core: make_identifier("core", &ast.ident),
         })
+    }
+
+    fn find_builder_attr(ast: &syn::DeriveInput) -> Result<TypeBuilderAttr, Error> {
+        Ok(map_only_one(&ast.attrs, |attr| {
+            if path_to_single_string(&attr.path).as_ref().map(|s| &**s) == Some("builder") {
+                Ok(Some(TypeBuilderAttr::new(&attr.tts)?))
+            } else {
+                Ok(None)
+            }
+        })?.unwrap_or_else(|| Default::default()))
     }
 
     fn modify_generics<F: FnMut(&mut syn::Generics)>(&self, mut mutator: F) -> syn::Generics {
@@ -80,11 +94,50 @@ impl<'a> StructInfo<'a> {
             };
             quote!(#core::marker::PhantomData<#t>)
         });
-        let doc = self.builder_doc();
+        let builder_method_doc = match self.builder_attr.builder_method_doc {
+            Some(ref doc) => quote!(#doc),
+            None => {
+                let doc = format!("
+                    Create a builder for building `{name}`.
+                    On the builder, call {setters} to set the values of the fields (they accept `Into` values).
+                    Finally, call `.build()` to create the instance of `{name}`.
+                    ",
+                    name=self.name,
+                    setters={
+                        let mut result = String::new();
+                        let mut is_first = true;
+                        for field in self.included_fields() {
+                            use std::fmt::Write;
+                            if is_first {
+                                is_first = false;
+                            } else {
+                                write!(&mut result, ", ").unwrap();
+                            }
+                            write!(&mut result, "`.{}(...)`", field.name).unwrap();
+                            if field.builder_attr.default.is_some() {
+                                write!(&mut result, "(optional)").unwrap();
+                            }
+                        }
+                        result
+                    });
+                quote!(#doc)
+            }
+        };
+        let builder_type_doc = if self.builder_attr.doc {
+            match self.builder_attr.builder_type_doc {
+                Some(ref doc) => quote!(#[doc = #doc]),
+                None => {
+                    let doc = format!("Builder for [`{name}`] instances.\n\nSee [`{name}::builder()`] for more info.", name = name);
+                    quote!(#[doc = #doc])
+                }
+            }
+        } else {
+            quote!(#[doc(hidden)])
+        };
         Ok(quote! {
             extern crate core as #core;
             impl #impl_generics #name #ty_generics #where_clause {
-                #[doc=#doc]
+                #[doc = #builder_method_doc]
                 #[allow(dead_code)]
                 #vis fn builder() -> #builder_name #generics_with_empty {
                     #builder_name {
@@ -95,37 +148,13 @@ impl<'a> StructInfo<'a> {
             }
 
             #[must_use]
-            #[doc(hidden)]
+            #builder_type_doc
             #[allow(dead_code, non_camel_case_types, non_snake_case)]
             #vis struct #builder_name #b_generics {
                 _TypedBuilder__phantomGenerics_: (#( #phantom_generics ),*),
                 #builder_generics
             }
         })
-    }
-
-    fn builder_doc(&self) -> String {
-        format!("Create a builder for building `{name}`.
-                On the builder, call {setters} to set the values of the fields(they accept `Into` values).
-                Finally, call `.build()` to create the instance of `{name}`.",
-                name=self.name,
-                setters={
-                    let mut result = String::new();
-                    let mut is_first = true;
-                    for field in self.included_fields() {
-                        use std::fmt::Write;
-                        if is_first {
-                            is_first = false;
-                        } else {
-                            write!(&mut result, ", ").unwrap();
-                        }
-                        write!(&mut result, "`.{}(...)`", field.name).unwrap();
-                        if field.builder_attr.default.is_some() {
-                            write!(&mut result, "(optional)").unwrap();
-                        }
-                    }
-                    result
-                })
     }
 
     // TODO: once the proc-macro crate limitation is lifted, make this an util trait of this
@@ -193,9 +222,14 @@ impl<'a> StructInfo<'a> {
             }
         });
         let (impl_generics, _, where_clause) = generics.split_for_impl();
+        let doc = match field.builder_attr.doc {
+            Some(ref doc) => quote!(#[doc = #doc]),
+            None => quote!(),
+        };
         Ok(quote!{
             #[allow(dead_code, non_camel_case_types, missing_docs)]
             impl #impl_generics #builder_name < #( #ty_generics ),* > #where_clause {
+                #doc
                 pub fn #field_name<#generic_ident: #core::convert::Into<#field_type>>(self, value: #generic_ident) -> #builder_name < #( #target_generics ),* > {
                     #builder_name {
                         _TypedBuilder__phantomGenerics_: self._TypedBuilder__phantomGenerics_,
@@ -268,9 +302,23 @@ impl<'a> StructInfo<'a> {
             }
         });
         let field_names = self.fields.iter().map(|field| field.name);
+        let doc = if self.builder_attr.doc {
+            match self.builder_attr.build_method_doc {
+                Some(ref doc) => quote!(#[doc = #doc]),
+                None => {
+                    // I’d prefer “a” or “an” to “its”, but determining which is grammatically
+                    // correct is roughly impossible.
+                    let doc = format!("Finalise the builder and create its [`{}`] instance", name);
+                    quote!(#[doc = #doc])
+                },
+            }
+        } else {
+            quote!()
+        };
         quote!(
             #[allow(dead_code, non_camel_case_types, missing_docs)]
             impl #impl_generics #builder_name #modified_ty_generics #where_clause {
+                #doc
                 pub fn build(self) -> #name #ty_generics {
                     #( #assignments )*
                     #name {

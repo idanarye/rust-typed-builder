@@ -99,3 +99,22 @@ fn test_exclude() {
 
     assert!(Foo::builder().y(1u8).build() == Foo { x: 0, y: 1, z: 2 });
 }
+
+#[test]
+fn test_docs() {
+    #[derive(TypedBuilder)]
+    #[builder(
+        builder_method_doc = "Point::builder() method docs",
+        builder_type_doc = "PointBuilder type docs",
+        build_method_doc = "PointBuilder.build() method docs",
+    )]
+    struct Point {
+        x: i32,
+        #[builder(doc = "
+            Set `z`. If you don’t specify a value it’ll default to the value specified for `x`.
+        ", default_code = "x")]
+        y: i32,
+    }
+
+    let _ = Point::builder();
+}

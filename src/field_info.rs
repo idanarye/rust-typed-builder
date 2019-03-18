@@ -3,7 +3,7 @@ use syn::spanned::Spanned;
 use syn::parse::Error;
 
 use crate::util::{make_identifier, map_only_one, path_to_single_string, ident_to_type};
-use crate::builder_attr::BuilderAttr;
+use crate::builder_attr::FieldBuilderAttr;
 
 #[derive(Debug)]
 pub struct FieldInfo<'a> {
@@ -11,7 +11,7 @@ pub struct FieldInfo<'a> {
     pub name: &'a syn::Ident,
     pub generic_ident: syn::Ident,
     pub ty: &'a syn::Type,
-    pub builder_attr: BuilderAttr,
+    pub builder_attr: FieldBuilderAttr,
 }
 
 impl<'a> FieldInfo<'a> {
@@ -30,10 +30,10 @@ impl<'a> FieldInfo<'a> {
         }
     }
 
-    fn find_builder_attr(field: &syn::Field) -> Result<BuilderAttr, Error> {
+    fn find_builder_attr(field: &syn::Field) -> Result<FieldBuilderAttr, Error> {
         Ok(map_only_one(&field.attrs, |attr| {
             if path_to_single_string(&attr.path).as_ref().map(|s| &**s) == Some("builder") {
-                Ok(Some(BuilderAttr::new(&attr.tts)?))
+                Ok(Some(FieldBuilderAttr::new(&attr.tts)?))
             } else {
                 Ok(None)
             }
