@@ -103,6 +103,9 @@ pub struct TypeBuilderAttr {
     /// Whether to show docs for the `TypeBuilder` type (rather than hiding them).
     pub doc: bool,
 
+    /// The name of the builder type.
+    pub name: Option<syn::Expr>,
+
     /// Docs on the `Type::builder()` method.
     pub builder_method_doc: Option<syn::Expr>,
 
@@ -117,12 +120,7 @@ pub struct TypeBuilderAttr {
 
 impl TypeBuilderAttr {
     pub fn new(tts: &TokenStream) -> Result<TypeBuilderAttr, Error> {
-        let mut result = TypeBuilderAttr {
-            doc: false,
-            builder_method_doc: None,
-            builder_type_doc: None,
-            build_method_doc: None,
-        };
+        let mut result = TypeBuilderAttr::default();
         if tts.is_empty() {
             return Ok(result);
         }
@@ -151,6 +149,10 @@ impl TypeBuilderAttr {
                 let name = expr_to_single_string(&assign.left).ok_or_else(
                     || Error::new_spanned(&assign.left, "Expected identifier"))?;
                 match name.as_str() {
+                    "name" => {
+                        self.name = Some(*assign.right);
+                        Ok(())
+                    }
                     "builder_method_doc" => {
                         self.builder_method_doc = Some(*assign.right);
                         Ok(())

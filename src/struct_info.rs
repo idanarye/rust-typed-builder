@@ -29,13 +29,18 @@ impl<'a> StructInfo<'a> {
     }
 
     pub fn new(ast: &'a syn::DeriveInput, fields: impl Iterator<Item = &'a syn::Field>) -> Result<StructInfo<'a>, Error> {
+        let builder_attr = Self::find_builder_attr(&ast)?;
+        let builder_name = syn::Ident::new(&match builder_attr.name {
+            Some(ref name) => quote!(#name).to_string(),
+            None => format!("{}Builder", ast.ident),
+        }, proc_macro2::Span::call_site());
         Ok(StructInfo {
             vis: &ast.vis,
             name: &ast.ident,
             generics: &ast.generics,
             fields: fields.enumerate().map(|(i, f)| FieldInfo::new(i, f)).collect::<Result<_, _>>()?,
-            builder_attr: Self::find_builder_attr(&ast)?,
-            builder_name: make_identifier("BuilderFor", &ast.ident),
+            builder_attr: builder_attr,
+            builder_name: builder_name,
             conversion_helper_trait_name: make_identifier("conversionHelperTrait", &ast.ident),
             conversion_helper_method_name: make_identifier("conversionHelperMethod", &ast.ident),
             core: make_identifier("core", &ast.ident),

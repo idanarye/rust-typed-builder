@@ -118,3 +118,17 @@ fn test_docs() {
 
     let _ = Point::builder();
 }
+
+#[test]
+fn test_builder_name() {
+    #[derive(TypedBuilder)]
+    struct Foo {}
+
+    let _: FooBuilder = Foo::builder();
+
+    #[derive(TypedBuilder)]
+    #[builder(name = SomeOtherNameForTheBuilder)]
+    struct Bar {}
+
+    let _: SomeOtherNameForTheBuilder = Bar::builder();
+}

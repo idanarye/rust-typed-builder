@@ -18,6 +18,9 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 	- `builder_type_doc = "…"` replaces the default documentation that will be generated for the builder type. Implies `doc`.
 	- `build_method_doc = "…"` replaces the default documentation that will be generated for the build() method of the builder type. Implies `doc`.
 
+### Changed
+- [**BREAKING**] Renamed the generated builder type from `TypedBuilder_BuilderFor_Foo` to `FooBuilder`, for improved ergonomics, especially when you enable documentation of the builder type. You can also now change it to something else with `#[builder(name = SomethingElse)]` on the type you are deriving TypedBuilder on.
+
 ## 0.3.0 - 2019-02-19
 ### Added
 - `#[builder(default_code = "...")]` syntax for defaults that cannot be parsed
