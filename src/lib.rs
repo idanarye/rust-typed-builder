@@ -78,6 +78,54 @@ mod builder_attr;
 ///     // Foo::builder().x(1).y(2).y(3);
 /// }
 /// ```
+///
+/// # Customisation with attributes
+///
+/// In addition to putting `#[derive(TypedBuilder)]` on a type, you can specify a `#[builder(…)]`
+/// attribute on the type, and on any fields in it.
+///
+/// On the **type**, the following values are permitted:
+///
+/// - `name = FooBuilder`: customise the name of the builder type. By default, the builder type
+///   will use the type’s name plus “Builder”, e.g. `FooBuilder` for type `Foo`. (Note this is
+///   `name = FooBuilder` and not `name = "FooBuilder"`.)
+///
+/// - `doc`: enable documentation of the builder type. By default, the builder type is given
+///   `#[doc(hidden)]`, so that the `builder()` method will show `FooBuilder` as its return type,
+///   but it won’t be a link. If you turn this on, the builder type and its `build` method will get
+///   sane defaults. The field methods on the builder will be undocumented by default.
+///
+/// - `builder_method_doc = "…"` replaces the default documentation that will be generated for the
+///   `builder()` method of the type for which the builder is being generated.
+///
+/// - `builder_type_doc = "…"` replaces the default documentation that will be generated for the
+///   builder type. Setting this implies `doc`.
+///
+/// - `build_method_doc = "…"` replaces the default documentation that will be generated for the
+///   `build()` method of the builder type. Setting this implies `doc`.
+///
+/// On each **field**, the following values are permitted:
+///
+/// - `default`: make the field optional, defaulting to `Default::default()`. This requires that
+///   the field type implement `Default`. Mutually exclusive with any other form of default.
+///
+/// - `default = …`: make the field optional, defaulting to the expression `…`. This can be
+///   anything that will parse in an attribute, e.g. a string or a number. Although some
+///   non-literal expressions will successfully parse (e.g. `Some(foo)`), it is recommended for
+///   stylistic consistency across the Rust ecosystem that anything that is not a literal use
+///   `default_code` instead. Mutually exclusive with any other form of default.
+///
+/// - `default_code = "…"`: make the field optional, defaulting to the expression `…`.
+///   This must be used when the expression will not parse in an attribute with `default = …`.
+///   Mutually exclusive with any other form of default. You can refer by name to the values
+///   determined for fields that are defined earlier in the type.
+///
+/// - `doc = "…"`: sets the documentation for the field’s method on the builder type. This will be
+///   of no value unless you enable docs for the builder type with `#[builder(doc)]` or similar on
+///   the type.
+///
+/// - `exclude`: do not define a method on the builder for this field. This requires that a default
+///   be set.
 #[proc_macro_derive(TypedBuilder, attributes(builder))]
 pub fn derive_typed_builder(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     let input = parse_macro_input!(input as DeriveInput);
