@@ -2,7 +2,7 @@ use syn;
 use syn::spanned::Spanned;
 use syn::parse::Error;
 
-use crate::util::{map_only_one, path_to_single_string, ident_to_type};
+use crate::util::ident_to_type;
 use crate::builder_attr::FieldBuilderAttr;
 
 #[derive(Debug)]
@@ -17,7 +17,6 @@ pub struct FieldInfo<'a> {
 impl<'a> FieldInfo<'a> {
     pub fn new(ordinal: usize, field: &syn::Field) -> Result<FieldInfo, Error> {
         if let Some(ref name) = field.ident {
-            let builder_attr = Self::find_builder_attr(field)?;
             Ok(FieldInfo {
                 ordinal: ordinal,
                 name: &name,
@@ -26,21 +25,11 @@ impl<'a> FieldInfo<'a> {
                     proc_macro2::Span::call_site(),
                 ),
                 ty: &field.ty,
-                builder_attr: builder_attr,
+                builder_attr: FieldBuilderAttr::new(&field.attrs)?,
             })
         } else {
             Err(Error::new(field.span(), "Nameless field in struct"))
         }
-    }
-
-    fn find_builder_attr(field: &syn::Field) -> Result<FieldBuilderAttr, Error> {
-        Ok(map_only_one(&field.attrs, |attr| {
-            if path_to_single_string(&attr.path).as_ref().map(|s| &**s) == Some("builder") {
-                Ok(Some(FieldBuilderAttr::new(&attr.tts)?))
-            } else {
-                Ok(None)
-            }
-        })?.unwrap_or_else(|| Default::default()))
     }
 
     pub fn generic_ty_param(&self) -> syn::GenericParam {

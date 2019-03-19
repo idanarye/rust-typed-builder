@@ -13,33 +13,43 @@ pub struct FieldBuilderAttr {
 }
 
 impl FieldBuilderAttr {
-    pub fn new(tts: &TokenStream) -> Result<FieldBuilderAttr, Error> {
-        let mut result = FieldBuilderAttr {
-            doc: None,
-            exclude: false,
-            default: None,
-        };
-        if tts.is_empty() {
-            return Ok(result);
-        }
-        let as_expr: syn::Expr = syn::parse2(tts.clone())?;
-
-        match as_expr {
-            syn::Expr::Paren(body) => {
-                result.apply_meta(*body.expr)?;
+    pub fn new(attrs: &[syn::Attribute]) -> Result<FieldBuilderAttr, Error> {
+        let mut result = FieldBuilderAttr::default();
+        let mut exclude_tts = None;
+        for attr in attrs {
+            if path_to_single_string(&attr.path).as_ref().map(|s| &**s) != Some("builder") {
+                continue;
             }
-            syn::Expr::Tuple(body) => {
-                for expr in body.elems.into_iter() {
-                    result.apply_meta(expr)?;
+
+            if attr.tts.is_empty() {
+                continue;
+            }
+
+            let as_expr: syn::Expr = syn::parse2(attr.tts.clone())?;
+            match as_expr {
+                syn::Expr::Paren(body) => {
+                    result.apply_meta(*body.expr)?;
+                }
+                syn::Expr::Tuple(body) => {
+                    for expr in body.elems.into_iter() {
+                        result.apply_meta(expr)?;
+                    }
+                }
+                _ => {
+                    return Err(Error::new_spanned(attr.tts.clone(), "Expected (<...>)"));
                 }
             }
-            _ => {
-                return Err(Error::new_spanned(tts, "Expected (<...>)"));
+            // Stash its span for later (we don’t yet know if it’ll be an error)
+            if result.exclude && exclude_tts.is_none() {
+                exclude_tts = Some(attr.tts.clone());
             }
         }
 
         if result.exclude && result.default.is_none() {
-            return Err(Error::new_spanned(tts, "#[builder(exclude)] must be accompanied by default or default_code"));
+            return Err(Error::new_spanned(
+                exclude_tts.unwrap(),
+                "#[builder(exclude)] must be accompanied by default or default_code",
+            ));
         }
 
         Ok(result)
@@ -119,24 +129,30 @@ pub struct TypeBuilderAttr {
 }
 
 impl TypeBuilderAttr {
-    pub fn new(tts: &TokenStream) -> Result<TypeBuilderAttr, Error> {
+    pub fn new(attrs: &[syn::Attribute]) -> Result<TypeBuilderAttr, Error> {
         let mut result = TypeBuilderAttr::default();
-        if tts.is_empty() {
-            return Ok(result);
-        }
-        let as_expr: syn::Expr = syn::parse2(tts.clone())?;
+        for attr in attrs {
+            if path_to_single_string(&attr.path).as_ref().map(|s| &**s) != Some("builder") {
+                continue;
+            }
 
-        match as_expr {
-            syn::Expr::Paren(body) => {
-                result.apply_meta(*body.expr)?;
+            if attr.tts.is_empty() {
+                continue;
             }
-            syn::Expr::Tuple(body) => {
-                for expr in body.elems.into_iter() {
-                    result.apply_meta(expr)?;
+            let as_expr: syn::Expr = syn::parse2(attr.tts.clone())?;
+
+            match as_expr {
+                syn::Expr::Paren(body) => {
+                    result.apply_meta(*body.expr)?;
                 }
-            }
-            _ => {
-                return Err(Error::new_spanned(tts, "Expected (<...>)"));
+                syn::Expr::Tuple(body) => {
+                    for expr in body.elems.into_iter() {
+                        result.apply_meta(expr)?;
+                    }
+                }
+                _ => {
+                    return Err(Error::new_spanned(attr.tts.clone(), "Expected (<...>)"));
+                }
             }
         }
 

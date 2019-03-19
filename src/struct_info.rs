@@ -7,7 +7,6 @@ use quote::quote;
 use crate::field_info::FieldInfo;
 use crate::builder_attr::TypeBuilderAttr;
 use crate::util::{empty_type, make_punctuated_single, modify_types_generics_hack};
-use crate::util::{path_to_single_string, map_only_one};
 
 #[derive(Debug)]
 pub struct StructInfo<'a> {
@@ -28,7 +27,7 @@ impl<'a> StructInfo<'a> {
     }
 
     pub fn new(ast: &'a syn::DeriveInput, fields: impl Iterator<Item = &'a syn::Field>) -> Result<StructInfo<'a>, Error> {
-        let builder_attr = Self::find_builder_attr(&ast)?;
+        let builder_attr = TypeBuilderAttr::new(&ast.attrs)?;
         let builder_name = &match builder_attr.name {
             Some(ref name) => quote!(#name).to_string(),
             None => format!("{}Builder", ast.ident),
@@ -49,16 +48,6 @@ impl<'a> StructInfo<'a> {
                 proc_macro2::Span::call_site(),
             ),
         })
-    }
-
-    fn find_builder_attr(ast: &syn::DeriveInput) -> Result<TypeBuilderAttr, Error> {
-        Ok(map_only_one(&ast.attrs, |attr| {
-            if path_to_single_string(&attr.path).as_ref().map(|s| &**s) == Some("builder") {
-                Ok(Some(TypeBuilderAttr::new(&attr.tts)?))
-            } else {
-                Ok(None)
-            }
-        })?.unwrap_or_else(|| Default::default()))
     }
 
     fn modify_generics<F: FnMut(&mut syn::Generics)>(&self, mut mutator: F) -> syn::Generics {
