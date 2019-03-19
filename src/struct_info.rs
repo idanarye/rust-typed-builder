@@ -6,7 +6,7 @@ use quote::quote;
 
 use crate::field_info::FieldInfo;
 use crate::builder_attr::TypeBuilderAttr;
-use crate::util::{make_identifier, empty_type, make_punctuated_single, modify_types_generics_hack};
+use crate::util::{empty_type, make_punctuated_single, modify_types_generics_hack};
 use crate::util::{path_to_single_string, map_only_one};
 
 #[derive(Debug)]
@@ -44,7 +44,10 @@ impl<'a> StructInfo<'a> {
                 &format!("{}_Optional", builder_name),
                 proc_macro2::Span::call_site(),
             ),
-            core: make_identifier("core", &ast.ident),
+            core: syn::Ident::new(
+                &format!("{}_core", builder_name),
+                proc_macro2::Span::call_site(),
+            ),
         })
     }
 
