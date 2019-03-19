@@ -148,12 +148,12 @@ impl<'a> StructInfo<'a> {
         let phantom_generic_fields = if skip_phantom_generics {
             quote!()
         } else {
-            quote!(_TypedBuilder__phantomGenerics_: (#( #phantom_generics ),*),)
+            quote!(__typed_builder_phantom_generics: (#( #phantom_generics ),*),)
         };
         let init_phantom_generics = if skip_phantom_generics {
             quote!()
         } else {
-            quote!(_TypedBuilder__phantomGenerics_: #core::default::Default::default(),)
+            quote!(__typed_builder_phantom_generics: #core::default::Default::default(),)
         };
         Ok(quote! {
             extern crate core as #core;
@@ -264,7 +264,7 @@ impl<'a> StructInfo<'a> {
         let phantom_generics = if self.generics.params.is_empty() {
             quote!()
         } else {
-            quote!(_TypedBuilder__phantomGenerics_: self._TypedBuilder__phantomGenerics_,)
+            quote!(__typed_builder_phantom_generics: self.__typed_builder_phantom_generics,)
         };
         Ok(quote! {
             #[allow(dead_code, non_camel_case_types, missing_docs)]
