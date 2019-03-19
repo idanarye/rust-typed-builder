@@ -1,8 +1,8 @@
-use syn;
 use proc_macro2::TokenStream;
-use syn::spanned::Spanned;
-use syn::parse::Error;
 use quote::quote;
+use syn;
+use syn::parse::Error;
+use syn::spanned::Spanned;
 
 use crate::util::ident_to_type;
 use crate::util::{expr_to_single_string, path_to_single_string};
@@ -49,7 +49,8 @@ impl<'a> FieldInfo<'a> {
         syn::TypeTuple {
             paren_token: Default::default(),
             elems: types,
-        }.into()
+        }
+        .into()
     }
 }
 
@@ -106,8 +107,8 @@ impl FieldBuilderAttr {
     fn apply_meta(&mut self, expr: syn::Expr) -> Result<(), Error> {
         match expr {
             syn::Expr::Assign(assign) => {
-                let name = expr_to_single_string(&assign.left).ok_or_else(
-                    || Error::new_spanned(&assign.left, "Expected identifier"))?;
+                let name = expr_to_single_string(&assign.left)
+                    .ok_or_else(|| Error::new_spanned(&assign.left, "Expected identifier"))?;
                 match name.as_str() {
                     "doc" => {
                         self.doc = Some(*assign.right);
@@ -118,23 +119,31 @@ impl FieldBuilderAttr {
                         Ok(())
                     }
                     "default_code" => {
-                        if let syn::Expr::Lit(syn::ExprLit{lit: syn::Lit::Str(code), ..}) = *assign.right {
+                        if let syn::Expr::Lit(syn::ExprLit {
+                            lit: syn::Lit::Str(code),
+                            ..
+                        }) = *assign.right
+                        {
                             use std::str::FromStr;
                             let tokenized_code = TokenStream::from_str(&code.value())?;
-                            self.default = Some(syn::parse(tokenized_code.into()).map_err(|e| Error::new_spanned(code, format!("{}", e)))?);
+                            self.default = Some(
+                                syn::parse(tokenized_code.into())
+                                    .map_err(|e| Error::new_spanned(code, format!("{}", e)))?,
+                            );
                         } else {
                             return Err(Error::new_spanned(assign.right, "Expected string"));
                         }
                         Ok(())
-                    },
-                    _ => {
-                        Err(Error::new_spanned(&assign, format!("Unknown parameter {:?}", name)))
                     }
+                    _ => Err(Error::new_spanned(
+                        &assign,
+                        format!("Unknown parameter {:?}", name),
+                    )),
                 }
             }
             syn::Expr::Path(path) => {
-                let name = path_to_single_string(&path.path).ok_or_else(
-                    || Error::new_spanned(&path, "Expected identifier"))?;
+                let name = path_to_single_string(&path.path)
+                    .ok_or_else(|| Error::new_spanned(&path, "Expected identifier"))?;
                 match name.as_str() {
                     "exclude" => {
                         self.exclude = true;
@@ -144,14 +153,13 @@ impl FieldBuilderAttr {
                         self.default = Some(syn::parse(quote!(Default::default()).into()).unwrap());
                         Ok(())
                     }
-                    _ => {
-                        Err(Error::new_spanned(&path, format!("Unknown parameter {:?}", name)))
-                    }
+                    _ => Err(Error::new_spanned(
+                        &path,
+                        format!("Unknown parameter {:?}", name),
+                    )),
                 }
             }
-            _ => {
-                Err(Error::new_spanned(expr, "Expected (<...>=<...>)"))
-            }
+            _ => Err(Error::new_spanned(expr, "Expected (<...>=<...>)")),
         }
     }
 }

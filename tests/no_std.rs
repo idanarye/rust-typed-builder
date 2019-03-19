@@ -54,17 +54,52 @@ fn test_default() {
     struct Foo {
         #[builder(default)]
         x: Option<i32>,
-        #[builder(default=10)]
+        #[builder(default = 10)]
         y: i32,
-        #[builder(default_code="[20, 30, 40]")]
-        z: [i32; 3]
+        #[builder(default_code = "[20, 30, 40]")]
+        z: [i32; 3],
     }
 
-    assert!(Foo::builder().build() == Foo { x: None, y: 10, z: [20, 30, 40] });
-    assert!(Foo::builder().x(1).build() == Foo { x: Some(1), y: 10, z: [20, 30, 40] });
-    assert!(Foo::builder().y(2).build() == Foo { x: None, y: 2, z: [20, 30, 40] });
-    assert!(Foo::builder().x(1).y(2).build() == Foo { x: Some(1), y: 2, z: [20, 30, 40] });
-    assert!(Foo::builder().z([1, 2, 3]).build() == Foo { x: None, y: 10, z: [1, 2, 3] });
+    assert!(
+        Foo::builder().build()
+            == Foo {
+                x: None,
+                y: 10,
+                z: [20, 30, 40]
+            }
+    );
+    assert!(
+        Foo::builder().x(1).build()
+            == Foo {
+                x: Some(1),
+                y: 10,
+                z: [20, 30, 40]
+            }
+    );
+    assert!(
+        Foo::builder().y(2).build()
+            == Foo {
+                x: None,
+                y: 2,
+                z: [20, 30, 40]
+            }
+    );
+    assert!(
+        Foo::builder().x(1).y(2).build()
+            == Foo {
+                x: Some(1),
+                y: 2,
+                z: [20, 30, 40]
+            }
+    );
+    assert!(
+        Foo::builder().z([1, 2, 3]).build()
+            == Foo {
+                x: None,
+                y: 10,
+                z: [1, 2, 3]
+            }
+    );
 }
 
 #[test]
@@ -73,15 +108,50 @@ fn test_field_dependencies_in_build() {
     struct Foo {
         #[builder(default)]
         x: Option<i32>,
-        #[builder(default=10)]
+        #[builder(default = 10)]
         y: i32,
-        #[builder(default_code="[y, 30, 40]")]
-        z: [i32; 3]
+        #[builder(default_code = "[y, 30, 40]")]
+        z: [i32; 3],
     }
 
-    assert!(Foo::builder().build() == Foo { x: None, y: 10, z: [10, 30, 40] });
-    assert!(Foo::builder().x(1).build() == Foo { x: Some(1), y: 10, z: [10, 30, 40] });
-    assert!(Foo::builder().y(2).build() == Foo { x: None, y: 2, z: [2, 30, 40] });
-    assert!(Foo::builder().x(1).y(2).build() == Foo { x: Some(1), y: 2, z: [2, 30, 40] });
-    assert!(Foo::builder().z([1, 2, 3]).build() == Foo { x: None, y: 10, z: [1, 2, 3] });
+    assert!(
+        Foo::builder().build()
+            == Foo {
+                x: None,
+                y: 10,
+                z: [10, 30, 40]
+            }
+    );
+    assert!(
+        Foo::builder().x(1).build()
+            == Foo {
+                x: Some(1),
+                y: 10,
+                z: [10, 30, 40]
+            }
+    );
+    assert!(
+        Foo::builder().y(2).build()
+            == Foo {
+                x: None,
+                y: 2,
+                z: [2, 30, 40]
+            }
+    );
+    assert!(
+        Foo::builder().x(1).y(2).build()
+            == Foo {
+                x: Some(1),
+                y: 2,
+                z: [2, 30, 40]
+            }
+    );
+    assert!(
+        Foo::builder().z([1, 2, 3]).build()
+            == Foo {
+                x: None,
+                y: 10,
+                z: [1, 2, 3]
+            }
+    );
 }

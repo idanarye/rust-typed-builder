@@ -1,8 +1,8 @@
 use syn;
 
 use proc_macro2::TokenStream;
-use syn::parse::Error;
 use quote::quote;
+use syn::parse::Error;
 
 use crate::field_info::FieldInfo;
 use crate::util::{empty_type, make_punctuated_single, modify_types_generics_hack};
@@ -26,7 +26,10 @@ impl<'a> StructInfo<'a> {
         self.fields.iter().filter(|f| !f.builder_attr.exclude)
     }
 
-    pub fn new(ast: &'a syn::DeriveInput, fields: impl Iterator<Item = &'a syn::Field>) -> Result<StructInfo<'a>, Error> {
+    pub fn new(
+        ast: &'a syn::DeriveInput,
+        fields: impl Iterator<Item = &'a syn::Field>,
+    ) -> Result<StructInfo<'a>, Error> {
         let builder_attr = TypeBuilderAttr::new(&ast.attrs)?;
         let builder_name = &match builder_attr.name {
             Some(ref name) => quote!(#name).to_string(),
@@ -36,7 +39,10 @@ impl<'a> StructInfo<'a> {
             vis: &ast.vis,
             name: &ast.ident,
             generics: &ast.generics,
-            fields: fields.enumerate().map(|(i, f)| FieldInfo::new(i, f)).collect::<Result<_, _>>()?,
+            fields: fields
+                .enumerate()
+                .map(|(i, f)| FieldInfo::new(i, f))
+                .collect::<Result<_, _>>()?,
             builder_attr: builder_attr,
             builder_name: syn::Ident::new(builder_name, proc_macro2::Span::call_site()),
             conversion_helper_trait_name: syn::Ident::new(
@@ -66,7 +72,13 @@ impl<'a> StructInfo<'a> {
             let generic_idents = self.included_fields().map(|f| &f.generic_ident);
             quote!(#( #names: #generic_idents ),*)
         };
-        let StructInfo { ref vis, ref name, ref builder_name, ref core, .. } = *self;
+        let StructInfo {
+            ref vis,
+            ref name,
+            ref builder_name,
+            ref core,
+            ..
+        } = *self;
         let (impl_generics, ty_generics, where_clause) = self.generics.split_for_impl();
         let b_generics = self.modify_generics(|g| {
             for field in self.included_fields() {
@@ -84,11 +96,11 @@ impl<'a> StructInfo<'a> {
                 syn::GenericParam::Type(ty) => {
                     let ty = &ty.ident;
                     quote!(#ty)
-                },
+                }
                 syn::GenericParam::Const(cnst) => {
                     let cnst = &cnst.ident;
                     quote!(#cnst)
-                },
+                }
             };
             quote!(#core::marker::PhantomData<#t>)
         });
@@ -181,15 +193,31 @@ impl<'a> StructInfo<'a> {
     }
 
     pub fn field_impl(&self, field: &FieldInfo) -> Result<TokenStream, Error> {
-        let StructInfo { ref builder_name, ref core, .. } = *self;
-        let other_fields_name =
-            self.included_fields().filter(|f| f.ordinal != field.ordinal).map(|f| f.name);
+        let StructInfo {
+            ref builder_name,
+            ref core,
+            ..
+        } = *self;
+        let other_fields_name = self
+            .included_fields()
+            .filter(|f| f.ordinal != field.ordinal)
+            .map(|f| f.name);
         // not really "value", since we just use to self.name - but close enough.
-        let other_fields_value =
-            self.included_fields().filter(|f| f.ordinal != field.ordinal).map(|f| f.name);
-        let &FieldInfo { name: ref field_name, ty: ref field_type, ref generic_ident, .. } = field;
-        let mut ty_generics: Vec<syn::GenericArgument> = self.generics.params.iter().map(|generic_param| {
-            match generic_param {
+        let other_fields_value = self
+            .included_fields()
+            .filter(|f| f.ordinal != field.ordinal)
+            .map(|f| f.name);
+        let &FieldInfo {
+            name: ref field_name,
+            ty: ref field_type,
+            ref generic_ident,
+            ..
+        } = field;
+        let mut ty_generics: Vec<syn::GenericArgument> = self
+            .generics
+            .params
+            .iter()
+            .map(|generic_param| match generic_param {
                 syn::GenericParam::Type(type_param) => {
                     let ident = type_param.ident.clone();
                     syn::parse(quote!(#ident).into()).unwrap()
@@ -201,8 +229,8 @@ impl<'a> StructInfo<'a> {
                     let ident = const_param.ident.clone();
                     syn::parse(quote!(#ident).into()).unwrap()
                 }
-            }
-        }).collect();
+            })
+            .collect();
         let mut target_generics = ty_generics.clone();
         let generics = self.modify_generics(|g| {
             for f in self.included_fields() {
@@ -222,7 +250,7 @@ impl<'a> StructInfo<'a> {
             Some(ref doc) => quote!(#[doc = #doc]),
             None => quote!(),
         };
-        Ok(quote!{
+        Ok(quote! {
             #[allow(dead_code, non_camel_case_types, missing_docs)]
             impl #impl_generics #builder_name < #( #ty_generics ),* > #where_clause {
                 #doc
@@ -238,7 +266,11 @@ impl<'a> StructInfo<'a> {
     }
 
     pub fn build_method_impl(&self) -> TokenStream {
-        let StructInfo { ref name, ref builder_name, .. } = *self;
+        let StructInfo {
+            ref name,
+            ref builder_name,
+            ..
+        } = *self;
 
         let generics = self.modify_generics(|g| {
             for field in self.included_fields() {
@@ -250,13 +282,17 @@ impl<'a> StructInfo<'a> {
                         path: syn::PathSegment {
                             ident: self.conversion_helper_trait_name.clone(),
                             arguments: syn::PathArguments::AngleBracketed(
-                                syn::AngleBracketedGenericArguments{
+                                syn::AngleBracketedGenericArguments {
                                     colon2_token: None,
                                     lt_token: Default::default(),
-                                    args: make_punctuated_single(syn::GenericArgument::Type(field.ty.clone())),
+                                    args: make_punctuated_single(syn::GenericArgument::Type(
+                                        field.ty.clone(),
+                                    )),
                                     gt_token: Default::default(),
-                                })
-                        }.into(),
+                                },
+                            ),
+                        }
+                        .into(),
                     };
                     let mut generic_param: syn::TypeParam = field.generic_ident.clone().into();
                     generic_param.bounds.push(trait_ref.into());
@@ -306,7 +342,7 @@ impl<'a> StructInfo<'a> {
                     // correct is roughly impossible.
                     let doc = format!("Finalise the builder and create its [`{}`] instance", name);
                     quote!(#[doc = #doc])
-                },
+                }
             }
         } else {
             quote!()
@@ -322,7 +358,8 @@ impl<'a> StructInfo<'a> {
                     }
                 }
             }
-        ).into()
+        )
+        .into()
     }
 }
 
@@ -380,8 +417,8 @@ impl TypeBuilderAttr {
     fn apply_meta(&mut self, expr: syn::Expr) -> Result<(), Error> {
         match expr {
             syn::Expr::Assign(assign) => {
-                let name = expr_to_single_string(&assign.left).ok_or_else(
-                    || Error::new_spanned(&assign.left, "Expected identifier"))?;
+                let name = expr_to_single_string(&assign.left)
+                    .ok_or_else(|| Error::new_spanned(&assign.left, "Expected identifier"))?;
                 match name.as_str() {
                     "name" => {
                         self.name = Some(*assign.right);
@@ -401,27 +438,27 @@ impl TypeBuilderAttr {
                         self.doc = true;
                         Ok(())
                     }
-                    _ => {
-                        Err(Error::new_spanned(&assign, format!("Unknown parameter {:?}", name)))
-                    }
+                    _ => Err(Error::new_spanned(
+                        &assign,
+                        format!("Unknown parameter {:?}", name),
+                    )),
                 }
             }
             syn::Expr::Path(path) => {
-                let name = path_to_single_string(&path.path).ok_or_else(
-                    || Error::new_spanned(&path, "Expected identifier"))?;
+                let name = path_to_single_string(&path.path)
+                    .ok_or_else(|| Error::new_spanned(&path, "Expected identifier"))?;
                 match name.as_str() {
                     "doc" => {
                         self.doc = true;
                         Ok(())
                     }
-                    _ => {
-                        Err(Error::new_spanned(&path, format!("Unknown parameter {:?}", name)))
-                    }
+                    _ => Err(Error::new_spanned(
+                        &path,
+                        format!("Unknown parameter {:?}", name),
+                    )),
                 }
             }
-            _ => {
-                Err(Error::new_spanned(expr, "Expected (<...>=<...>)"))
-            }
+            _ => Err(Error::new_spanned(expr, "Expected (<...>=<...>)")),
         }
     }
 }
