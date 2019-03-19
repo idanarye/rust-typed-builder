@@ -18,7 +18,6 @@ use quote::quote;
 mod util;
 mod field_info;
 mod struct_info;
-mod builder_attr;
 
 
 /// `TypedBuilder` is not a real type - deriving it will generate a `::builder()` method on your
