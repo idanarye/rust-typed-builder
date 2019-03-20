@@ -46,7 +46,7 @@ Foo::builder().build(); // missing x
 Foo::builder().x(1).y(2).y(3); // y is specified twice
 ```
 
-# Features
+## Features
 
 * Custom derive for generating the builder pattern.
 * All setters are accepting `Into` values.
@@ -55,7 +55,7 @@ Foo::builder().x(1).y(2).y(3); // y is specified twice
 * Ability to annotate fields with `#[builder(default)]` to make them optional and specify a default value when the user does not set them.
 * Generates simple documentation for the `.builder()` method.
 
-# Limitations
+## Limitations
 
 * No custom build error - if you neglect to set a field or set a field twice you'll get regular `no method` error that doesn't tell you what you did wrong.
     * If there is a way to generate proper errors I'll gladly implement it.
@@ -63,7 +63,22 @@ Foo::builder().x(1).y(2).y(3); // y is specified twice
     * For the that reason, all builder methods are call-by-move and the builder is not cloneable. Saves the trouble of determining if the fields are cloneable...
     * If you want a builder you can pass around, check out [derive-builder](https://crates.io/crates/derive_builder). It's API does not conflict with typed-builder's so you can be able to implement them both on the same type.
 
-# Alternatives - and why typed-builder is better
+## Alternatives - and why typed-builder is better
 
 * [derive-builder](https://crates.io/crates/derive_builder) - does all the checks in runtime, returning a `Result` you need to unwrap.
 * [safe-builder-derive](https://crates.io/crates/safe-builder-derive) - this one does compile-time checks - by generating a type for each possible state of the builder. Rust can remove the dead code, but your build time will still be exponential. typed-builder is encoding the builder's state in the generics arguments - so Rust will only generate the path you actually use.
+
+## License
+
+Licensed under either of
+
+ * Apache License, Version 2.0 ([LICENSE-APACHE](LICENSE-APACHE) or http://www.apache.org/licenses/LICENSE-2.0)
+ * MIT license ([LICENSE-MIT](LICENSE-MIT) or http://opensource.org/licenses/MIT)
+
+at your option.
+
+### Contribution
+
+Unless you explicitly state otherwise, any contribution intentionally submitted
+for inclusion in the work by you, as defined in the Apache-2.0 license, shall be dual licensed as above, without any
+additional terms or conditions.

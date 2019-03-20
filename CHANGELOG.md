@@ -8,6 +8,9 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Added
 - `#![no_std]` is now supported out of the box. (You don’t need to opt into any features, it just works.)
 
+### Changed
+- Move to dual license - MIT/Apache-2.0. Previously this project was just MIT.
+
 ## 0.3.0 - 2019-02-19
 ### Added
 - `#[builder(default_code = "...")]` syntax for defaults that cannot be parsed
