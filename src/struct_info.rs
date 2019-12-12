@@ -5,8 +5,15 @@ use quote::quote;
 use syn::parse::Error;
 
 use crate::field_info::FieldInfo;
-use crate::util::{empty_type, make_punctuated_single, modify_types_generics_hack};
-use crate::util::{expr_to_single_string, path_to_single_string};
+use crate::util::{
+    empty_type,
+    type_tuple,
+    empty_type_tuple,
+    make_punctuated_single,
+    modify_types_generics_hack,
+    expr_to_single_string,
+    path_to_single_string,
+};
 
 #[derive(Debug)]
 pub struct StructInfo<'a> {
@@ -60,15 +67,6 @@ impl<'a> StructInfo<'a> {
     }
 
     pub fn builder_creation_impl(&self) -> Result<TokenStream, Error> {
-        let init_empties = {
-            let names = self.included_fields().map(|f| f.name);
-            quote!(#( #names: () ),*)
-        };
-        let builder_generics = {
-            let names = self.included_fields().map(|f| f.name);
-            let generic_idents = self.included_fields().map(|f| &f.generic_ident);
-            quote!(#( #names: #generic_idents ),*)
-        };
         let StructInfo {
             ref vis,
             ref name,
@@ -77,15 +75,13 @@ impl<'a> StructInfo<'a> {
             ..
         } = *self;
         let (impl_generics, ty_generics, where_clause) = self.generics.split_for_impl();
+        let all_fields_param = syn::GenericParam::Type(syn::Ident::new("TypedBuilderFields", proc_macro2::Span::call_site()).into());
         let b_generics = self.modify_generics(|g| {
-            for field in self.included_fields() {
-                g.params.push(field.generic_ty_param());
-            }
+            g.params.push(all_fields_param.clone());
         });
+        let empties_tuple = type_tuple(self.included_fields().map(|_| empty_type()));
         let generics_with_empty = modify_types_generics_hack(&ty_generics, |args| {
-            for _ in self.included_fields() {
-                args.push(syn::GenericArgument::Type(empty_type()));
-            }
+            args.push(syn::GenericArgument::Type(empties_tuple.clone().into()));
         });
         let phantom_generics = self.generics.params.iter().map(|param| {
             let t = match param {
@@ -148,8 +144,8 @@ impl<'a> StructInfo<'a> {
                 #[allow(dead_code)]
                 #vis fn builder() -> #builder_name #generics_with_empty {
                     #builder_name {
-                        _TypedBuilder__phantomGenerics_: #core::default::Default::default(),
-                        #init_empties
+                        fields: #empties_tuple,
+                        _phantom: #core::default::Default::default(),
                     }
                 }
             }
@@ -158,8 +154,8 @@ impl<'a> StructInfo<'a> {
             #builder_type_doc
             #[allow(dead_code, non_camel_case_types, non_snake_case)]
             #vis struct #builder_name #b_generics {
-                _TypedBuilder__phantomGenerics_: (#( #phantom_generics ),*),
-                #builder_generics
+                fields: #all_fields_param,
+                _phantom: (#( #phantom_generics ),*),
             }
         })
     }
@@ -195,15 +191,21 @@ impl<'a> StructInfo<'a> {
             ref core,
             ..
         } = *self;
-        let other_fields_name = self
+
+        let descructuring = self
             .included_fields()
-            .filter(|f| f.ordinal != field.ordinal)
-            .map(|f| f.name);
-        // not really "value", since we just use to self.name - but close enough.
-        let other_fields_value = self
+            .map(|f| {
+                if f.ordinal == field.ordinal {
+                    quote!(_)
+                } else {
+                    let name = f.name;
+                    quote!(#name)
+                }
+            });
+        let reconstructing = self
             .included_fields()
-            .filter(|f| f.ordinal != field.ordinal)
             .map(|f| f.name);
+
         let &FieldInfo {
             name: ref field_name,
             ty: ref field_type,
@@ -228,20 +230,26 @@ impl<'a> StructInfo<'a> {
                 }
             })
             .collect();
-        let mut target_generics = ty_generics.clone();
+        let mut target_generics_tuple = empty_type_tuple();
+        let mut ty_generics_tuple = empty_type_tuple();
         let generics = self.modify_generics(|g| {
             for f in self.included_fields() {
                 if f.ordinal == field.ordinal {
-                    ty_generics.push(syn::GenericArgument::Type(empty_type()));
-                    target_generics.push(syn::GenericArgument::Type(f.tuplized_type_ty_param()));
+                    ty_generics_tuple.elems.push_value(empty_type());
+                    target_generics_tuple.elems.push_value(f.tuplized_type_ty_param());
                 } else {
                     g.params.push(f.generic_ty_param());
-                    let generic_argument = syn::GenericArgument::Type(f.type_ident());
-                    ty_generics.push(generic_argument.clone());
-                    target_generics.push(generic_argument);
+                    let generic_argument: syn::Type = f.type_ident().into();
+                    ty_generics_tuple.elems.push_value(generic_argument.clone());
+                    target_generics_tuple.elems.push_value(generic_argument);
                 }
+                ty_generics_tuple.elems.push_punct(Default::default());
+                target_generics_tuple.elems.push_punct(Default::default());
             }
         });
+        let mut target_generics = ty_generics.clone();
+        target_generics.push(syn::GenericArgument::Type(target_generics_tuple.into()));
+        ty_generics.push(syn::GenericArgument::Type(ty_generics_tuple.into()));
         let (impl_generics, _, where_clause) = generics.split_for_impl();
         let doc = match field.builder_attr.doc {
             Some(ref doc) => quote!(#[doc = #doc]),
@@ -251,11 +259,12 @@ impl<'a> StructInfo<'a> {
             #[allow(dead_code, non_camel_case_types, missing_docs)]
             impl #impl_generics #builder_name < #( #ty_generics ),* > #where_clause {
                 #doc
-                pub fn #field_name<#generic_ident: #core::convert::Into<#field_type>>(self, value: #generic_ident) -> #builder_name < #( #target_generics ),* > {
+                pub fn #field_name<#generic_ident: #core::convert::Into<#field_type>>(self, #field_name: #generic_ident) -> #builder_name < #( #target_generics ),* > {
+                    let #field_name = (#field_name.into(),);
+                    let ( #(#descructuring,)* ) = self.fields;
                     #builder_name {
-                        _TypedBuilder__phantomGenerics_: self._TypedBuilder__phantomGenerics_,
-                        #field_name: (value.into(),),
-                        #( #other_fields_name: self.#other_fields_value ),*
+                        fields: ( #(#reconstructing,)* ),
+                        _phantom: self._phantom,
                     }
                 }
             }
@@ -302,15 +311,18 @@ impl<'a> StructInfo<'a> {
         let (_, ty_generics, where_clause) = self.generics.split_for_impl();
 
         let modified_ty_generics = modify_types_generics_hack(&ty_generics, |args| {
-            for field in self.included_fields() {
-                let required_type = if field.builder_attr.default.is_some() {
+            args.push(syn::GenericArgument::Type(type_tuple(self.included_fields().map(|field| {
+                if field.builder_attr.default.is_some() {
                     field.type_ident()
                 } else {
                     field.tuplized_type_ty_param()
-                };
-                args.push(syn::GenericArgument::Type(required_type));
-            }
+                }
+            })).into()));
         });
+
+        let descructuring = self
+            .included_fields()
+            .map(|f| f.name);
 
         let ref helper_trait_name = self.conversion_helper_trait_name;
         // The default_code of a field can refer to earlier-defined fields, which we handle by
@@ -324,10 +336,10 @@ impl<'a> StructInfo<'a> {
                 if field.builder_attr.exclude {
                     quote!(let #name = #default;)
                 } else {
-                    quote!(let #name = #helper_trait_name::into_value(self.#name, || #default);)
+                    quote!(let #name = #helper_trait_name::into_value(#name, || #default);)
                 }
             } else {
-                quote!(let #name = self.#name.0;)
+                quote!(let #name = #name.0;)
             }
         });
         let field_names = self.fields.iter().map(|field| field.name);
@@ -349,6 +361,7 @@ impl<'a> StructInfo<'a> {
             impl #impl_generics #builder_name #modified_ty_generics #where_clause {
                 #doc
                 pub fn build(self) -> #name #ty_generics {
+                    let ( #(#descructuring,)* ) = self.fields;
                     #( #assignments )*
                     #name {
                         #( #field_names ),*
