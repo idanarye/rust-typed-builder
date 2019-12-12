@@ -49,6 +49,24 @@ pub fn empty_type() -> syn::Type {
     .into()
 }
 
+pub fn type_tuple(elems: impl Iterator<Item = syn::Type>) -> syn::TypeTuple {
+    let mut result = syn::TypeTuple {
+        paren_token: Default::default(),
+        elems: elems.collect(),
+    };
+    if !result.elems.empty_or_trailing() {
+        result.elems.push_punct(Default::default());
+    }
+    result
+}
+
+pub fn empty_type_tuple() -> syn::TypeTuple {
+    syn::TypeTuple {
+        paren_token: Default::default(),
+        elems: Default::default(),
+    }
+}
+
 pub fn make_punctuated_single<T, P: Default>(value: T) -> syn::punctuated::Punctuated<T, P> {
     let mut punctuated = syn::punctuated::Punctuated::new();
     punctuated.push(value);

@@ -24,6 +24,8 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   - Renamed the conversion helper trait for documentation purposes (`TypedBuilder_conversionHelperTrait_Foo` to `FooBuilder_Optional`), and its method name for simpler code.
 - [**BREAKING**] `default_code` is now lazily evaluated instead of eagerly; any side-effects that there might have been will no longer occur. As is usual in this release, this is very unlikely to affect you.
 - The restriction that there be only one `#[builder]` attribute per field has been lifted. You can now write `#[builder(skip)] #[builder(default)]` instead of `#[builder(skip, default)]` if you want to. As was already the case, latest definition wins.
+- [**BREAKING**] Use a single generic parameter to represent the builder type's
+  state (see issue #21). Previously we would use a parameter for each field.
 
 ### Changed
 - Move to dual license - MIT/Apache-2.0. Previously this project was just MIT.
