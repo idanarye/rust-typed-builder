@@ -140,7 +140,7 @@ fn impl_my_derive(ast: &syn::DeriveInput) -> Result<TokenStream, Error> {
                 let fields = struct_info
                     .included_fields()
                     .map(|f| struct_info.field_impl(f).unwrap());
-                let fields = quote!(#(#fields)*);
+                let fields = quote!(#(#fields)*).into_iter();
                 let build_method = struct_info.build_method_impl();
 
                 quote! {

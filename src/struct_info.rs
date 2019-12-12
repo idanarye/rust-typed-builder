@@ -398,10 +398,10 @@ impl TypeBuilderAttr {
                 continue;
             }
 
-            if attr.tts.is_empty() {
+            if attr.tokens.is_empty() {
                 continue;
             }
-            let as_expr: syn::Expr = syn::parse2(attr.tts.clone())?;
+            let as_expr: syn::Expr = syn::parse2(attr.tokens.clone())?;
 
             match as_expr {
                 syn::Expr::Paren(body) => {
@@ -413,7 +413,7 @@ impl TypeBuilderAttr {
                     }
                 }
                 _ => {
-                    return Err(Error::new_spanned(attr.tts.clone(), "Expected (<...>)"));
+                    return Err(Error::new_spanned(attr.tokens.clone(), "Expected (<...>)"));
                 }
             }
         }

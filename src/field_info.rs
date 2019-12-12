@@ -64,17 +64,17 @@ pub struct FieldBuilderAttr {
 impl FieldBuilderAttr {
     pub fn new(attrs: &[syn::Attribute]) -> Result<FieldBuilderAttr, Error> {
         let mut result = FieldBuilderAttr::default();
-        let mut skip_tts = None;
+        let mut skip_tokens = None;
         for attr in attrs {
             if path_to_single_string(&attr.path).as_ref().map(|s| &**s) != Some("builder") {
                 continue;
             }
 
-            if attr.tts.is_empty() {
+            if attr.tokens.is_empty() {
                 continue;
             }
 
-            let as_expr: syn::Expr = syn::parse2(attr.tts.clone())?;
+            let as_expr: syn::Expr = syn::parse2(attr.tokens.clone())?;
             match as_expr {
                 syn::Expr::Paren(body) => {
                     result.apply_meta(*body.expr)?;
@@ -85,18 +85,18 @@ impl FieldBuilderAttr {
                     }
                 }
                 _ => {
-                    return Err(Error::new_spanned(attr.tts.clone(), "Expected (<...>)"));
+                    return Err(Error::new_spanned(attr.tokens.clone(), "Expected (<...>)"));
                 }
             }
             // Stash its span for later (we don’t yet know if it’ll be an error)
-            if result.skip && skip_tts.is_none() {
-                skip_tts = Some(attr.tts.clone());
+            if result.skip && skip_tokens.is_none() {
+                skip_tokens = Some(attr.tokens.clone());
             }
         }
 
         if result.skip && result.default.is_none() {
             return Err(Error::new_spanned(
-                skip_tts.unwrap(),
+                skip_tokens.unwrap(),
                 "#[builder(skip)] must be accompanied by default or default_code",
             ));
         }
