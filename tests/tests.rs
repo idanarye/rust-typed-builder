@@ -35,7 +35,6 @@ fn test_mutable_borrows() {
 
     let mut a = 1;
     let mut b = 2;
-    println!("a, b = {:?}", (a, b));
     {
         let foo = Foo::builder().x(&mut a).y(&mut b).build();
         *foo.x *= 10;
@@ -220,4 +219,50 @@ fn test_builder_name() {
     struct Foo {}
 
     let _: FooBuilder<_> = Foo::builder();
+}
+
+// NOTE: `test_builder_type_stability` and `test_builder_type_stability_with_other_generics` are
+//       meant to ensure we don't break things for people that use custom `impl`s on the builder
+//       type before the tuple field generic param transformation traits are in.
+//       See:
+//        - https://github.com/idanarye/rust-typed-builder/issues/22
+//        - https://github.com/idanarye/rust-typed-builder/issues/23
+#[test]
+fn test_builder_type_stability() {
+    #[derive(PartialEq, TypedBuilder)]
+    struct Foo {
+        x: i32,
+        y: i32,
+        z: i32,
+    }
+
+    impl<Y> FooBuilder<((), Y, ())> {
+        fn xz(self, x: i32, z: i32) -> FooBuilder<((i32,), Y, (i32,))> {
+            self.x(x).z(z)
+        }
+    }
+
+    assert!(Foo::builder().xz(1, 2).y(3).build() == Foo { x: 1, y: 3, z: 2 });
+    assert!(Foo::builder().xz(1, 2).y(3).build() == Foo::builder().x(1).z(2).y(3).build());
+
+    assert!(Foo::builder().y(1).xz(2, 3).build() == Foo { x: 2, y: 1, z: 3 });
+    assert!(Foo::builder().y(1).xz(2, 3).build() == Foo::builder().y(1).x(2).z(3).build());
+}
+
+#[test]
+fn test_builder_type_stability_with_other_generics() {
+    #[derive(PartialEq, TypedBuilder)]
+    struct Foo<X: Default, Y> {
+        x: X,
+        y: Y,
+    }
+
+    impl<X: Default, Y, Y_> FooBuilder<X, Y, ((), Y_)> {
+        fn x_default(self) -> FooBuilder<X, Y, ((X,), Y_)> {
+            self.x(X::default())
+        }
+    }
+
+    assert!(Foo::builder().x_default().y(1.0).build() == Foo { x: 0, y: 1.0 });
+    assert!(Foo::builder().y("hello".to_owned()).x_default().build() == Foo { x: "", y: "hello".to_owned() });
 }
