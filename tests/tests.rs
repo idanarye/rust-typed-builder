@@ -199,6 +199,7 @@ fn test_docs() {
         build_method_doc = "PointBuilder.build() method docs"
     )]
     struct Point {
+        #[allow(dead_code)]
         x: i32,
         #[builder(
             doc = "
@@ -206,6 +207,7 @@ fn test_docs() {
                 ",
             default_code = "x"
         )]
+        #[allow(dead_code)]
         y: i32,
     }
 
