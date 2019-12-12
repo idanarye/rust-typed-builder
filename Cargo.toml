@@ -2,12 +2,13 @@
 name = "typed-builder"
 description = "Compile-time type-checked builder derive"
 version = "0.3.0"
-authors = ["IdanArye <idanarye@gmail.com>"]
+authors = ["IdanArye <idanarye@gmail.com>", "Chris Morgan <me@chrismorgan.info>"]
 license = "MIT/Apache-2.0"
 repository = "https://github.com/idanarye/rust-typed-builder"
 documentation = "https://idanarye.github.io/rust-typed-builder/"
 readme = "README.md"
 keywords = ["builder"]
+categories = ["rust-patterns"]
 
 [lib]
 proc-macro = true

@@ -23,8 +23,9 @@ struct Foo {
     #[builder(default=20)]
     z: i32,
 
-    // If the default cannot be parsed, you must encode it as a string:
-    #[builder(default_code="vec![30, 40]")]
+    // If the default cannot be parsed, you must encode it as a string.
+    // This also allows you to refer to the values of earlier-declared fields.
+    #[builder(default_code="vec![z as u32, 40]")]
     w: Vec<u32>,
 }
 ```
