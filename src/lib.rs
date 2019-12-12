@@ -119,7 +119,7 @@ mod util;
 ///   of no value unless you enable docs for the builder type with `#[builder(doc)]` or similar on
 ///   the type.
 ///
-/// - `exclude`: do not define a method on the builder for this field. This requires that a default
+/// - `skip`: do not define a method on the builder for this field. This requires that a default
 ///   be set.
 #[proc_macro_derive(TypedBuilder, attributes(builder))]
 pub fn derive_typed_builder(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
@@ -184,14 +184,14 @@ fn impl_my_derive(ast: &syn::DeriveInput) -> Result<TokenStream, Error> {
 // crate is all we can use.
 
 #[doc(hidden)]
-/// When a property is excluded, you can’t set it:
+/// When a property is skipped, you can’t set it:
 /// (“method `y` not found for this”)
 ///
 /// ```compile_fail
 /// #[macro_use] extern crate typed_builder;
 /// #[derive(PartialEq, TypedBuilder)]
 /// struct Foo {
-///     #[builder(exclude, default)]
+///     #[builder(skip, default)]
 ///     y: i8,
 /// }
 ///
@@ -204,21 +204,21 @@ fn impl_my_derive(ast: &syn::DeriveInput) -> Result<TokenStream, Error> {
 /// #[macro_use] extern crate typed_builder;
 /// #[derive(PartialEq, TypedBuilder)]
 /// struct Foo {
-///     #[builder(exclude, default)]
+///     #[builder(skip, default)]
 ///     y: i8,
 /// }
 ///
 /// let _ = Foo::builder().build();
 /// ```
 ///
-/// `exclude` without `default` or `default_code` is disallowed:
-/// (“error: #[builder(exclude)] must be accompanied by default or default_code”)
+/// `skip` without `default` or `default_code` is disallowed:
+/// (“error: #[builder(skip)] must be accompanied by default or default_code”)
 ///
 /// ```compile_fail
 /// #[macro_use] extern crate typed_builder;
 /// #[derive(PartialEq, TypedBuilder)]
 /// struct Foo {
-///     #[builder(exclude)]
+///     #[builder(skip)]
 ///     y: i8,
 /// }
 /// ```

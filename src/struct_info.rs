@@ -30,7 +30,7 @@ pub struct StructInfo<'a> {
 
 impl<'a> StructInfo<'a> {
     pub fn included_fields(&self) -> impl Iterator<Item = &FieldInfo<'a>> {
-        self.fields.iter().filter(|f| !f.builder_attr.exclude)
+        self.fields.iter().filter(|f| !f.builder_attr.skip)
     }
 
     pub fn new(
@@ -333,7 +333,7 @@ impl<'a> StructInfo<'a> {
         let assignments = self.fields.iter().map(|field| {
             let ref name = field.name;
             if let Some(ref default) = field.builder_attr.default {
-                if field.builder_attr.exclude {
+                if field.builder_attr.skip {
                     quote!(let #name = #default;)
                 } else {
                     quote!(let #name = #helper_trait_name::into_value(#name, || #default);)
