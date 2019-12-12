@@ -90,7 +90,6 @@ impl<'a> StructInfo<'a> {
                 args.push(syn::GenericArgument::Type(empty_type()));
             }
         });
-        let skip_phantom_generics = self.generics.params.is_empty();
         let phantom_generics = self.generics.params.iter().map(|param| {
             let t = match param {
                 syn::GenericParam::Lifetime(lifetime) => quote!(&#lifetime ()),
@@ -145,16 +144,6 @@ impl<'a> StructInfo<'a> {
         } else {
             quote!(#[doc(hidden)])
         };
-        let phantom_generic_fields = if skip_phantom_generics {
-            quote!()
-        } else {
-            quote!(__typed_builder_phantom_generics: (#( #phantom_generics ),*),)
-        };
-        let init_phantom_generics = if skip_phantom_generics {
-            quote!()
-        } else {
-            quote!(__typed_builder_phantom_generics: #core::default::Default::default(),)
-        };
         Ok(quote! {
             extern crate core as #core;
             impl #impl_generics #name #ty_generics #where_clause {
@@ -162,7 +151,7 @@ impl<'a> StructInfo<'a> {
                 #[allow(dead_code)]
                 #vis fn builder() -> #builder_name #generics_with_empty {
                     #builder_name {
-                        #init_phantom_generics
+                        _TypedBuilder__phantomGenerics_: #core::default::Default::default(),
                         #init_empties
                     }
                 }
@@ -172,7 +161,7 @@ impl<'a> StructInfo<'a> {
             #builder_type_doc
             #[allow(dead_code, non_camel_case_types, non_snake_case)]
             #vis struct #builder_name #b_generics {
-                #phantom_generic_fields
+                _TypedBuilder__phantomGenerics_: (#( #phantom_generics ),*),
                 #builder_generics
             }
         })
@@ -261,18 +250,13 @@ impl<'a> StructInfo<'a> {
             Some(ref doc) => quote!(#[doc = #doc]),
             None => quote!(),
         };
-        let phantom_generics = if self.generics.params.is_empty() {
-            quote!()
-        } else {
-            quote!(__typed_builder_phantom_generics: self.__typed_builder_phantom_generics,)
-        };
         Ok(quote! {
             #[allow(dead_code, non_camel_case_types, missing_docs)]
             impl #impl_generics #builder_name < #( #ty_generics ),* > #where_clause {
                 #doc
                 pub fn #field_name<#generic_ident: #core::convert::Into<#field_type>>(self, value: #generic_ident) -> #builder_name < #( #target_generics ),* > {
                     #builder_name {
-                        #phantom_generics
+                        _TypedBuilder__phantomGenerics_: self._TypedBuilder__phantomGenerics_,
                         #field_name: (value.into(),),
                         #( #other_fields_name: self.#other_fields_value ),*
                     }
