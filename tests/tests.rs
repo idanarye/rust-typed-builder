@@ -154,16 +154,16 @@ fn test_field_dependencies_in_build() {
     );
 }
 
-// compile-fail tests for exclude are in src/lib.rs out of necessity. These are just the bland
+// compile-fail tests for skip are in src/lib.rs out of necessity. These are just the bland
 // successful cases.
 #[test]
-fn test_exclude() {
+fn test_skip() {
     #[derive(PartialEq, TypedBuilder)]
     struct Foo {
-        #[builder(exclude, default)]
+        #[builder(skip, default)]
         x: i32,
         y: i32,
-        #[builder(exclude, default_code = "y + 1")]
+        #[builder(skip, default_code = "y + 1")]
         z: i32,
     }
 

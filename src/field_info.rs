@@ -57,14 +57,14 @@ impl<'a> FieldInfo<'a> {
 #[derive(Debug, Default)]
 pub struct FieldBuilderAttr {
     pub doc: Option<syn::Expr>,
-    pub exclude: bool,
+    pub skip: bool,
     pub default: Option<syn::Expr>,
 }
 
 impl FieldBuilderAttr {
     pub fn new(attrs: &[syn::Attribute]) -> Result<FieldBuilderAttr, Error> {
         let mut result = FieldBuilderAttr::default();
-        let mut exclude_tts = None;
+        let mut skip_tts = None;
         for attr in attrs {
             if path_to_single_string(&attr.path).as_ref().map(|s| &**s) != Some("builder") {
                 continue;
@@ -89,15 +89,15 @@ impl FieldBuilderAttr {
                 }
             }
             // Stash its span for later (we don’t yet know if it’ll be an error)
-            if result.exclude && exclude_tts.is_none() {
-                exclude_tts = Some(attr.tts.clone());
+            if result.skip && skip_tts.is_none() {
+                skip_tts = Some(attr.tts.clone());
             }
         }
 
-        if result.exclude && result.default.is_none() {
+        if result.skip && result.default.is_none() {
             return Err(Error::new_spanned(
-                exclude_tts.unwrap(),
-                "#[builder(exclude)] must be accompanied by default or default_code",
+                skip_tts.unwrap(),
+                "#[builder(skip)] must be accompanied by default or default_code",
             ));
         }
 
@@ -145,8 +145,8 @@ impl FieldBuilderAttr {
                 let name = path_to_single_string(&path.path)
                     .ok_or_else(|| Error::new_spanned(&path, "Expected identifier"))?;
                 match name.as_str() {
-                    "exclude" => {
-                        self.exclude = true;
+                    "skip" => {
+                        self.skip = true;
                         Ok(())
                     }
                     "default" => {

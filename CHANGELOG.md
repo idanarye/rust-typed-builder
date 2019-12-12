@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - `#![no_std]` is now supported out of the box. (You don’t need to opt into any features, it just works.)
 - [**BREAKING**] a `default_code` expression can now refer to the values of earlier fields by name.
   (This is extremely unlikely to break your code, but could in theory due to shadowing.)
-- `#[builder(exclude)]` on fields, to not provide a method to set that field.
+- `#[builder(skip)]` on fields, to not provide a method to set that field.
 - Control of documentation:
   - `#[builder(doc = "…")]` on fields, to document the field’s method on the builder. Unlike `#[doc]`, you can currently only have one value rather than one attribute per line; but that’s not a big deal since you don’t get to use the `///` sugar anyway. Just use a multiline string.
   - `#[builder(doc, builder_method_doc = "…", builder_type_doc = "…", build_method_doc = "…")]` on structs:
@@ -23,7 +23,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   - Generic identifiers were also changed, from `TypedBuilder_genericType_x` to `__x`. This is still expected to avoid all name collisions, but is easier to read in the builder type docs if you enable them.
   - Renamed the conversion helper trait for documentation purposes (`TypedBuilder_conversionHelperTrait_Foo` to `FooBuilder_Optional`), and its method name for simpler code.
 - [**BREAKING**] `default_code` is now lazily evaluated instead of eagerly; any side-effects that there might have been will no longer occur. As is usual in this release, this is very unlikely to affect you.
-- The restriction that there be only one `#[builder]` attribute per field has been lifted. You can now write `#[builder(exclude)] #[builder(default)]` instead of `#[builder(exclude, default)]` if you want to. As was already the case, latest definition wins.
+- The restriction that there be only one `#[builder]` attribute per field has been lifted. You can now write `#[builder(skip)] #[builder(default)]` instead of `#[builder(skip, default)]` if you want to. As was already the case, latest definition wins.
 
 ### Changed
 - Move to dual license - MIT/Apache-2.0. Previously this project was just MIT.
