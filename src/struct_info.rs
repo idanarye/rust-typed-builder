@@ -31,10 +31,7 @@ impl<'a> StructInfo<'a> {
         fields: impl Iterator<Item = &'a syn::Field>,
     ) -> Result<StructInfo<'a>, Error> {
         let builder_attr = TypeBuilderAttr::new(&ast.attrs)?;
-        let builder_name = &match builder_attr.name {
-            Some(ref name) => quote!(#name).to_string(),
-            None => format!("{}Builder", ast.ident),
-        };
+        let builder_name = format!("{}Builder", ast.ident);
         Ok(StructInfo {
             vis: &ast.vis,
             name: &ast.ident,
@@ -44,7 +41,7 @@ impl<'a> StructInfo<'a> {
                 .map(|(i, f)| FieldInfo::new(i, f))
                 .collect::<Result<_, _>>()?,
             builder_attr: builder_attr,
-            builder_name: syn::Ident::new(builder_name, proc_macro2::Span::call_site()),
+            builder_name: syn::Ident::new(&builder_name, proc_macro2::Span::call_site()),
             conversion_helper_trait_name: syn::Ident::new(
                 &format!("{}_Optional", builder_name),
                 proc_macro2::Span::call_site(),
@@ -368,9 +365,6 @@ pub struct TypeBuilderAttr {
     /// Whether to show docs for the `TypeBuilder` type (rather than hiding them).
     pub doc: bool,
 
-    /// The name of the builder type.
-    pub name: Option<syn::Expr>,
-
     /// Docs on the `Type::builder()` method.
     pub builder_method_doc: Option<syn::Expr>,
 
@@ -420,10 +414,6 @@ impl TypeBuilderAttr {
                 let name = expr_to_single_string(&assign.left)
                     .ok_or_else(|| Error::new_spanned(&assign.left, "Expected identifier"))?;
                 match name.as_str() {
-                    "name" => {
-                        self.name = Some(*assign.right);
-                        Ok(())
-                    }
                     "builder_method_doc" => {
                         self.builder_method_doc = Some(*assign.right);
                         Ok(())

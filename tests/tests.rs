@@ -198,10 +198,4 @@ fn test_builder_name() {
     struct Foo {}
 
     let _: FooBuilder = Foo::builder();
-
-    #[derive(TypedBuilder)]
-    #[builder(name = SomeOtherNameForTheBuilder)]
-    struct Bar {}
-
-    let _: SomeOtherNameForTheBuilder = Bar::builder();
 }
