@@ -26,6 +26,26 @@ fn test_lifetime() {
 }
 
 #[test]
+fn test_mutable_borrows() {
+    #[derive(PartialEq, TypedBuilder)]
+    struct Foo<'a, 'b> {
+        x: &'a mut i32,
+        y: &'b mut i32,
+    }
+
+    let mut a = 1;
+    let mut b = 2;
+    println!("a, b = {:?}", (a, b));
+    {
+        let foo = Foo::builder().x(&mut a).y(&mut b).build();
+        *foo.x *= 10;
+        *foo.y *= 100;
+    }
+    assert!(a == 10);
+    assert!(b == 200);
+}
+
+#[test]
 fn test_generics() {
     #[derive(PartialEq, TypedBuilder)]
     struct Foo<S, T: Default> {
