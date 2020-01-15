@@ -257,8 +257,8 @@ fn test_builder_type_stability_with_other_generics() {
         y: Y,
     }
 
-    impl<X: Default, Y, Y_> FooBuilder<X, Y, ((), Y_)> {
-        fn x_default(self) -> FooBuilder<X, Y, ((X,), Y_)> {
+    impl<X: Default, Y, Y_> FooBuilder<((), Y_), X, Y> {
+        fn x_default(self) -> FooBuilder<((X,), Y_), X, Y> {
             self.x(X::default())
         }
     }

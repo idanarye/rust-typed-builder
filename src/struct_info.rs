@@ -77,11 +77,11 @@ impl<'a> StructInfo<'a> {
         let (impl_generics, ty_generics, where_clause) = self.generics.split_for_impl();
         let all_fields_param = syn::GenericParam::Type(syn::Ident::new("TypedBuilderFields", proc_macro2::Span::call_site()).into());
         let b_generics = self.modify_generics(|g| {
-            g.params.push(all_fields_param.clone());
+            g.params.insert(0, all_fields_param.clone());
         });
         let empties_tuple = type_tuple(self.included_fields().map(|_| empty_type()));
         let generics_with_empty = modify_types_generics_hack(&ty_generics, |args| {
-            args.push(syn::GenericArgument::Type(empties_tuple.clone().into()));
+            args.insert(0, syn::GenericArgument::Type(empties_tuple.clone().into()));
         });
         let phantom_generics = self.generics.params.iter().map(|param| {
             let t = match param {
@@ -248,8 +248,12 @@ impl<'a> StructInfo<'a> {
             }
         });
         let mut target_generics = ty_generics.clone();
-        target_generics.push(syn::GenericArgument::Type(target_generics_tuple.into()));
-        ty_generics.push(syn::GenericArgument::Type(ty_generics_tuple.into()));
+
+        let ix = target_generics.iter().fold(0, |ix, arg| {
+            if let syn::GenericArgument::Type(_) = arg { ix } else { ix + 1 }
+        });
+        target_generics.insert(ix, syn::GenericArgument::Type(target_generics_tuple.into()));
+        ty_generics.insert(ix, syn::GenericArgument::Type(ty_generics_tuple.into()));
         let (impl_generics, _, where_clause) = generics.split_for_impl();
         let doc = match field.builder_attr.doc {
             Some(ref doc) => quote!(#[doc = #doc]),
@@ -311,7 +315,7 @@ impl<'a> StructInfo<'a> {
         let (_, ty_generics, where_clause) = self.generics.split_for_impl();
 
         let modified_ty_generics = modify_types_generics_hack(&ty_generics, |args| {
-            args.push(syn::GenericArgument::Type(type_tuple(self.included_fields().map(|field| {
+            args.insert(0, syn::GenericArgument::Type(type_tuple(self.included_fields().map(|field| {
                 if field.builder_attr.default.is_some() {
                     field.type_ident()
                 } else {
