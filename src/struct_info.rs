@@ -249,11 +249,11 @@ impl<'a> StructInfo<'a> {
         });
         let mut target_generics = ty_generics.clone();
 
-        let ix = target_generics.iter().fold(0, |ix, arg| {
+        let index_before_type_in_generics = target_generics.iter().fold(0, |ix, arg| {
             if let syn::GenericArgument::Type(_) = arg { ix } else { ix + 1 }
         });
-        target_generics.insert(ix, syn::GenericArgument::Type(target_generics_tuple.into()));
-        ty_generics.insert(ix, syn::GenericArgument::Type(ty_generics_tuple.into()));
+        target_generics.insert(index_before_type_in_generics, syn::GenericArgument::Type(target_generics_tuple.into()));
+        ty_generics.insert(index_before_type_in_generics, syn::GenericArgument::Type(ty_generics_tuple.into()));
         let (impl_generics, _, where_clause) = generics.split_for_impl();
         let doc = match field.builder_attr.doc {
             Some(ref doc) => quote!(#[doc = #doc]),
