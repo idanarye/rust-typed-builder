@@ -58,6 +58,7 @@ impl<'a> FieldInfo<'a> {
 pub struct FieldBuilderAttr {
     pub doc: Option<syn::Expr>,
     pub skip: bool,
+    pub no_into: bool,
     pub default: Option<syn::Expr>,
 }
 
@@ -147,6 +148,10 @@ impl FieldBuilderAttr {
                 match name.as_str() {
                     "skip" => {
                         self.skip = true;
+                        Ok(())
+                    }
+                    "no_into" => {
+                        self.no_into = true;
                         Ok(())
                     }
                     "default" => {
