@@ -328,8 +328,8 @@ fn test_builder_type_with_default_on_generic_type() {
     let a = 0;
 
     // compile test if rustc can infer type for `z` and `m`
-    let foo = Foo::<(), _, _, f64>::builder().x(()).y(&a).z_default().m(1.0).build();
-    let foo = Foo::<(), _, _, _>::builder().x(()).y(&a).z_default().m_default().build();
+    Foo::<(), _, _, f64>::builder().x(()).y(&a).z_default().m(1.0).build();
+    Foo::<(), _, _, _>::builder().x(()).y(&a).z_default().m_default().build();
 
     assert!(Foo::builder().x(()).y(&a).z_default().m(1.0).build() == Foo { x:(), y: &0, z: 0, m:1.0 });
     assert!(Foo::builder().x(()).y(&a).z(9).m(1.0).build() == Foo { x:(), y: &0, z: 9, m:1.0 });
