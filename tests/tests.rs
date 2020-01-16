@@ -266,3 +266,71 @@ fn test_builder_type_stability_with_other_generics() {
     assert!(Foo::builder().x_default().y(1.0).build() == Foo { x: 0, y: 1.0 });
     assert!(Foo::builder().y("hello".to_owned()).x_default().build() == Foo { x: "", y: "hello".to_owned() });
 }
+
+#[test]
+fn test_builder_type_with_default_on_generic_type() {
+    #[derive(PartialEq, TypedBuilder)]
+    struct Types<X, Y=()> {
+        x: X,
+        y: Y,
+    }
+    assert!(Types::builder().x(()).y(()).build() == Types { x:(), y: () });
+
+    #[derive(PartialEq, TypedBuilder)]
+    struct Constrain<X:Default, Y:Default=usize> {
+        x: X,
+        y: Y,
+    }
+    assert!(Constrain::builder().x(1).y(4).build() == Constrain { x:1, y: 4 });
+
+    #[derive(PartialEq, TypedBuilder)]
+    struct TypeAndConstrain<X:Default, Y=()> {
+        x: X,
+        y: Y,
+    }
+    assert!(TypeAndConstrain::builder().x(1).y(()).build() == TypeAndConstrain { x:1, y: () });
+
+    #[derive(PartialEq, TypedBuilder)]
+    struct TypeAndConstrain2<X,Y:Default, C=()> {
+        x: X,
+        y: Y,
+        c:C,
+    }
+    assert!(TypeAndConstrain2::builder().x(()).y(0).c(()).build() == TypeAndConstrain2 { x:(), y: 0, c:() });
+
+    #[derive(PartialEq, TypedBuilder)]
+    struct TypeAndConstrain3<X, Y:Default=()> {
+        x: X,
+        y: Y,
+    }
+    assert!(TypeAndConstrain3::builder().x(()).y(0).build() == TypeAndConstrain3 { x:(), y: 0 });
+
+    #[derive(PartialEq, TypedBuilder)]
+    struct Foo<'a, X, Y: Default, Z:Default=usize, M =()> {
+        x: X,
+        y: &'a Y,
+        z: Z,
+        m: M
+    }
+
+    impl<'a, X, Y: Default, M, X_, Y_, M_> FooBuilder<'a, (X_, Y_, (), M_), X, Y, usize, M> {
+        fn z_default(self) -> FooBuilder<'a, (X_, Y_, (usize,), M_), X, Y, usize, M> {
+            self.z(usize::default())
+        }
+    }
+
+    impl<'a, X, Y: Default, Z:Default, X_, Y_, Z_> FooBuilder<'a, (X_, Y_, Z_, ()), X, Y, Z, ()> {
+        fn m_default(self) -> FooBuilder<'a, (X_, Y_, Z_, ((),)), X, Y, Z, ()> {
+            self.m(())
+        }
+    }
+
+    let a = 0;
+
+    // compile test if rustc can infer type for `z` and `m`
+    let foo = Foo::<(), _, _, f64>::builder().x(()).y(&x).z_default().m(1.0).build();
+    let foo = Foo::<(), _, _, _>::builder().x(()).y(&x).z_default().m_default().build();
+
+    assert!(Foo::builder().x(()).y(&a).z_default().m(1.0).build() == Foo { x:(), y: &0, z: 0, m:1.0 });
+    assert!(Foo::builder().x(()).y(&a).z(9).m(1.0).build() == Foo { x:(), y: &0, z: 9, m:1.0 });
+}
