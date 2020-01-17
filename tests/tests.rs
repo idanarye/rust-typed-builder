@@ -314,11 +314,11 @@ fn test_builder_type_with_default_on_generic_type() {
 }
 
 #[test]
-fn test_builder_type_no_into() {
+fn test_builder_type_skip_into() {
 
     #[derive(PartialEq, TypedBuilder)]
     struct Foo<X> {
-        #[builder(no_into)]
+        #[builder(skip_into)]
         x: X,
     }
 

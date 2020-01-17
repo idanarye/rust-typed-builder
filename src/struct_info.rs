@@ -259,7 +259,7 @@ impl<'a> StructInfo<'a> {
             Some(ref doc) => quote!(#[doc = #doc]),
             None => quote!(),
         };
-        let (generic_arg, field_ident) = if field.builder_attr.no_into{
+        let (generic_arg, field_ident) = if field.builder_attr.skip_into{
             (quote!(), quote!(#field_type))
         }
         else{

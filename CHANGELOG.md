@@ -5,7 +5,7 @@ The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
-- `#[builder(no_into)]` attribute on fields, to skip a `Into` conversion from 
+- `#[builder(skip_into)]` attribute on fields, to skip a `Into` conversion from 
   input variable to target type, and thus enable rustc inference for generic type.
 
 ## 0.4.1 - 2020-01-17
