@@ -277,33 +277,13 @@ fn test_builder_type_with_default_on_generic_type() {
     assert!(Types::builder().x(()).y(()).build() == Types { x:(), y: () });
 
     #[derive(PartialEq, TypedBuilder)]
-    struct Constrain<X:Default, Y:Default=usize> {
+    struct TypeAndLifetime<'a, X,Y:Default, Z=usize> {
         x: X,
         y: Y,
+        z:&'a Z,
     }
-    assert!(Constrain::builder().x(1).y(4).build() == Constrain { x:1, y: 4 });
-
-    #[derive(PartialEq, TypedBuilder)]
-    struct TypeAndConstrain<X:Default, Y=()> {
-        x: X,
-        y: Y,
-    }
-    assert!(TypeAndConstrain::builder().x(1).y(()).build() == TypeAndConstrain { x:1, y: () });
-
-    #[derive(PartialEq, TypedBuilder)]
-    struct TypeAndConstrain2<X,Y:Default, C=()> {
-        x: X,
-        y: Y,
-        c:C,
-    }
-    assert!(TypeAndConstrain2::builder().x(()).y(0).c(()).build() == TypeAndConstrain2 { x:(), y: 0, c:() });
-
-    #[derive(PartialEq, TypedBuilder)]
-    struct TypeAndConstrain3<X, Y:Default=()> {
-        x: X,
-        y: Y,
-    }
-    assert!(TypeAndConstrain3::builder().x(()).y(0).build() == TypeAndConstrain3 { x:(), y: 0 });
+    let a = 0;
+    assert!(TypeAndLifetime::builder().x(()).y(0).z(&a).build() == TypeAndLifetime { x:(), y: 0, z:&0 });
 
     #[derive(PartialEq, TypedBuilder)]
     struct Foo<'a, X, Y: Default, Z:Default=usize, M =()> {
@@ -324,8 +304,6 @@ fn test_builder_type_with_default_on_generic_type() {
             self.m(())
         }
     }
-
-    let a = 0;
 
     // compile test if rustc can infer type for `z` and `m`
     Foo::<(), _, _, f64>::builder().x(()).y(&a).z_default().m(1.0).build();
