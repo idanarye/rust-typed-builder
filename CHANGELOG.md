@@ -5,6 +5,13 @@ The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+### Fixed
+- [**BREAKING**] now state types are placed before original generic types. 
+  Previously, all state types are appended to generic arguments. For example, 
+  `Foo<'a, X, Y>` yields `FooBuilder<'a, X, Y, ((), ())>` **previously**, and 
+  now it becomes `FooBuilder<'a, ((), ()), X, Y, >.`. This change fix compiler error 
+  for struct with default type like `Foo<'a, X, Y=Bar>`. Rust only allow type 
+  parameters with a default to be trailing.
 
 ## 0.4.0 - 2019-12-13
 ### Added

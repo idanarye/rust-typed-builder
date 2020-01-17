@@ -257,12 +257,58 @@ fn test_builder_type_stability_with_other_generics() {
         y: Y,
     }
 
-    impl<X: Default, Y, Y_> FooBuilder<X, Y, ((), Y_)> {
-        fn x_default(self) -> FooBuilder<X, Y, ((X,), Y_)> {
+    impl<X: Default, Y, Y_> FooBuilder<((), Y_), X, Y> {
+        fn x_default(self) -> FooBuilder<((X,), Y_), X, Y> {
             self.x(X::default())
         }
     }
 
     assert!(Foo::builder().x_default().y(1.0).build() == Foo { x: 0, y: 1.0 });
     assert!(Foo::builder().y("hello".to_owned()).x_default().build() == Foo { x: "", y: "hello".to_owned() });
+}
+
+#[test]
+fn test_builder_type_with_default_on_generic_type() {
+    #[derive(PartialEq, TypedBuilder)]
+    struct Types<X, Y=()> {
+        x: X,
+        y: Y,
+    }
+    assert!(Types::builder().x(()).y(()).build() == Types { x:(), y: () });
+
+    #[derive(PartialEq, TypedBuilder)]
+    struct TypeAndLifetime<'a, X,Y:Default, Z=usize> {
+        x: X,
+        y: Y,
+        z:&'a Z,
+    }
+    let a = 0;
+    assert!(TypeAndLifetime::builder().x(()).y(0).z(&a).build() == TypeAndLifetime { x:(), y: 0, z:&0 });
+
+    #[derive(PartialEq, TypedBuilder)]
+    struct Foo<'a, X, Y: Default, Z:Default=usize, M =()> {
+        x: X,
+        y: &'a Y,
+        z: Z,
+        m: M
+    }
+
+    impl<'a, X, Y: Default, M, X_, Y_, M_> FooBuilder<'a, (X_, Y_, (), M_), X, Y, usize, M> {
+        fn z_default(self) -> FooBuilder<'a, (X_, Y_, (usize,), M_), X, Y, usize, M> {
+            self.z(usize::default())
+        }
+    }
+
+    impl<'a, X, Y: Default, Z:Default, X_, Y_, Z_> FooBuilder<'a, (X_, Y_, Z_, ()), X, Y, Z, ()> {
+        fn m_default(self) -> FooBuilder<'a, (X_, Y_, Z_, ((),)), X, Y, Z, ()> {
+            self.m(())
+        }
+    }
+
+    // compile test if rustc can infer type for `z` and `m`
+    Foo::<(), _, _, f64>::builder().x(()).y(&a).z_default().m(1.0).build();
+    Foo::<(), _, _, _>::builder().x(()).y(&a).z_default().m_default().build();
+
+    assert!(Foo::builder().x(()).y(&a).z_default().m(1.0).build() == Foo { x:(), y: &0, z: 0, m:1.0 });
+    assert!(Foo::builder().x(()).y(&a).z(9).m(1.0).build() == Foo { x:(), y: &0, z: 9, m:1.0 });
 }
