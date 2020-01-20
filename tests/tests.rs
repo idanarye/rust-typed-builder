@@ -312,3 +312,18 @@ fn test_builder_type_with_default_on_generic_type() {
     assert!(Foo::builder().x(()).y(&a).z_default().m(1.0).build() == Foo { x:(), y: &0, z: 0, m:1.0 });
     assert!(Foo::builder().x(()).y(&a).z(9).m(1.0).build() == Foo { x:(), y: &0, z: 9, m:1.0 });
 }
+
+#[test]
+fn test_builder_type_skip_into() {
+
+    #[derive(PartialEq, TypedBuilder)]
+    struct Foo<X> {
+        #[builder(skip_into)]
+        x: X,
+    }
+
+    // compile test if rustc can infer type for `x`
+    Foo::builder().x(()).build();
+
+    assert!(Foo::builder().x(()).build() == Foo { x:()});
+}
