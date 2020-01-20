@@ -259,6 +259,13 @@ impl<'a> StructInfo<'a> {
             Some(ref doc) => quote!(#[doc = #doc]),
             None => quote!(),
         };
+
+        let repeated_fields_error_type_name = syn::Ident::new(
+            &format!("{}_Error_Repeated_field_{}", builder_name, field_name),
+            proc_macro2::Span::call_site(),
+        );
+        let repeated_fields_error_message = format!("Repeated field {}", field_name);
+
         Ok(quote! {
             #[allow(dead_code, non_camel_case_types, missing_docs)]
             impl #impl_generics #builder_name < #( #ty_generics ),* > #where_clause {
@@ -270,6 +277,19 @@ impl<'a> StructInfo<'a> {
                         fields: ( #(#reconstructing,)* ),
                         _phantom: self._phantom,
                     }
+                }
+            }
+            #[doc(hidden)]
+            #[allow(dead_code, non_camel_case_types, non_snake_case)]
+            pub enum #repeated_fields_error_type_name {}
+            #[doc(hidden)]
+            #[allow(dead_code, non_camel_case_types, missing_docs)]
+            impl #impl_generics #builder_name < #( #target_generics ),* > #where_clause {
+                #[deprecated(
+                    note = #repeated_fields_error_message
+                )]
+                pub fn #field_name<#generic_ident: #core::convert::Into<#field_type>>(self, _: #repeated_fields_error_type_name) -> #builder_name < #( #target_generics ),* > {
+                    self
                 }
             }
         })
