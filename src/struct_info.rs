@@ -260,6 +260,13 @@ impl<'a> StructInfo<'a> {
             None => quote!(),
         };
 
+        let (generic_arg, field_ident) = if field.builder_attr.skip_into{
+            (quote!(), quote!(#field_type))
+        }
+        else{
+            (quote!(<#generic_ident: #core::convert::Into<#field_type>>), quote!(#generic_ident))
+        };
+
         let repeated_fields_error_type_name = syn::Ident::new(
             &format!("{}_Error_Repeated_field_{}", builder_name, field_name),
             proc_macro2::Span::call_site(),
@@ -270,7 +277,7 @@ impl<'a> StructInfo<'a> {
             #[allow(dead_code, non_camel_case_types, missing_docs)]
             impl #impl_generics #builder_name < #( #ty_generics ),* > #where_clause {
                 #doc
-                pub fn #field_name<#generic_ident: #core::convert::Into<#field_type>>(self, #field_name: #generic_ident) -> #builder_name < #( #target_generics ),* > {
+                pub fn #field_name #generic_arg (self, #field_name: #field_ident) -> #builder_name < #( #target_generics ),* > {
                     let #field_name = (#field_name.into(),);
                     let ( #(#descructuring,)* ) = self.fields;
                     #builder_name {
@@ -288,7 +295,7 @@ impl<'a> StructInfo<'a> {
                 #[deprecated(
                     note = #repeated_fields_error_message
                 )]
-                pub fn #field_name<#generic_ident: #core::convert::Into<#field_type>>(self, _: #repeated_fields_error_type_name) -> #builder_name < #( #target_generics ),* > {
+                pub fn #field_name #generic_arg (self, _: #repeated_fields_error_type_name) -> #builder_name < #( #target_generics ),* > {
                     self
                 }
             }
