@@ -307,9 +307,9 @@ impl<'a> StructInfo<'a> {
             ref name,
             ref builder_name,
             ..
-        } = *self;
+        } = self;
 
-        let &FieldInfo {
+        let FieldInfo {
             name: ref field_name,
             ..
         } = field;
@@ -319,14 +319,14 @@ impl<'a> StructInfo<'a> {
             .iter()
             .map(|generic_param| match generic_param {
                 syn::GenericParam::Type(type_param) => {
-                    let ident = type_param.ident.clone();
+                    let ident = &type_param.ident;
                     syn::parse(quote!(#ident).into()).unwrap()
                 }
                 syn::GenericParam::Lifetime(lifetime_def) => {
                     syn::GenericArgument::Lifetime(lifetime_def.lifetime.clone())
                 }
                 syn::GenericParam::Const(const_param) => {
-                    let ident = const_param.ident.clone();
+                    let ident = &const_param.ident;
                     syn::parse(quote!(#ident).into()).unwrap()
                 }
             })
@@ -334,14 +334,26 @@ impl<'a> StructInfo<'a> {
         let mut builder_generics_tuple = empty_type_tuple();
         let generics = self.modify_generics(|g| {
             for f in self.included_fields() {
-                if f.ordinal < field.ordinal && f.builder_attr.default.is_none() {
+                if f.builder_attr.default.is_some() {
+                    // `f` is not mandatory - it does not have it's own fake `build` method, so `field` will need
+                    // to warn about missing `field` whether or not `f` is set.
+                    assert!(f.ordinal != field.ordinal, "`required_field_impl` called for optional field {}", field.name);
+                    g.params.push(f.generic_ty_param());
+                    builder_generics_tuple.elems.push_value(f.type_ident().into());
+                } else if f.ordinal < field.ordinal {
+                    // Only add a `build` method that warns about missing `field` if `f` is set. If `f` is not set,
+                    // `f`'s `build` method will warn, since it appears earlier in the argument list.
                     builder_generics_tuple.elems.push_value(f.tuplized_type_ty_param());
                 } else if f.ordinal == field.ordinal {
                     builder_generics_tuple.elems.push_value(empty_type());
                 } else {
+                    // `f` appears later in the argument list after `field`, so if they are both missing we will
+                    // show a warning for `field` and not for `f` - which means this warning should appear whether
+                    // or not `f` is set.
                     g.params.push(f.generic_ty_param());
                     builder_generics_tuple.elems.push_value(f.type_ident().into());
                 }
+
                 builder_generics_tuple.elems.push_punct(Default::default());
             }
         });
