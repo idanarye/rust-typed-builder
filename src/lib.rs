@@ -115,12 +115,14 @@ mod util;
 ///   Mutually exclusive with any other form of default. You can refer by name to the values
 ///   determined for fields that are defined earlier in the type.
 ///
-/// - `doc = "…"`: sets the documentation for the field’s method on the builder type. This will be
-///   of no value unless you enable docs for the builder type with `#[builder(doc)]` or similar on
-///   the type.
+/// - `setter(...)`: settings for the field setters. The following values are permitted inside:
 ///
-/// - `skip`: do not define a method on the builder for this field. This requires that a default
-///   be set.
+///   - `doc = "…"`: sets the documentation for the field’s setter on the builder type. This will be
+///     of no value unless you enable docs for the builder type with `#[builder(doc)]` or similar on
+///     the type.
+///
+///   - `skip`: do not define a method on the builder for this field. This requires that a default
+///     be set.
 #[proc_macro_derive(TypedBuilder, attributes(builder))]
 pub fn derive_typed_builder(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     let input = parse_macro_input!(input as DeriveInput);
@@ -197,7 +199,7 @@ fn impl_my_derive(ast: &syn::DeriveInput) -> Result<TokenStream, Error> {
 /// #[macro_use] extern crate typed_builder;
 /// #[derive(PartialEq, TypedBuilder)]
 /// struct Foo {
-///     #[builder(skip, default)]
+///     #[builder(default, setter(skip))]
 ///     y: i8,
 /// }
 ///
@@ -210,7 +212,7 @@ fn impl_my_derive(ast: &syn::DeriveInput) -> Result<TokenStream, Error> {
 /// #[macro_use] extern crate typed_builder;
 /// #[derive(PartialEq, TypedBuilder)]
 /// struct Foo {
-///     #[builder(skip, default)]
+///     #[builder(default, setter(skip))]
 ///     y: i8,
 /// }
 ///
@@ -224,7 +226,7 @@ fn impl_my_derive(ast: &syn::DeriveInput) -> Result<TokenStream, Error> {
 /// #[macro_use] extern crate typed_builder;
 /// #[derive(PartialEq, TypedBuilder)]
 /// struct Foo {
-///     #[builder(skip)]
+///     #[builder(setter(skip))]
 ///     y: i8,
 /// }
 /// ```

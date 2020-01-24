@@ -56,10 +56,15 @@ impl<'a> FieldInfo<'a> {
 
 #[derive(Debug, Default)]
 pub struct FieldBuilderAttr {
+    pub default: Option<syn::Expr>,
+    pub setter: SetterSettings,
+}
+
+#[derive(Debug, Default)]
+pub struct SetterSettings {
     pub doc: Option<syn::Expr>,
     pub skip: bool,
     pub skip_into: bool,
-    pub default: Option<syn::Expr>,
 }
 
 impl FieldBuilderAttr {
@@ -90,12 +95,12 @@ impl FieldBuilderAttr {
                 }
             }
             // Stash its span for later (we don’t yet know if it’ll be an error)
-            if result.skip && skip_tokens.is_none() {
+            if result.setter.skip && skip_tokens.is_none() {
                 skip_tokens = Some(attr.tokens.clone());
             }
         }
 
-        if result.skip && result.default.is_none() {
+        if result.setter.skip && result.default.is_none() {
             return Err(Error::new_spanned(
                 skip_tokens.unwrap(),
                 "#[builder(skip)] must be accompanied by default or default_code",
@@ -111,10 +116,6 @@ impl FieldBuilderAttr {
                 let name = expr_to_single_string(&assign.left)
                     .ok_or_else(|| Error::new_spanned(&assign.left, "Expected identifier"))?;
                 match name.as_str() {
-                    "doc" => {
-                        self.doc = Some(*assign.right);
-                        Ok(())
-                    }
                     "default" => {
                         self.default = Some(*assign.right);
                         Ok(())
@@ -146,6 +147,64 @@ impl FieldBuilderAttr {
                 let name = path_to_single_string(&path.path)
                     .ok_or_else(|| Error::new_spanned(&path, "Expected identifier"))?;
                 match name.as_str() {
+                    "default" => {
+                        self.default = Some(syn::parse(quote!(Default::default()).into()).unwrap());
+                        Ok(())
+                    }
+                    _ => Err(Error::new_spanned(
+                        &path,
+                        format!("Unknown parameter {:?}", name),
+                    ))
+                }
+            }
+            syn::Expr::Call(call) => {
+                let subsetting_name = if let syn::Expr::Path(path) = &*call.func {
+                    path_to_single_string(&path.path)
+                } else {
+                    None
+                }.ok_or_else(|| {
+                    let call_func = &call.func;
+                    let call_func = quote!(#call_func);
+                    Error::new_spanned(&call.func, format!("Illegal builder setting group {}", call_func))
+                })?;
+                match subsetting_name.as_ref() {
+                    "setter" => {
+                        for arg in call.args {
+                            self.setter.apply_meta(arg)?;
+                        }
+                        Ok(())
+                    }
+                    _ => {
+                        Err(Error::new_spanned(&call.func, format!("Illegal builder setting group name {}", subsetting_name)))
+                    }
+                }
+            },
+            _ => Err(Error::new_spanned(expr, "Expected (<...>=<...>)")),
+        }
+    }
+}
+
+impl SetterSettings {
+    fn apply_meta(&mut self, expr: syn::Expr) -> Result<(), Error> {
+        match expr {
+            syn::Expr::Assign(assign) => {
+                let name = expr_to_single_string(&assign.left)
+                    .ok_or_else(|| Error::new_spanned(&assign.left, "Expected identifier"))?;
+                match name.as_str() {
+                    "doc" => {
+                        self.doc = Some(*assign.right);
+                        Ok(())
+                    }
+                    _ => Err(Error::new_spanned(
+                        &assign,
+                        format!("Unknown parameter {:?}", name),
+                    )),
+                }
+            },
+            syn::Expr::Path(path) => {
+                let name = path_to_single_string(&path.path)
+                    .ok_or_else(|| Error::new_spanned(&path, "Expected identifier"))?;
+                match name.as_str() {
                     "skip" => {
                         self.skip = true;
                         Ok(())
@@ -154,16 +213,12 @@ impl FieldBuilderAttr {
                         self.skip_into = true;
                         Ok(())
                     }
-                    "default" => {
-                        self.default = Some(syn::parse(quote!(Default::default()).into()).unwrap());
-                        Ok(())
-                    }
                     _ => Err(Error::new_spanned(
                         &path,
-                        format!("Unknown parameter {:?}", name),
-                    )),
+                        format!("Unknown setter parameter {:?}", name),
+                    ))
                 }
-            }
+            },
             _ => Err(Error::new_spanned(expr, "Expected (<...>=<...>)")),
         }
     }

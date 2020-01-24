@@ -30,7 +30,7 @@ pub struct StructInfo<'a> {
 
 impl<'a> StructInfo<'a> {
     pub fn included_fields(&self) -> impl Iterator<Item = &FieldInfo<'a>> {
-        self.fields.iter().filter(|f| !f.builder_attr.skip)
+        self.fields.iter().filter(|f| !f.builder_attr.setter.skip)
     }
 
     pub fn new(
@@ -255,12 +255,12 @@ impl<'a> StructInfo<'a> {
         target_generics.insert(index_after_lifetime_in_generics, syn::GenericArgument::Type(target_generics_tuple.into()));
         ty_generics.insert(index_after_lifetime_in_generics, syn::GenericArgument::Type(ty_generics_tuple.into()));
         let (impl_generics, _, where_clause) = generics.split_for_impl();
-        let doc = match field.builder_attr.doc {
+        let doc = match field.builder_attr.setter.doc {
             Some(ref doc) => quote!(#[doc = #doc]),
             None => quote!(),
         };
 
-        let (generic_arg, field_ident) = if field.builder_attr.skip_into{
+        let (generic_arg, field_ident) = if field.builder_attr.setter.skip_into{
             (quote!(), quote!(#field_type))
         }
         else{
@@ -453,7 +453,7 @@ impl<'a> StructInfo<'a> {
         let assignments = self.fields.iter().map(|field| {
             let ref name = field.name;
             if let Some(ref default) = field.builder_attr.default {
-                if field.builder_attr.skip {
+                if field.builder_attr.setter.skip {
                     quote!(let #name = #default;)
                 } else {
                     quote!(let #name = #helper_trait_name::into_value(#name, || #default);)

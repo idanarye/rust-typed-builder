@@ -179,10 +179,10 @@ fn test_field_dependencies_in_build() {
 fn test_skip() {
     #[derive(PartialEq, TypedBuilder)]
     struct Foo {
-        #[builder(skip, default)]
+        #[builder(default, setter(skip))]
         x: i32,
         y: i32,
-        #[builder(skip, default_code = "y + 1")]
+        #[builder(default_code = "y + 1", setter(skip))]
         z: i32,
     }
 
@@ -201,10 +201,10 @@ fn test_docs() {
         #[allow(dead_code)]
         x: i32,
         #[builder(
-            doc = "
-                Set `z`. If you don’t specify a value it’ll default to the value specified for `x`.
-                ",
-            default_code = "x"
+            default_code = "x",
+            setter(
+                doc = "Set `z`. If you don’t specify a value it’ll default to the value specified for `x`.",
+            ),
         )]
         #[allow(dead_code)]
         y: i32,
@@ -318,7 +318,7 @@ fn test_builder_type_skip_into() {
 
     #[derive(PartialEq, TypedBuilder)]
     struct Foo<X> {
-        #[builder(skip_into)]
+        #[builder(setter(skip_into))]
         x: X,
     }
 

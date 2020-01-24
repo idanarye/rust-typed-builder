@@ -6,12 +6,16 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 ### Added
-- `#[builder(skip_into)]` attribute on fields, to skip a `Into` conversion from
-  input variable to target type, and thus enable rustc inference for generic type.
+- `#[builder(setter(skip_into))]` attribute on fields, to skip a `Into`
+  conversion from input variable to target type, and thus enable rustc
+  inference for generic type.
 
 ### Changed
 - Improve build errors for incomplete `.build()` and repeated setters, by
   creating faux methods with deprecation warnings.
+- [**BREAKING**] Move `doc` and `skip` into a subsetting named `setter(...)`.
+  This means that `#[builder(doc = "...")]`, for example, should now be written
+  as `#[builder(setter(doc = "..."))]`.
 
 ## 0.4.1 - 2020-01-17
 ### Fixed
