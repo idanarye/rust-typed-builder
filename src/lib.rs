@@ -141,12 +141,18 @@ fn impl_my_derive(ast: &syn::DeriveInput) -> Result<TokenStream, Error> {
                     .included_fields()
                     .map(|f| struct_info.field_impl(f).unwrap());
                 let fields = quote!(#(#fields)*).into_iter();
+                let required_fields = struct_info
+                    .included_fields()
+                    .filter(|f| f.builder_attr.default.is_none())
+                    .map(|f| struct_info.required_field_impl(f).unwrap());
+                let required_fields = quote!(#(#required_fields)*).into_iter();
                 let build_method = struct_info.build_method_impl();
 
                 quote! {
                     #builder_creation
                     #conversion_helper
                     #( #fields )*
+                    #( #required_fields )*
                     #build_method
                 }
             }

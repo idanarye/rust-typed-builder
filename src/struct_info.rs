@@ -259,12 +259,19 @@ impl<'a> StructInfo<'a> {
             Some(ref doc) => quote!(#[doc = #doc]),
             None => quote!(),
         };
+
         let (generic_arg, field_ident) = if field.builder_attr.skip_into{
             (quote!(), quote!(#field_type))
         }
         else{
             (quote!(<#generic_ident: #core::convert::Into<#field_type>>), quote!(#generic_ident))
         };
+
+        let repeated_fields_error_type_name = syn::Ident::new(
+            &format!("{}_Error_Repeated_field_{}", builder_name, field_name),
+            proc_macro2::Span::call_site(),
+        );
+        let repeated_fields_error_message = format!("Repeated field {}", field_name);
 
         Ok(quote! {
             #[allow(dead_code, non_camel_case_types, missing_docs)]
@@ -277,6 +284,96 @@ impl<'a> StructInfo<'a> {
                         fields: ( #(#reconstructing,)* ),
                         _phantom: self._phantom,
                     }
+                }
+            }
+            #[doc(hidden)]
+            #[allow(dead_code, non_camel_case_types, non_snake_case)]
+            pub enum #repeated_fields_error_type_name {}
+            #[doc(hidden)]
+            #[allow(dead_code, non_camel_case_types, missing_docs)]
+            impl #impl_generics #builder_name < #( #target_generics ),* > #where_clause {
+                #[deprecated(
+                    note = #repeated_fields_error_message
+                )]
+                pub fn #field_name #generic_arg (self, _: #repeated_fields_error_type_name) -> #builder_name < #( #target_generics ),* > {
+                    self
+                }
+            }
+        })
+    }
+
+    pub fn required_field_impl(&self, field: &FieldInfo) -> Result<TokenStream, Error> {
+        let StructInfo {
+            ref name,
+            ref builder_name,
+            ..
+        } = *self;
+
+        let &FieldInfo {
+            name: ref field_name,
+            ..
+        } = field;
+        let mut builder_generics: Vec<syn::GenericArgument> = self
+            .generics
+            .params
+            .iter()
+            .map(|generic_param| match generic_param {
+                syn::GenericParam::Type(type_param) => {
+                    let ident = type_param.ident.clone();
+                    syn::parse(quote!(#ident).into()).unwrap()
+                }
+                syn::GenericParam::Lifetime(lifetime_def) => {
+                    syn::GenericArgument::Lifetime(lifetime_def.lifetime.clone())
+                }
+                syn::GenericParam::Const(const_param) => {
+                    let ident = const_param.ident.clone();
+                    syn::parse(quote!(#ident).into()).unwrap()
+                }
+            })
+            .collect();
+        let mut builder_generics_tuple = empty_type_tuple();
+        let generics = self.modify_generics(|g| {
+            for f in self.included_fields() {
+                if f.ordinal < field.ordinal && f.builder_attr.default.is_none() {
+                    builder_generics_tuple.elems.push_value(f.tuplized_type_ty_param());
+                } else if f.ordinal == field.ordinal {
+                    builder_generics_tuple.elems.push_value(empty_type());
+                } else {
+                    g.params.push(f.generic_ty_param());
+                    builder_generics_tuple.elems.push_value(f.type_ident().into());
+                }
+                builder_generics_tuple.elems.push_punct(Default::default());
+            }
+        });
+
+        let index_after_lifetime_in_generics = builder_generics.iter().filter(|arg| {
+            if let syn::GenericArgument::Lifetime(_) = arg { true } else { false }
+        }).count();
+        builder_generics.insert(index_after_lifetime_in_generics, syn::GenericArgument::Type(builder_generics_tuple.into()));
+        let (impl_generics, _, where_clause) = generics.split_for_impl();
+        let (_, ty_generics, _) = self.generics.split_for_impl();
+
+        let early_build_error_type_name = syn::Ident::new(
+            &format!(
+                "{}_Error_Missing_required_field_{}",
+                builder_name, field_name
+            ),
+            proc_macro2::Span::call_site(),
+        );
+        let early_build_error_message = format!("Missing required field {}", field_name);
+
+        Ok(quote! {
+            #[doc(hidden)]
+            #[allow(dead_code, non_camel_case_types, non_snake_case)]
+            pub enum #early_build_error_type_name {}
+            #[doc(hidden)]
+            #[allow(dead_code, non_camel_case_types, missing_docs)]
+            impl #impl_generics #builder_name < #( #builder_generics ),* > #where_clause {
+                #[deprecated(
+                    note = #early_build_error_message
+                )]
+                pub fn build(self, _: #early_build_error_type_name) -> #name #ty_generics {
+                    panic!();
                 }
             }
         })
