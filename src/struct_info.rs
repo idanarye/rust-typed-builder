@@ -393,7 +393,7 @@ impl<'a> StructInfo<'a> {
             #[allow(dead_code, non_camel_case_types, non_snake_case)]
             pub enum #early_build_error_type_name {}
             #[doc(hidden)]
-            #[allow(dead_code, non_camel_case_types, missing_docs)]
+            #[allow(dead_code, non_camel_case_types, missing_docs, clippy::panic)]
             impl #impl_generics #builder_name < #( #builder_generics ),* > #where_clause {
                 #[deprecated(
                     note = #early_build_error_message
