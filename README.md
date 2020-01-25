@@ -54,8 +54,7 @@ Foo::builder().x(1).y(2).y(3); // y is specified twice
 
 ## Limitations
 
-* No custom build error - if you neglect to set a field or set a field twice you'll get regular `no method` error that doesn't tell you what you did wrong.
-    * If there is a way to generate proper errors I'll gladly implement it.
+* The build errors when you neglect to set a field or set a field describe the actual problem as a deprecation warning, not as the main error.
 * The generated builder type has ugly internal name and many generic parameters. It is not meant for passing around and doing fancy builder tricks - only for nicer object creation syntax(constructor with named arguments and optional arguments).
     * For the that reason, all builder methods are call-by-move and the builder is not cloneable. Saves the trouble of determining if the fields are cloneable...
     * If you want a builder you can pass around, check out [derive-builder](https://crates.io/crates/derive_builder). It's API does not conflict with typed-builder's so you can be able to implement them both on the same type.
