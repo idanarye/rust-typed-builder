@@ -124,6 +124,15 @@ mod util;
 ///
 ///   - `skip`: do not define a method on the builder for this field. This requires that a default
 ///     be set.
+///
+///   - `into`: automatically convert the argument of the setter method to the type of the field.
+///     Note that this conversion interferes with Rust's type inference and integer literal
+///     detection, so this may reduce ergonomics if the field type is generic or an unsigned integer.
+///
+///   - `strip_option`: for `Option<...>` fields only, this makes the setter wrap its argument with
+///     `Some(...)`, relieving the caller from having to do this. Note that with this setting on
+///     one cannot set the field to `None` with the setter - so the only way to get it to be `None`
+///     is by using `#[builder(default)]` and not calling the field's setter.
 #[proc_macro_derive(TypedBuilder, attributes(builder))]
 pub fn derive_typed_builder(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     let input = parse_macro_input!(input as DeriveInput);
