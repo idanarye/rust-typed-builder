@@ -74,7 +74,7 @@ fn test_default() {
         x: Option<i32>,
         #[builder(default = 10)]
         y: i32,
-        #[builder(default_code = "vec![20, 30, 40]")]
+        #[builder(default = vec![20, 30, 40])]
         z: Vec<i32>,
     }
 
@@ -128,7 +128,7 @@ fn test_field_dependencies_in_build() {
         x: Option<i32>,
         #[builder(default = 10)]
         y: i32,
-        #[builder(default_code = "vec![y, 30, 40]")]
+        #[builder(default = vec![y, 30, 40])]
         z: Vec<i32>,
     }
 
@@ -184,7 +184,7 @@ fn test_skip() {
         x: i32,
         #[builder(setter(into))]
         y: i32,
-        #[builder(default_code = "y + 1", setter(skip))]
+        #[builder(default = y + 1, setter(skip))]
         z: i32,
     }
 
@@ -203,7 +203,7 @@ fn test_docs() {
         #[allow(dead_code)]
         x: i32,
         #[builder(
-            default_code = "x",
+            default = x,
             setter(
                 doc = "Set `z`. If you don’t specify a value it’ll default to the value specified for `x`.",
             ),

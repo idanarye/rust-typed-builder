@@ -153,7 +153,7 @@ impl FieldBuilderAttr {
         if result.setter.skip && result.default.is_none() {
             return Err(Error::new_spanned(
                 skip_tokens.unwrap(),
-                "#[builder(skip)] must be accompanied by default or default_code",
+                "#[builder(skip)] must be accompanied by default",
             ));
         }
 
@@ -168,23 +168,6 @@ impl FieldBuilderAttr {
                 match name.as_str() {
                     "default" => {
                         self.default = Some(*assign.right);
-                        Ok(())
-                    }
-                    "default_code" => {
-                        if let syn::Expr::Lit(syn::ExprLit {
-                            lit: syn::Lit::Str(code),
-                            ..
-                        }) = *assign.right
-                        {
-                            use std::str::FromStr;
-                            let tokenized_code = TokenStream::from_str(&code.value())?;
-                            self.default = Some(
-                                syn::parse(tokenized_code.into())
-                                    .map_err(|e| Error::new_spanned(code, format!("{}", e)))?,
-                            );
-                        } else {
-                            return Err(Error::new_spanned(assign.right, "Expected string"));
-                        }
                         Ok(())
                     }
                     _ => Err(Error::new_spanned(

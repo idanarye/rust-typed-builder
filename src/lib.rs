@@ -45,27 +45,22 @@ mod util;
 ///     // Or you can set the default
 ///     #[builder(default=20)]
 ///     z: i32,
-///
-///     // If the default cannot be parsed, you must encode it as a string.
-///     // This also allows you to refer to the values of earlier-declared fields.
-///     #[builder(default_code="vec![z as u32, 40]")]
-///     w: Vec<u32>,
 /// }
 ///
 /// fn main() {
 ///     assert!(
-///         Foo::builder().x(1).y(2).z(3).w(vec![4, 5]).build()
-///         == Foo { x: 1, y: Some(2), z: 3, w: vec![4, 5] });
+///         Foo::builder().x(1).y(2).z(3).build()
+///         == Foo { x: 1, y: Some(2), z: 3, });
 ///
 ///     // Change the order of construction:
 ///     assert!(
-///         Foo::builder().z(1).x(2).w(vec![4, 5]).y(3).build()
-///         == Foo { x: 2, y: Some(3), z: 1, w: vec![4, 5] });
+///         Foo::builder().z(1).x(2).y(3).build()
+///         == Foo { x: 2, y: Some(3), z: 1, });
 ///
 ///     // Optional fields are optional:
 ///     assert!(
 ///         Foo::builder().x(1).build()
-///         == Foo { x: 1, y: None, z: 20, w: vec![20, 40] });
+///         == Foo { x: 1, y: None, z: 20, });
 ///
 ///     // This will not compile - because we did not set x:
 ///     // Foo::builder().build();
@@ -105,16 +100,7 @@ mod util;
 /// - `default`: make the field optional, defaulting to `Default::default()`. This requires that
 ///   the field type implement `Default`. Mutually exclusive with any other form of default.
 ///
-/// - `default = …`: make the field optional, defaulting to the expression `…`. This can be
-///   anything that will parse in an attribute, e.g. a string or a number. Although some
-///   non-literal expressions will successfully parse (e.g. `Some(foo)`), it is recommended for
-///   stylistic consistency across the Rust ecosystem that anything that is not a literal use
-///   `default_code` instead. Mutually exclusive with any other form of default.
-///
-/// - `default_code = "…"`: make the field optional, defaulting to the expression `…`.
-///   This must be used when the expression will not parse in an attribute with `default = …`.
-///   Mutually exclusive with any other form of default. You can refer by name to the values
-///   determined for fields that are defined earlier in the type.
+/// - `default = …`: make the field optional, defaulting to the expression `…`.
 ///
 /// - `setter(...)`: settings for the field setters. The following values are permitted inside:
 ///
@@ -230,8 +216,8 @@ fn impl_my_derive(ast: &syn::DeriveInput) -> Result<TokenStream, Error> {
 /// let _ = Foo::builder().build();
 /// ```
 ///
-/// `skip` without `default` or `default_code` is disallowed:
-/// (“error: #[builder(skip)] must be accompanied by default or default_code”)
+/// `skip` without `default` is disallowed:
+/// (“error: #[builder(skip)] must be accompanied by default”)
 ///
 /// ```compile_fail
 /// #[macro_use] extern crate typed_builder;

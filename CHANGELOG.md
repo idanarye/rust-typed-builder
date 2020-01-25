@@ -22,6 +22,11 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   conversion than `#[builder(setter(into))]`, and thus can still support type
   inference and integer literal type detection.
 
+### Removed
+- [**BREAKING**] Removed the `default_code` setting (`#[builder(default_code =
+  "...")]`) because it is no longer required now that Rust and `syn` support
+  arbitrary expressions in attributes.
+
 ## 0.4.1 - 2020-01-17
 ### Fixed
 - [**BREAKING**] now state types are placed before original generic types.

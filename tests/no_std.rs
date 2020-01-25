@@ -57,7 +57,7 @@ fn test_default() {
         x: Option<i32>,
         #[builder(default = 10)]
         y: i32,
-        #[builder(default_code = "[20, 30, 40]")]
+        #[builder(default = [20, 30, 40])]
         z: [i32; 3],
     }
 
@@ -111,7 +111,7 @@ fn test_field_dependencies_in_build() {
         x: Option<i32>,
         #[builder(default = 10)]
         y: i32,
-        #[builder(default_code = "[y, 30, 40]")]
+        #[builder(default = [y, 30, 40])]
         z: [i32; 3],
     }
 
