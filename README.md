@@ -16,7 +16,8 @@ struct Foo {
     x: i32,
 
     // #[builder(default)] without parameter - use the type's default
-    #[builder(default)]
+    // #[builder(setter(strip_option))] - wrap the setter argument with `Some(...)`
+    #[builder(default, setter(strip_option))]
     y: Option<i32>,
 
     // Or you can set the default

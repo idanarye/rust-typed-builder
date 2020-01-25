@@ -52,6 +52,32 @@ impl<'a> FieldInfo<'a> {
         }
         .into()
     }
+
+    pub fn type_from_inside_option(&self) -> Option<&syn::Type> {
+        let path = if let syn::Type::Path(type_path) = self.ty {
+            if type_path.qself.is_some() {
+                return None
+            } else {
+                &type_path.path
+            }
+        } else {
+            return None
+        };
+        let segment = path.segments.last()?;
+        if segment.ident != "Option" {
+            return None;
+        }
+        let generic_params = if let syn::PathArguments::AngleBracketed(generic_params) = &segment.arguments {
+            generic_params
+        } else {
+            return None;
+        };
+        if let syn::GenericArgument::Type(ty) = generic_params.args.first()? {
+            Some(ty)
+        } else {
+            return None;
+        }
+    }
 }
 
 #[derive(Debug, Default)]
@@ -64,7 +90,31 @@ pub struct FieldBuilderAttr {
 pub struct SetterSettings {
     pub doc: Option<syn::Expr>,
     pub skip: bool,
-    pub skip_into: bool,
+    pub arg_sugar: SetterArgSugar,
+}
+
+#[derive(Debug)]
+pub enum SetterArgSugar {
+    NoSugar,
+    AutoInto,
+    StripOption,
+}
+
+impl Default for SetterArgSugar {
+    fn default() -> Self {
+        Self::NoSugar
+    }
+}
+
+impl SetterArgSugar {
+    fn verify_can_add_new_option(&self, span: proc_macro2::Span) -> Result<(), Error> {
+        let already = match self {
+            Self::NoSugar => return Ok(()),
+            Self::AutoInto => "calling into() on the argument",
+            Self::StripOption => "putting the argument in Some(...)",
+        };
+        Err(Error::new(span, format!("Illegal setting - field is already {}", already)))
+    }
 }
 
 impl FieldBuilderAttr {
@@ -209,8 +259,14 @@ impl SetterSettings {
                         self.skip = true;
                         Ok(())
                     }
-                    "skip_into" => {
-                        self.skip_into = true;
+                    "into" => {
+                        self.arg_sugar.verify_can_add_new_option(path.span())?;
+                        self.arg_sugar = SetterArgSugar::AutoInto;
+                        Ok(())
+                    }
+                    "strip_option" => {
+                        self.arg_sugar.verify_can_add_new_option(path.span())?;
+                        self.arg_sugar = SetterArgSugar::StripOption;
                         Ok(())
                     }
                     _ => Err(Error::new_spanned(

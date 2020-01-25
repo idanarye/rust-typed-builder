@@ -38,7 +38,8 @@ mod util;
 ///     x: i32,
 ///
 ///     // #[default] without parameter - use the type's default
-///     #[builder(default)]
+///     // #[builder(setter(strip_option))] - wrap the setter argument with `Some(...)`
+///     #[builder(default, setter(strip_option))]
 ///     y: Option<i32>,
 ///
 ///     // Or you can set the default
@@ -141,13 +142,14 @@ fn impl_my_derive(ast: &syn::DeriveInput) -> Result<TokenStream, Error> {
                 let conversion_helper = struct_info.conversion_helper_impl()?;
                 let fields = struct_info
                     .included_fields()
-                    .map(|f| struct_info.field_impl(f).unwrap());
+                    .map(|f| struct_info.field_impl(f))
+                    .collect::<Result<Vec<_>, _>>()?;
                 let fields = quote!(#(#fields)*).into_iter();
                 let required_fields = struct_info
                     .included_fields()
                     .filter(|f| f.builder_attr.default.is_none())
-                    .map(|f| struct_info.required_field_impl(f).unwrap());
-                // let required_fields = quote!(#(#required_fields)*).into_iter();
+                    .map(|f| struct_info.required_field_impl(f))
+                    .collect::<Result<Vec<_>, _>>()?;
                 let build_method = struct_info.build_method_impl();
 
                 quote! {

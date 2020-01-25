@@ -4,7 +4,10 @@ use proc_macro2::TokenStream;
 use quote::quote;
 use syn::parse::Error;
 
-use crate::field_info::FieldInfo;
+use crate::field_info::{
+    FieldInfo,
+    SetterArgSugar
+};
 use crate::util::{
     empty_type,
     type_tuple,
@@ -209,7 +212,6 @@ impl<'a> StructInfo<'a> {
         let &FieldInfo {
             name: ref field_name,
             ty: ref field_type,
-            ref generic_ident,
             ..
         } = field;
         let mut ty_generics: Vec<syn::GenericArgument> = self
@@ -260,11 +262,23 @@ impl<'a> StructInfo<'a> {
             None => quote!(),
         };
 
-        let (generic_arg, field_ident) = if field.builder_attr.setter.skip_into{
-            (quote!(), quote!(#field_type))
-        }
-        else{
-            (quote!(<#generic_ident: #core::convert::Into<#field_type>>), quote!(#generic_ident))
+        let (arg_type, arg_expr) = match field.builder_attr.setter.arg_sugar {
+            SetterArgSugar::NoSugar => (
+                quote!(#field_type),
+                quote!(#field_name),
+            ),
+            SetterArgSugar::AutoInto => (
+                quote!(impl #core::convert::Into<#field_type>),
+                quote!(#field_name.into()),
+            ),
+            SetterArgSugar::StripOption => {
+                let internal_type = field.type_from_inside_option()
+                    .ok_or_else(|| Error::new_spanned(&field_type, "can't `strip_option` - field is not `Option<...>`"))?;
+                (
+                    quote!(#internal_type),
+                    quote!(Some(#field_name)),
+                )
+            },
         };
 
         let repeated_fields_error_type_name = syn::Ident::new(
@@ -277,8 +291,8 @@ impl<'a> StructInfo<'a> {
             #[allow(dead_code, non_camel_case_types, missing_docs)]
             impl #impl_generics #builder_name < #( #ty_generics ),* > #where_clause {
                 #doc
-                pub fn #field_name #generic_arg (self, #field_name: #field_ident) -> #builder_name < #( #target_generics ),* > {
-                    let #field_name = (#field_name.into(),);
+                pub fn #field_name (self, #field_name: #arg_type) -> #builder_name < #( #target_generics ),* > {
+                    let #field_name = (#arg_expr,);
                     let ( #(#descructuring,)* ) = self.fields;
                     #builder_name {
                         fields: ( #(#reconstructing,)* ),
@@ -295,7 +309,7 @@ impl<'a> StructInfo<'a> {
                 #[deprecated(
                     note = #repeated_fields_error_message
                 )]
-                pub fn #field_name #generic_arg (self, _: #repeated_fields_error_type_name) -> #builder_name < #( #target_generics ),* > {
+                pub fn #field_name (self, _: #repeated_fields_error_type_name) -> #builder_name < #( #target_generics ),* > {
                     self
                 }
             }

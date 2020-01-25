@@ -5,17 +5,22 @@ The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
-### Added
-- `#[builder(setter(skip_into))]` attribute on fields, to skip a `Into`
-  conversion from input variable to target type, and thus enable rustc
-  inference for generic type.
-
 ### Changed
-- Improve build errors for incomplete `.build()` and repeated setters, by
-  creating faux methods with deprecation warnings.
 - [**BREAKING**] Move `doc` and `skip` into a subsetting named `setter(...)`.
   This means that `#[builder(doc = "...")]`, for example, should now be written
   as `#[builder(setter(doc = "..."))]`.
+- [**BREAKING**] Setter arguments by default are no longer automatically
+  converted to the target type with `into()`. If you want to automatically
+  convert them, use `#[builder(setter(into))]`. This new default enables rustc
+  inference for generic types and proper integer literal type detection.
+- Improve build errors for incomplete `.build()` and repeated setters, by
+  creating faux methods with deprecation warnings.
+
+### Added
+- `#[builder(setter(strip_option))]` for making setters for `Option` fields
+  automatically wrap the argument with `Some(...)`. Note that this is a weaker
+  conversion than `#[builder(setter(into))]`, and thus can still support type
+  inference and integer literal type detection.
 
 ## 0.4.1 - 2020-01-17
 ### Fixed

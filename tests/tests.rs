@@ -59,6 +59,7 @@ fn test_generics() {
 fn test_into() {
     #[derive(PartialEq, TypedBuilder)]
     struct Foo {
+        #[builder(setter(into))]
         x: i32,
     }
 
@@ -69,7 +70,7 @@ fn test_into() {
 fn test_default() {
     #[derive(PartialEq, TypedBuilder)]
     struct Foo {
-        #[builder(default)]
+        #[builder(default, setter(strip_option))]
         x: Option<i32>,
         #[builder(default = 10)]
         y: i32,
@@ -123,7 +124,7 @@ fn test_default() {
 fn test_field_dependencies_in_build() {
     #[derive(PartialEq, TypedBuilder)]
     struct Foo {
-        #[builder(default)]
+        #[builder(default, setter(strip_option))]
         x: Option<i32>,
         #[builder(default = 10)]
         y: i32,
@@ -181,6 +182,7 @@ fn test_skip() {
     struct Foo {
         #[builder(default, setter(skip))]
         x: i32,
+        #[builder(setter(into))]
         y: i32,
         #[builder(default_code = "y + 1", setter(skip))]
         z: i32,
@@ -318,7 +320,6 @@ fn test_builder_type_skip_into() {
 
     #[derive(PartialEq, TypedBuilder)]
     struct Foo<X> {
-        #[builder(setter(skip_into))]
         x: X,
     }
 
