@@ -6,6 +6,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+## 0.5.1 - 2020-01-26
+### Fixed
+- Prevent Clippy from warning about the `panic!()` in the faux build method.
+
 ## 0.5.0 - 2020-01-25
 ### Changed
 - [**BREAKING**] Move `doc` and `skip` into a subsetting named `setter(...)`.
