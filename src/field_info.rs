@@ -97,6 +97,7 @@ pub enum SetterArgSugar {
     NoSugar,
     AutoInto,
     StripOption,
+    StripOptionAutoInto,
 }
 
 impl Default for SetterArgSugar {
@@ -106,11 +107,20 @@ impl Default for SetterArgSugar {
 }
 
 impl SetterArgSugar {
-    fn verify_can_add_new_option(&self, span: proc_macro2::Span) -> Result<(), Error> {
-        let already = match self {
-            Self::NoSugar => return Ok(()),
-            Self::AutoInto => "calling into() on the argument",
-            Self::StripOption => "putting the argument in Some(...)",
+    fn merge(&mut self, new: SetterArgSugar, span: proc_macro2::Span) -> Result<(), Error> {
+        let current = std::mem::replace(self, SetterArgSugar::NoSugar);
+        let already = match (current, new) {
+            (Self::NoSugar, any) => {
+                *self = any;
+                return Ok(());
+            },
+            (Self::AutoInto, Self::StripOption) | (Self::StripOption, Self::AutoInto) => {
+                *self = Self::StripOptionAutoInto;
+                return Ok(());
+            }
+            (Self::AutoInto, _) => "calling into() on the argument",
+            (Self::StripOption, _) => "putting the argument in Some(...)",
+            (Self::StripOptionAutoInto, _) => "calling int() and putting the argument in Some(...)",
         };
         Err(Error::new(span, format!("Illegal setting - field is already {}", already)))
     }
@@ -242,13 +252,11 @@ impl SetterSettings {
                         Ok(())
                     }
                     "into" => {
-                        self.arg_sugar.verify_can_add_new_option(path.span())?;
-                        self.arg_sugar = SetterArgSugar::AutoInto;
+                        self.arg_sugar.merge(SetterArgSugar::AutoInto, path.span())?;
                         Ok(())
                     }
                     "strip_option" => {
-                        self.arg_sugar.verify_can_add_new_option(path.span())?;
-                        self.arg_sugar = SetterArgSugar::StripOption;
+                        self.arg_sugar.merge(SetterArgSugar::StripOption, path.span())?;
                         Ok(())
                     }
                     _ => Err(Error::new_spanned(
