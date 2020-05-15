@@ -8,6 +8,11 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Added
 - Ability to use `into` and `strip_option` simultaneously for a field.
 
+### Changed
+- [**BREAKING**] Specifying `skip` twice in the same `builder(setter(...))` is
+  no longer supported. Then again, if you were doing that you probably deserve
+  having your code broken.
+
 ## 0.5.1 - 2020-01-26
 ### Fixed
 - Prevent Clippy from warning about the `panic!()` in the faux build method.

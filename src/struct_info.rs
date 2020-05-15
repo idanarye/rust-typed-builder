@@ -4,10 +4,7 @@ use proc_macro2::TokenStream;
 use quote::quote;
 use syn::parse::Error;
 
-use crate::field_info::{
-    FieldInfo,
-    SetterArgSugar
-};
+use crate::field_info::FieldInfo;
 use crate::util::{
     empty_type,
     type_tuple,
@@ -262,31 +259,30 @@ impl<'a> StructInfo<'a> {
             None => quote!(),
         };
 
-        let (arg_type, arg_expr) = match field.builder_attr.setter.arg_sugar {
-            SetterArgSugar::NoSugar => (
-                quote!(#field_type),
-                quote!(#field_name),
-            ),
-            SetterArgSugar::AutoInto => (
-                quote!(impl #core::convert::Into<#field_type>),
+        // NOTE: both auto_into and strip_option affect `arg_type` and `arg_expr`, but the order of
+        // nesting is different so we have to do this little dance.
+        let arg_type = if field.builder_attr.setter.strip_option {
+            let internal_type = field.type_from_inside_option()
+                .ok_or_else(|| Error::new_spanned(&field_type, "can't `strip_option` - field is not `Option<...>`"))?;
+            internal_type
+        } else {
+            field_type
+        };
+        let (arg_type, arg_expr) = if field.builder_attr.setter.auto_into {
+            (
+                quote!(impl #core::convert::Into<#arg_type>),
                 quote!(#field_name.into()),
-            ),
-            SetterArgSugar::StripOption => {
-                let internal_type = field.type_from_inside_option()
-                    .ok_or_else(|| Error::new_spanned(&field_type, "can't `strip_option` - field is not `Option<...>`"))?;
-                (
-                    quote!(#internal_type),
-                    quote!(Some(#field_name)),
-                )
-            },
-            SetterArgSugar::StripOptionAutoInto => {
-                let internal_type = field.type_from_inside_option()
-                    .ok_or_else(|| Error::new_spanned(&field_type, "can't `strip_option` - field is not `Option<...>`"))?;
-                (
-                    quote!(impl #core::convert::Into<#internal_type>),
-                    quote!(Some(#field_name.into())),
-                )
-            },
+            )
+        } else {
+            (
+                quote!(#arg_type),
+                quote!(#field_name),
+            )
+        };
+        let arg_expr = if field.builder_attr.setter.strip_option {
+            quote!(Some(#arg_expr))
+        } else {
+            arg_expr
         };
 
         let repeated_fields_error_type_name = syn::Ident::new(

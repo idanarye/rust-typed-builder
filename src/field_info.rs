@@ -89,41 +89,8 @@ pub struct FieldBuilderAttr {
 pub struct SetterSettings {
     pub doc: Option<syn::Expr>,
     pub skip: bool,
-    pub arg_sugar: SetterArgSugar,
-}
-
-#[derive(Debug)]
-pub enum SetterArgSugar {
-    NoSugar,
-    AutoInto,
-    StripOption,
-    StripOptionAutoInto,
-}
-
-impl Default for SetterArgSugar {
-    fn default() -> Self {
-        Self::NoSugar
-    }
-}
-
-impl SetterArgSugar {
-    fn merge(&mut self, new: SetterArgSugar, span: proc_macro2::Span) -> Result<(), Error> {
-        let current = std::mem::replace(self, SetterArgSugar::NoSugar);
-        let already = match (current, new) {
-            (Self::NoSugar, any) => {
-                *self = any;
-                return Ok(());
-            },
-            (Self::AutoInto, Self::StripOption) | (Self::StripOption, Self::AutoInto) => {
-                *self = Self::StripOptionAutoInto;
-                return Ok(());
-            }
-            (Self::AutoInto, _) => "calling into() on the argument",
-            (Self::StripOption, _) => "putting the argument in Some(...)",
-            (Self::StripOptionAutoInto, _) => "calling int() and putting the argument in Some(...)",
-        };
-        Err(Error::new(span, format!("Illegal setting - field is already {}", already)))
-    }
+    pub auto_into: bool,
+    pub strip_option: bool,
 }
 
 impl FieldBuilderAttr {
@@ -246,24 +213,31 @@ impl SetterSettings {
             syn::Expr::Path(path) => {
                 let name = path_to_single_string(&path.path)
                     .ok_or_else(|| Error::new_spanned(&path, "Expected identifier"))?;
-                match name.as_str() {
-                    "skip" => {
-                        self.skip = true;
-                        Ok(())
+                macro_rules! handle_fields {
+                    ( $( $flag:expr, $field:ident, $already:expr; )* ) => {
+                        match name.as_str() {
+                            $(
+                                $flag => {
+                                    if self.$field {
+                                        Err(Error::new(path.span(), concat!("Illegal setting - field is already ", $already)))
+                                    } else {
+                                        self.$field = true;
+                                        Ok(())
+                                    }
+                                }
+                            )*
+                            _ => Err(Error::new_spanned(
+                                    &path,
+                                    format!("Unknown setter parameter {:?}", name),
+                            ))
+                        }
                     }
-                    "into" => {
-                        self.arg_sugar.merge(SetterArgSugar::AutoInto, path.span())?;
-                        Ok(())
-                    }
-                    "strip_option" => {
-                        self.arg_sugar.merge(SetterArgSugar::StripOption, path.span())?;
-                        Ok(())
-                    }
-                    _ => Err(Error::new_spanned(
-                        &path,
-                        format!("Unknown setter parameter {:?}", name),
-                    ))
                 }
+                handle_fields!(
+                    "skip", skip, "skipped";
+                    "into", auto_into, "calling into() on the argument";
+                    "strip_option", strip_option, "putting the argument in Some(...)";
+                )
             },
             _ => Err(Error::new_spanned(expr, "Expected (<...>=<...>)")),
         }
