@@ -279,6 +279,14 @@ impl<'a> StructInfo<'a> {
                     quote!(Some(#field_name)),
                 )
             },
+            SetterArgSugar::StripOptionAutoInto => {
+                let internal_type = field.type_from_inside_option()
+                    .ok_or_else(|| Error::new_spanned(&field_type, "can't `strip_option` - field is not `Option<...>`"))?;
+                (
+                    quote!(impl #core::convert::Into<#internal_type>),
+                    quote!(Some(#field_name.into())),
+                )
+            },
         };
 
         let repeated_fields_error_type_name = syn::Ident::new(

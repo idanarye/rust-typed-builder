@@ -67,6 +67,28 @@ fn test_into() {
 }
 
 #[test]
+fn test_strip_option_with_into() {
+    #[derive(PartialEq, TypedBuilder)]
+    struct Foo {
+        #[builder(setter(strip_option, into))]
+        x: Option<i32>,
+    }
+
+    assert!(Foo::builder().x(1u8).build() == Foo { x: Some(1) });
+}
+
+#[test]
+fn test_into_with_strip_option() {
+    #[derive(PartialEq, TypedBuilder)]
+    struct Foo {
+        #[builder(setter(into, strip_option))]
+        x: Option<i32>,
+    }
+
+    assert!(Foo::builder().x(1u8).build() == Foo { x: Some(1) });
+}
+
+#[test]
 fn test_default() {
     #[derive(PartialEq, TypedBuilder)]
     struct Foo {
