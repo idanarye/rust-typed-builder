@@ -77,10 +77,6 @@ mod util;
 ///
 /// On the **type**, the following values are permitted:
 ///
-/// - `name = FooBuilder`: customise the name of the builder type. By default, the builder type
-///   will use the type’s name plus “Builder”, e.g. `FooBuilder` for type `Foo`. (Note this is
-///   `name = FooBuilder` and not `name = "FooBuilder"`.)
-///
 /// - `doc`: enable documentation of the builder type. By default, the builder type is given
 ///   `#[doc(hidden)]`, so that the `builder()` method will show `FooBuilder` as its return type,
 ///   but it won’t be a link. If you turn this on, the builder type and its `build` method will get
