@@ -102,43 +102,43 @@ fn test_default() {
 
     assert!(
         Foo::builder().build()
-            == Foo {
-                x: None,
-                y: 10,
-                z: vec![20, 30, 40]
-            }
+        == Foo {
+            x: None,
+            y: 10,
+            z: vec![20, 30, 40]
+        }
     );
     assert!(
         Foo::builder().x(1).build()
-            == Foo {
-                x: Some(1),
-                y: 10,
-                z: vec![20, 30, 40]
-            }
+        == Foo {
+            x: Some(1),
+            y: 10,
+            z: vec![20, 30, 40]
+        }
     );
     assert!(
         Foo::builder().y(2).build()
-            == Foo {
-                x: None,
-                y: 2,
-                z: vec![20, 30, 40]
-            }
+        == Foo {
+            x: None,
+            y: 2,
+            z: vec![20, 30, 40]
+        }
     );
     assert!(
         Foo::builder().x(1).y(2).build()
-            == Foo {
-                x: Some(1),
-                y: 2,
-                z: vec![20, 30, 40]
-            }
+        == Foo {
+            x: Some(1),
+            y: 2,
+            z: vec![20, 30, 40]
+        }
     );
     assert!(
         Foo::builder().z(vec![1, 2, 3]).build()
-            == Foo {
-                x: None,
-                y: 10,
-                z: vec![1, 2, 3]
-            }
+        == Foo {
+            x: None,
+            y: 10,
+            z: vec![1, 2, 3]
+        }
     );
 }
 
@@ -156,43 +156,43 @@ fn test_field_dependencies_in_build() {
 
     assert!(
         Foo::builder().build()
-            == Foo {
-                x: None,
-                y: 10,
-                z: vec![10, 30, 40]
-            }
+        == Foo {
+            x: None,
+            y: 10,
+            z: vec![10, 30, 40]
+        }
     );
     assert!(
         Foo::builder().x(1).build()
-            == Foo {
-                x: Some(1),
-                y: 10,
-                z: vec![10, 30, 40]
-            }
+        == Foo {
+            x: Some(1),
+            y: 10,
+            z: vec![10, 30, 40]
+        }
     );
     assert!(
         Foo::builder().y(2).build()
-            == Foo {
-                x: None,
-                y: 2,
-                z: vec![2, 30, 40]
-            }
+        == Foo {
+            x: None,
+            y: 2,
+            z: vec![2, 30, 40]
+        }
     );
     assert!(
         Foo::builder().x(1).y(2).build()
-            == Foo {
-                x: Some(1),
-                y: 2,
-                z: vec![2, 30, 40]
-            }
+        == Foo {
+            x: Some(1),
+            y: 2,
+            z: vec![2, 30, 40]
+        }
     );
     assert!(
         Foo::builder().z(vec![1, 2, 3]).build()
-            == Foo {
-                x: None,
-                y: 10,
-                z: vec![1, 2, 3]
-            }
+        == Foo {
+            x: None,
+            y: 10,
+            z: vec![1, 2, 3]
+        }
     );
 }
 
@@ -221,18 +221,18 @@ fn test_docs() {
         builder_type_doc = "PointBuilder type docs",
         build_method_doc = "PointBuilder.build() method docs"
     )]
-    struct Point {
-        #[allow(dead_code)]
-        x: i32,
-        #[builder(
-            default = x,
-            setter(
-                doc = "Set `z`. If you don’t specify a value it’ll default to the value specified for `x`.",
-            ),
-        )]
-        #[allow(dead_code)]
-        y: i32,
-    }
+        struct Point {
+            #[allow(dead_code)]
+            x: i32,
+            #[builder(
+                default = x,
+                setter(
+                    doc = "Set `z`. If you don’t specify a value it’ll default to the value specified for `x`.",
+                ),
+            )]
+                #[allow(dead_code)]
+                y: i32,
+        }
 
     let _ = Point::builder();
 }
@@ -349,4 +349,19 @@ fn test_builder_type_skip_into() {
     Foo::builder().x(()).build();
 
     assert!(Foo::builder().x(()).build() == Foo { x:()});
+}
+
+#[test]
+fn test_default_code() {
+
+    #[derive(PartialEq, TypedBuilder)]
+    struct Foo {
+        #[builder(default_code = "\"text1\".to_owned()")]
+        x: String,
+
+        #[builder(default_code = r#""text2".to_owned()"#)]
+        y: String,
+    }
+
+    assert!(Foo::builder().build() == Foo { x: "text1".to_owned(), y: "text2".to_owned() });
 }

@@ -59,6 +59,10 @@ Foo::builder().x(1).y(2).y(3); // y is specified twice
     * For the that reason, all builder methods are call-by-move and the builder is not cloneable. Saves the trouble of determining if the fields are cloneable...
     * If you want a builder you can pass around, check out [derive-builder](https://crates.io/crates/derive_builder). It's API does not conflict with typed-builder's so you can be able to implement them both on the same type.
 
+## Conflicts
+
+* `TypedBuilder` accepts arbitrary Rust code for `#[builder(default = ...)]`, but other custom derive proc-macro crates may try to parse them using the older restrictions that allow only literals. To solve this, use `#[builder(default_code = "...")]` instead.
+
 ## Alternatives - and why typed-builder is better
 
 * [derive-builder](https://crates.io/crates/derive_builder) - does all the checks in runtime, returning a `Result` you need to unwrap.

@@ -98,6 +98,12 @@ mod util;
 ///
 /// - `default = …`: make the field optional, defaulting to the expression `…`.
 ///
+/// - `default_code = "…"`: make the field optional, defaulting to the expression `…`. Note that
+///    you need to enclose it in quotes, which allows you to use it together with other custom
+///    derive proc-macro crates that complain about "expected literal".
+///    Note that if `...` contains a string, you can use raw string literals to avoid escaping the
+///    double quotes - e.g. `#[builder(default_code = r#""default text".to_owned()")]`.
+///
 /// - `setter(...)`: settings for the field setters. The following values are permitted inside:
 ///
 ///   - `doc = "…"`: sets the documentation for the field’s setter on the builder type. This will be
