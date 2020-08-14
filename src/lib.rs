@@ -101,7 +101,7 @@ mod util;
 ///    you need to enclose it in quotes, which allows you to use it together with other custom
 ///    derive proc-macro crates that complain about "expected literal".
 ///    Note that if `...` contains a string, you can use raw string literals to avoid escaping the
-///    double quotes - e.g. `#[builder(default_code = r#""default text".to_owned()")]`.
+///    double quotes - e.g. `#[builder(default_code = r#""default text".to_owned()"#)]`.
 ///
 /// - `setter(...)`: settings for the field setters. The following values are permitted inside:
 ///
