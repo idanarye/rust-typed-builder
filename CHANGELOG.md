@@ -6,6 +6,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+## 0.7.1 - 2020-11-20
+### Fixed
+- Fix lifetime bounds erroneously preserved in phantom generics.
+
 ## 0.7.0 - 2020-07-23
 ### Added
 - Brought back `default_code`, because it needed to resolve conflict with other
