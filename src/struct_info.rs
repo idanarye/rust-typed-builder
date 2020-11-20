@@ -85,7 +85,10 @@ impl<'a> StructInfo<'a> {
         });
         let phantom_generics = self.generics.params.iter().map(|param| {
             let t = match param {
-                syn::GenericParam::Lifetime(lifetime) => quote!(&#lifetime ()),
+                syn::GenericParam::Lifetime(lifetime) => {
+                    let lifetime = &lifetime.lifetime;
+                    quote!(&#lifetime ())
+                }
                 syn::GenericParam::Type(ty) => {
                     let ty = &ty.ident;
                     quote!(#ty)
