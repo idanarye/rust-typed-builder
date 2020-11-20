@@ -26,6 +26,17 @@ fn test_lifetime() {
 }
 
 #[test]
+fn test_lifetime_bounded() {
+    #[derive(PartialEq, TypedBuilder)]
+    struct Foo<'a, 'b: 'a> {
+        x: &'a i32,
+        y: &'b i32,
+    }
+
+    assert!(Foo::builder().x(&1).y(&2).build() == Foo { x: &1, y: &2 });
+}
+
+#[test]
 fn test_mutable_borrows() {
     #[derive(PartialEq, TypedBuilder)]
     struct Foo<'a, 'b> {
