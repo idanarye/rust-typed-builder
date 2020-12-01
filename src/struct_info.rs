@@ -71,7 +71,6 @@ impl<'a> StructInfo<'a> {
             ref vis,
             ref name,
             ref builder_name,
-            ref core,
             ..
         } = *self;
         let (impl_generics, ty_generics, where_clause) = self.generics.split_for_impl();
@@ -98,7 +97,7 @@ impl<'a> StructInfo<'a> {
                     quote!(#cnst)
                 }
             };
-            quote!(#core::marker::PhantomData<#t>)
+            quote!(core::marker::PhantomData<#t>)
         });
         let builder_method_doc = match self.builder_attr.builder_method_doc {
             Some(ref doc) => quote!(#doc),
@@ -141,14 +140,13 @@ impl<'a> StructInfo<'a> {
             quote!(#[doc(hidden)])
         };
         Ok(quote! {
-            extern crate core as #core;
             impl #impl_generics #name #ty_generics #where_clause {
                 #[doc = #builder_method_doc]
                 #[allow(dead_code)]
                 #vis fn builder() -> #builder_name #generics_with_empty {
                     #builder_name {
                         fields: #empties_tuple,
-                        _phantom: #core::default::Default::default(),
+                        _phantom: core::default::Default::default(),
                     }
                 }
             }
@@ -191,7 +189,6 @@ impl<'a> StructInfo<'a> {
     pub fn field_impl(&self, field: &FieldInfo) -> Result<TokenStream, Error> {
         let StructInfo {
             ref builder_name,
-            ref core,
             ..
         } = *self;
 
@@ -273,7 +270,7 @@ impl<'a> StructInfo<'a> {
         };
         let (arg_type, arg_expr) = if field.builder_attr.setter.auto_into {
             (
-                quote!(impl #core::convert::Into<#arg_type>),
+                quote!(impl core::convert::Into<#arg_type>),
                 quote!(#field_name.into()),
             )
         } else {

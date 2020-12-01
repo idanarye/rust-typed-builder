@@ -1,5 +1,3 @@
-extern crate typed_builder;
-
 use typed_builder::TypedBuilder;
 
 #[test]

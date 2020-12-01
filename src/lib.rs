@@ -1,9 +1,3 @@
-extern crate proc_macro;
-extern crate proc_macro2;
-extern crate syn;
-
-extern crate quote;
-
 use proc_macro2::TokenStream;
 
 use syn::parse::Error;
@@ -28,8 +22,7 @@ mod util;
 /// # Examples
 ///
 /// ```
-/// #[macro_use]
-/// extern crate typed_builder;
+/// use typed_builder::TypedBuilder;
 ///
 /// #[derive(PartialEq, TypedBuilder)]
 /// struct Foo {
@@ -194,7 +187,8 @@ fn impl_my_derive(ast: &syn::DeriveInput) -> Result<TokenStream, Error> {
 /// (“method `y` not found for this”)
 ///
 /// ```compile_fail
-/// #[macro_use] extern crate typed_builder;
+/// use typed_builder::TypedBuilder;
+///
 /// #[derive(PartialEq, TypedBuilder)]
 /// struct Foo {
 ///     #[builder(default, setter(skip))]
@@ -207,7 +201,8 @@ fn impl_my_derive(ast: &syn::DeriveInput) -> Result<TokenStream, Error> {
 /// But you can build a record:
 ///
 /// ```
-/// #[macro_use] extern crate typed_builder;
+/// use typed_builder::TypedBuilder;
+///
 /// #[derive(PartialEq, TypedBuilder)]
 /// struct Foo {
 ///     #[builder(default, setter(skip))]
@@ -221,7 +216,8 @@ fn impl_my_derive(ast: &syn::DeriveInput) -> Result<TokenStream, Error> {
 /// (“error: #[builder(skip)] must be accompanied by default”)
 ///
 /// ```compile_fail
-/// #[macro_use] extern crate typed_builder;
+/// use typed_builder::TypedBuilder;
+///
 /// #[derive(PartialEq, TypedBuilder)]
 /// struct Foo {
 ///     #[builder(setter(skip))]

@@ -7,8 +7,7 @@
 Creates a compile-time verified builder:
 
 ```rust
-#[macro_use]
-extern crate typed_builder;
+use typed_builder::TypedBuilder;
 
 #[derive(TypedBuilder)]
 struct Foo {
