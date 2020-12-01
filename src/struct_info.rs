@@ -4,7 +4,10 @@ use proc_macro2::TokenStream;
 use quote::quote;
 use syn::parse::Error;
 
-use crate::field_info::FieldInfo;
+use crate::field_info::{
+    FieldInfo,
+    FieldBuilderAttr,
+};
 use crate::util::{
     empty_type,
     type_tuple,
@@ -45,7 +48,7 @@ impl<'a> StructInfo<'a> {
             generics: &ast.generics,
             fields: fields
                 .enumerate()
-                .map(|(i, f)| FieldInfo::new(i, f))
+                .map(|(i, f)| FieldInfo::new(i, f, builder_attr.field_defaults.clone()))
                 .collect::<Result<_, _>>()?,
             builder_attr: builder_attr,
             builder_name: syn::Ident::new(&builder_name, proc_macro2::Span::call_site()),
@@ -526,6 +529,8 @@ pub struct TypeBuilderAttr {
     /// Docs on the `TypeBuilder.build()` method. Specifying this implies `doc`, but you can just
     /// specify `doc` instead and a default value will be filled in here.
     pub build_method_doc: Option<syn::Expr>,
+
+    pub field_defaults: FieldBuilderAttr,
 }
 
 impl TypeBuilderAttr {
@@ -597,6 +602,28 @@ impl TypeBuilderAttr {
                         &path,
                         format!("Unknown parameter {:?}", name),
                     )),
+                }
+            }
+            syn::Expr::Call(call) => {
+                let subsetting_name = if let syn::Expr::Path(path) = &*call.func {
+                    path_to_single_string(&path.path)
+                } else {
+                    None
+                }.ok_or_else(|| {
+                    let call_func = &call.func;
+                    let call_func = quote!(#call_func);
+                    Error::new_spanned(&call.func, format!("Illegal builder setting group {}", call_func))
+                })?;
+                match subsetting_name.as_str() {
+                    "field_defaults" => {
+                        for arg in call.args {
+                            self.field_defaults.apply_meta(arg)?;
+                        }
+                        Ok(())
+                    }
+                    _ => {
+                        Err(Error::new_spanned(&call.func, format!("Illegal builder setting group name {}", subsetting_name)))
+                    }
                 }
             }
             _ => Err(Error::new_spanned(expr, "Expected (<...>=<...>)")),

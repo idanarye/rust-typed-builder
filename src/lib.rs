@@ -83,6 +83,29 @@ mod util;
 /// - `build_method_doc = "…"` replaces the default documentation that will be generated for the
 ///   `build()` method of the builder type. Setting this implies `doc`.
 ///
+/// - `field_defaults(...)` is structured like the `#[builder(...)]` attribute you can put on the
+///   fields and sets default options for fields of the type. If specific field need to revert some
+///   options to the default defaults they can prepend `!` to the option they need to revert, and
+///   it would ignore the field defaults for that option in that field.
+///    ```
+///    use typed_builder::TypedBuilder;
+///
+///    #[derive(TypedBuilder)]
+///    #[builder(field_defaults(default, setter(strip_option)))]
+///    struct Foo {
+///        // Defaults to None, options-stripping is performed:
+///        x: Option<i32>,
+///
+///        // Defaults to 0, option-stripping is not performed:
+///        #[builder(setter(!strip_option))]
+///        y: i32,
+///
+///        // Defaults to Some(13), option-stripping is performed:
+///        #[builder(default = Some(13))]
+///        z: Option<i32>,
+///    }
+///    ```
+///
 /// On each **field**, the following values are permitted:
 ///
 /// - `default`: make the field optional, defaulting to `Default::default()`. This requires that

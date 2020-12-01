@@ -374,3 +374,33 @@ fn test_default_code() {
 
     assert!(Foo::builder().build() == Foo { x: "text1".to_owned(), y: "text2".to_owned() });
 }
+
+#[test]
+fn test_field_defaults_default_value() {
+
+    #[derive(PartialEq, TypedBuilder)]
+    #[builder(field_defaults(default = 12))]
+    struct Foo {
+        x: i32,
+        #[builder(!default)]
+        y: String,
+        #[builder(default = 13)]
+        z: i32,
+    }
+
+    assert!(Foo::builder().y("bla".to_owned()).build() == Foo { x: 12, y: "bla".to_owned(), z: 13 });
+}
+
+#[test]
+fn test_field_defaults_setter_options() {
+
+    #[derive(PartialEq, TypedBuilder)]
+    #[builder(field_defaults(setter(strip_option)))]
+    struct Foo {
+        x: Option<i32>,
+        #[builder(setter(!strip_option))]
+        y: i32,
+    }
+
+    assert!(Foo::builder().x(1).y(2).build() == Foo { x: Some(1), y: 2 });
+}

@@ -17,17 +17,17 @@ pub struct FieldInfo<'a> {
 }
 
 impl<'a> FieldInfo<'a> {
-    pub fn new(ordinal: usize, field: &syn::Field) -> Result<FieldInfo, Error> {
+    pub fn new(ordinal: usize, field: &syn::Field, field_defaults: FieldBuilderAttr) -> Result<FieldInfo, Error> {
         if let Some(ref name) = field.ident {
             Ok(FieldInfo {
-                ordinal: ordinal,
+                ordinal,
                 name: &name,
                 generic_ident: syn::Ident::new(
                     &format!("__{}", name),
                     proc_macro2::Span::call_site(),
                 ),
                 ty: &field.ty,
-                builder_attr: FieldBuilderAttr::new(&field.attrs)?,
+                builder_attr: field_defaults.with(&field.attrs)?,
             })
         } else {
             Err(Error::new(field.span(), "Nameless field in struct"))
@@ -80,13 +80,13 @@ impl<'a> FieldInfo<'a> {
     }
 }
 
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Clone)]
 pub struct FieldBuilderAttr {
     pub default: Option<syn::Expr>,
     pub setter: SetterSettings,
 }
 
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Clone)]
 pub struct SetterSettings {
     pub doc: Option<syn::Expr>,
     pub skip: bool,
@@ -95,8 +95,7 @@ pub struct SetterSettings {
 }
 
 impl FieldBuilderAttr {
-    pub fn new(attrs: &[syn::Attribute]) -> Result<FieldBuilderAttr, Error> {
-        let mut result = FieldBuilderAttr::default();
+    pub fn with(mut self, attrs: &[syn::Attribute]) -> Result<Self, Error> {
         let mut skip_tokens = None;
         for attr in attrs {
             if path_to_single_string(&attr.path).as_ref().map(|s| &**s) != Some("builder") {
@@ -110,11 +109,11 @@ impl FieldBuilderAttr {
             let as_expr: syn::Expr = syn::parse2(attr.tokens.clone())?;
             match as_expr {
                 syn::Expr::Paren(body) => {
-                    result.apply_meta(*body.expr)?;
+                    self.apply_meta(*body.expr)?;
                 }
                 syn::Expr::Tuple(body) => {
                     for expr in body.elems.into_iter() {
-                        result.apply_meta(expr)?;
+                        self.apply_meta(expr)?;
                     }
                 }
                 _ => {
@@ -122,22 +121,22 @@ impl FieldBuilderAttr {
                 }
             }
             // Stash its span for later (we don’t yet know if it’ll be an error)
-            if result.setter.skip && skip_tokens.is_none() {
+            if self.setter.skip && skip_tokens.is_none() {
                 skip_tokens = Some(attr.tokens.clone());
             }
         }
 
-        if result.setter.skip && result.default.is_none() {
+        if self.setter.skip && self.default.is_none() {
             return Err(Error::new_spanned(
                 skip_tokens.unwrap(),
                 "#[builder(skip)] must be accompanied by default or default_code",
             ));
         }
 
-        Ok(result)
+        Ok(self)
     }
 
-    fn apply_meta(&mut self, expr: syn::Expr) -> Result<(), Error> {
+    pub fn apply_meta(&mut self, expr: syn::Expr) -> Result<(), Error> {
         match expr {
             syn::Expr::Assign(assign) => {
                 let name = expr_to_single_string(&assign.left)
@@ -206,7 +205,28 @@ impl FieldBuilderAttr {
                     }
                 }
             },
-            _ => Err(Error::new_spanned(expr, "Expected (<...>=<...>)")),
+            syn::Expr::Unary(syn::ExprUnary {
+                op: syn::UnOp::Not(_),
+                expr,
+                ..
+            }) => {
+                if let syn::Expr::Path(path) = *expr {
+                    let name = path_to_single_string(&path.path)
+                        .ok_or_else(|| Error::new_spanned(&path, "Expected identifier"))?;
+                    match name.as_str() {
+                        "default" => {
+                            self.default = None;
+                            Ok(())
+                        }
+                        _ => Err(Error::new_spanned(path, format!("Unknown setting")))
+                    }
+                } else {
+                    Err(Error::new_spanned(expr, format!("Expected simple identifier")))
+                }
+            },
+            _ => {
+                Err(Error::new_spanned(expr, "Expected (<...>=<...>)"))
+            },
         }
     }
 }
@@ -256,6 +276,37 @@ impl SetterSettings {
                     "into", auto_into, "calling into() on the argument";
                     "strip_option", strip_option, "putting the argument in Some(...)";
                 )
+            },
+            syn::Expr::Unary(syn::ExprUnary {
+                op: syn::UnOp::Not(_),
+                expr,
+                ..
+            }) => {
+                if let syn::Expr::Path(path) = *expr {
+                    let name = path_to_single_string(&path.path)
+                        .ok_or_else(|| Error::new_spanned(&path, "Expected identifier"))?;
+                    match name.as_str() {
+                        "doc" => {
+                            self.doc = None;
+                            Ok(())
+                        },
+                        "skip" => {
+                            self.skip = false;
+                            Ok(())
+                        },
+                        "auto_into" => {
+                            self.auto_into = false;
+                            Ok(())
+                        },
+                        "strip_option" => {
+                            self.strip_option = false;
+                            Ok(())
+                        },
+                        _ => Err(Error::new_spanned(path, format!("Unknown setting")))
+                    }
+                } else {
+                    Err(Error::new_spanned(expr, format!("Expected simple identifier")))
+                }
             },
             _ => Err(Error::new_spanned(expr, "Expected (<...>=<...>)")),
         }
