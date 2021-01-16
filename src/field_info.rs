@@ -87,6 +87,7 @@ pub struct SetterSettings {
     pub doc: Option<syn::Expr>,
     pub skip: bool,
     pub auto_into: bool,
+    pub strip_extend: Option<Option<syn::Expr>>,
     pub strip_option: bool,
 }
 
@@ -229,6 +230,17 @@ impl SetterSettings {
                         self.doc = Some(*assign.right);
                         Ok(())
                     }
+                    "strip_extend" => {
+                        if self.strip_extend.is_some() {
+                            Err(Error::new(
+                                assign.span(),
+                                "Illegal setting - field is already calling extend(...) with the argument",
+                            ))
+                        } else {
+                            self.strip_extend = Some(Some(*assign.right));
+                            Ok(())
+                        }
+                    }
                     _ => Err(Error::new_spanned(&assign, format!("Unknown parameter {:?}", name))),
                 }
             }
@@ -247,6 +259,14 @@ impl SetterSettings {
                                     }
                                 }
                             )*
+                            "strip_extend" => {
+                                if self.strip_extend.is_some() {
+                                    Err(Error::new(path.span(), "Illegal setting - field is already calling extend(...) with the argument"))
+                                } else {
+                                    self.strip_extend = Some(None);
+                                    Ok(())
+                                }
+                            }
                             _ => Err(Error::new_spanned(
                                     &path,
                                     format!("Unknown setter parameter {:?}", name),
@@ -279,6 +299,10 @@ impl SetterSettings {
                         }
                         "auto_into" => {
                             self.auto_into = false;
+                            Ok(())
+                        }
+                        "strip_extend" => {
+                            self.strip_extend = None;
                             Ok(())
                         }
                         "strip_option" => {
