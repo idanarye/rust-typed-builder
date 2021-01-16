@@ -142,6 +142,15 @@ impl<'a> StructInfo<'a> {
         } else {
             quote!(#[doc(hidden)])
         };
+
+        let (b_generics_impl, b_generics_ty, b_generics_where_extras_predicates) = b_generics.split_for_impl();
+        let mut b_generics_where: syn::WhereClause = syn::parse2(quote! {
+            where TypedBuilderFields: Clone
+        })?;
+        if let Some(predicates) = b_generics_where_extras_predicates {
+            b_generics_where.predicates.extend(predicates.predicates.clone());
+        }
+
         Ok(quote! {
             impl #impl_generics #name #ty_generics #where_clause {
                 #[doc = #builder_method_doc]
@@ -160,6 +169,15 @@ impl<'a> StructInfo<'a> {
             #vis struct #builder_name #b_generics {
                 fields: #all_fields_param,
                 _phantom: (#( #phantom_generics ),*),
+            }
+
+            impl #b_generics_impl Clone for #builder_name #b_generics_ty #b_generics_where {
+                fn clone(&self) -> Self {
+                    Self {
+                        fields: self.fields.clone(),
+                        _phantom: Default::default(),
+                    }
+                }
             }
         })
     }

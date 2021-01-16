@@ -247,4 +247,38 @@ fn impl_my_derive(ast: &syn::DeriveInput) -> Result<TokenStream, Error> {
 ///     y: i8,
 /// }
 /// ```
+///
+/// `clone` does not work if non-Clone fields have already been set
+///
+/// ```compile_fail
+/// use typed_builder::TypedBuilder;
+///
+/// #[derive(Default)]
+/// struct Uncloneable;
+///
+/// #[derive(TypedBuilder)]
+/// struct Foo {
+///     x: Uncloneable,
+///     y: i32,
+/// }
+///
+/// let _ = Foo::builder().x(Uncloneable).clone();
+/// ```
+///
+/// Same, but with generics
+///
+/// ```compile_fail
+/// use typed_builder::TypedBuilder;
+///
+/// #[derive(Default)]
+/// struct Uncloneable;
+///
+/// #[derive(TypedBuilder)]
+/// struct Foo<T> {
+///     x: T,
+///     y: i32,
+/// }
+///
+/// let _ = Foo::builder().x(Uncloneable).clone();
+/// ```
 fn _compile_fail_tests() {}

@@ -404,3 +404,53 @@ fn test_field_defaults_setter_options() {
 
     assert!(Foo::builder().x(1).y(2).build() == Foo { x: Some(1), y: 2 });
 }
+
+#[test]
+fn test_clone_builder() {
+
+    #[derive(PartialEq, Default)]
+    struct Uncloneable;
+
+    #[derive(PartialEq, TypedBuilder)]
+    struct Foo {
+        x: i32,
+        y: i32,
+        #[builder(default)]
+        z: Uncloneable,
+    }
+
+    let semi_built = Foo::builder().x(1);
+
+    assert!(semi_built.clone().y(2).build() == Foo { x: 1, y: 2, z: Uncloneable });
+    assert!(semi_built.clone().y(3).build() == Foo { x: 1, y: 3, z: Uncloneable });
+}
+
+#[test]
+fn test_clone_builder_with_generics() {
+
+    #[derive(PartialEq, Default)]
+    struct Uncloneable;
+
+    #[derive(PartialEq, TypedBuilder)]
+    struct Foo<T> {
+        x: T,
+        y: i32,
+    }
+
+    let semi_built1 = Foo::builder().x(1);
+
+    assert!(semi_built1.clone().y(2).build() == Foo { x: 1, y: 2 });
+    assert!(semi_built1.clone().y(3).build() == Foo { x: 1, y: 3 });
+
+    let semi_built2 = Foo::builder().x("four");
+
+    assert!(semi_built2.clone().y(5).build() == Foo { x: "four", y: 5 });
+    assert!(semi_built2.clone().y(6).build() == Foo { x: "four", y: 6 });
+
+    // Just to make sure it can build with generic bounds
+    #[allow(dead_code)]
+    #[derive(TypedBuilder)]
+    struct Bar<T: std::fmt::Debug> where T: std::fmt::Display {
+        x: T,
+    }
+}
