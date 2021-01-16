@@ -107,7 +107,7 @@ impl<'a> StructInfo<'a> {
             None => {
                 let doc = format!("
                     Create a builder for building `{name}`.
-                    On the builder, call {setters} to set the values of the fields (they accept `Into` values).
+                    On the builder, call {setters} to set the values of the fields.
                     Finally, call `.build()` to create the instance of `{name}`.
                     ",
                     name=self.name,
