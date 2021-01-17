@@ -1,6 +1,7 @@
-use proc_macro2::TokenStream;
-use quote::quote;
+use proc_macro2::{Span, TokenStream};
+use quote::{quote, ToTokens};
 use syn::parse::Error;
+use syn::{self, parse_quote, Generics, Ident};
 
 use crate::field_info::{FieldBuilderAttr, FieldInfo};
 use crate::util::{
@@ -197,15 +198,18 @@ impl<'a> StructInfo<'a> {
     pub fn field_impl(&self, field: &FieldInfo) -> Result<TokenStream, Error> {
         let StructInfo { ref builder_name, .. } = *self;
 
-        let descructuring = self.included_fields().map(|f| {
-            if f.ordinal == field.ordinal {
-                quote!(_)
-            } else {
-                let name = f.name;
-                quote!(#name)
-            }
-        });
-        let reconstructing = self.included_fields().map(|f| f.name);
+        let descructuring = self
+            .included_fields()
+            .map(|f| {
+                if f.ordinal == field.ordinal {
+                    quote!(_)
+                } else {
+                    let name = f.name;
+                    quote!(#name)
+                }
+            })
+            .collect::<Vec<_>>();
+        let reconstructing = self.included_fields().map(|f| f.name).collect::<Vec<_>>();
 
         let &FieldInfo {
             name: ref field_name,
@@ -275,10 +279,33 @@ impl<'a> StructInfo<'a> {
         } else {
             field_type
         };
-        let (arg_type, arg_expr) = if field.builder_attr.setter.auto_into {
-            (quote!(impl core::convert::Into<#arg_type>), quote!(#field_name.into()))
+        let (arg_type, arg_expr, extend_generics) = if let Some(extend_init) = &field.builder_attr.setter.strip_extend {
+            let arg_expr = if let Some(extend_init) = extend_init {
+                extend_init.to_token_stream()
+            } else {
+                let default = if let Some(default) = &field.builder_attr.default {
+                    default.to_token_stream()
+                } else {
+                    quote!(::core::default::Default::default())
+                };
+                quote!({
+                    let mut extend: #arg_type = #default;
+                    extend.extend(::core::iter::once(#field_name));
+                    extend
+                })
+            };
+            (quote!(Argument), arg_expr, {
+                let mut generics: Generics = parse_quote!(<Argument>);
+                generics.where_clause = parse_quote!(where #arg_type: ::core::iter::Extend<Argument>);
+                generics
+            })
         } else {
-            (quote!(#arg_type), quote!(#field_name))
+            (arg_type.to_token_stream(), field_name.to_token_stream(), Generics::default())
+        };
+        let (arg_type, arg_expr) = if field.builder_attr.setter.auto_into {
+            (quote!(impl core::convert::Into<#arg_type>), quote!(#arg_expr.into()))
+        } else {
+            (arg_type, arg_expr)
         };
         let arg_expr = if field.builder_attr.setter.strip_option {
             quote!(Some(#arg_expr))
@@ -286,17 +313,58 @@ impl<'a> StructInfo<'a> {
             arg_expr
         };
 
-        let repeated_fields_error_type_name = syn::Ident::new(
-            &format!("{}_Error_Repeated_field_{}", builder_name, field_name),
-            proc_macro2::Span::call_site(),
-        );
-        let repeated_fields_error_message = format!("Repeated field {}", field_name);
+        let extend_where = &extend_generics.where_clause;
+
+        let repeat_items = if field.builder_attr.setter.strip_extend.is_some() {
+            let field_hygienic = Ident::new(
+                // Changing the name here doesn't really matter, but makes it easier to debug with `cargo expand`.
+                &format!("{}_argument", field_name),
+                field_name.span().resolved_at(Span::mixed_site()),
+            );
+            quote! {
+                #[allow(dead_code, non_camel_case_types, missing_docs)]
+                impl #impl_generics #builder_name < #( #target_generics ),* > #where_clause {
+                    #doc
+                    pub fn #field_name #extend_generics (self, #field_name: #arg_type) -> #builder_name < #( #target_generics ),* > #extend_where {
+                        let #field_hygienic = #field_name;
+                        let ( #(#reconstructing,)* ) = self.fields;
+                        let mut #field_name = #field_name;
+                        #field_name.0.extend(::core::iter::once(#field_hygienic));
+                        #builder_name {
+                            fields: ( #(#reconstructing,)* ),
+                            _phantom: self._phantom,
+                        }
+                    }
+                }
+            }
+        } else {
+            let repeated_fields_error_type_name = syn::Ident::new(
+                &format!("{}_Error_Repeated_field_{}", builder_name, field_name),
+                proc_macro2::Span::call_site(),
+            );
+            let repeated_fields_error_message = format!("Repeated field {}", field_name);
+            quote! {
+                #[doc(hidden)]
+                #[allow(dead_code, non_camel_case_types, non_snake_case)]
+                pub enum #repeated_fields_error_type_name {}
+                #[doc(hidden)]
+                #[allow(dead_code, non_camel_case_types, missing_docs)]
+                impl #impl_generics #builder_name < #( #target_generics ),* > #where_clause {
+                    #[deprecated(
+                        note = #repeated_fields_error_message
+                    )]
+                    pub fn #field_name (self, _: #repeated_fields_error_type_name) -> #builder_name < #( #target_generics ),* > {
+                        self
+                    }
+                }
+            }
+        };
 
         Ok(quote! {
             #[allow(dead_code, non_camel_case_types, missing_docs)]
             impl #impl_generics #builder_name < #( #ty_generics ),* > #where_clause {
                 #doc
-                pub fn #field_name (self, #field_name: #arg_type) -> #builder_name < #( #target_generics ),* > {
+                pub fn #field_name #extend_generics (self, #[deny(dead_code)] #field_name: #arg_type) -> #builder_name < #( #target_generics ),* > #extend_where {
                     let #field_name = (#arg_expr,);
                     let ( #(#descructuring,)* ) = self.fields;
                     #builder_name {
@@ -305,19 +373,7 @@ impl<'a> StructInfo<'a> {
                     }
                 }
             }
-            #[doc(hidden)]
-            #[allow(dead_code, non_camel_case_types, non_snake_case)]
-            pub enum #repeated_fields_error_type_name {}
-            #[doc(hidden)]
-            #[allow(dead_code, non_camel_case_types, missing_docs)]
-            impl #impl_generics #builder_name < #( #target_generics ),* > #where_clause {
-                #[deprecated(
-                    note = #repeated_fields_error_message
-                )]
-                pub fn #field_name (self, _: #repeated_fields_error_type_name) -> #builder_name < #( #target_generics ),* > {
-                    self
-                }
-            }
+            #repeat_items
         })
     }
 
