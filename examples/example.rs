@@ -25,17 +25,17 @@ struct Foo {
     z: i32,
 
     // #[builder(default)] without parameter - don't require this field
-    // #[builder(setter(strip_extend))] without parameter - start with the default and extend from there
-    #[builder(default, setter(strip_extend))]
+    // #[builder(setter(strip_collection))] without parameter - start with the default and extend from there
+    #[builder(default, setter(strip_collection))]
     v0: Vec<i32>,
 
     // No `default`: This field must be set at least once.
-    // You can explicitly set the value (but this is not required even without `default`).
-    #[builder(setter(strip_extend = { let mut vec = vec![]; vec.extend(iter::once(v1)); vec }))]
+    // You can explicitly create the collection from the first item (but this is not required even without `default`).
+    #[builder(setter(strip_collection = vec![v1_first]))]
     v1: Vec<i32>,
 
     // Other `Extend` types are also supported.
-    #[builder(default, setter(strip_extend))]
+    #[builder(default, setter(strip_collection))]
     h: HashMap<i32, i32>,
 }
 

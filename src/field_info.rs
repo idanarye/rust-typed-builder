@@ -2,6 +2,7 @@ use proc_macro2::TokenStream;
 use quote::quote;
 use syn::parse::Error;
 use syn::spanned::Spanned;
+use syn::{self, Token};
 
 use crate::util::ident_to_type;
 use crate::util::{expr_to_single_string, path_to_single_string};
@@ -87,7 +88,7 @@ pub struct SetterSettings {
     pub doc: Option<syn::Expr>,
     pub skip: bool,
     pub auto_into: bool,
-    pub strip_extend: Option<Option<syn::Expr>>,
+    pub strip_collection: Option<Option<(Token![=], syn::Expr)>>,
     pub strip_option: bool,
 }
 
@@ -230,14 +231,14 @@ impl SetterSettings {
                         self.doc = Some(*assign.right);
                         Ok(())
                     }
-                    "strip_extend" => {
-                        if self.strip_extend.is_some() {
+                    "strip_collection" => {
+                        if self.strip_collection.is_some() {
                             Err(Error::new(
                                 assign.span(),
                                 "Illegal setting - field is already calling extend(...) with the argument",
                             ))
                         } else {
-                            self.strip_extend = Some(Some(*assign.right));
+                            self.strip_collection = Some(Some((assign.eq_token, *assign.right)));
                             Ok(())
                         }
                     }
@@ -259,11 +260,11 @@ impl SetterSettings {
                                     }
                                 }
                             )*
-                            "strip_extend" => {
-                                if self.strip_extend.is_some() {
+                            "strip_collection" => {
+                                if self.strip_collection.is_some() {
                                     Err(Error::new(path.span(), "Illegal setting - field is already calling extend(...) with the argument"))
                                 } else {
-                                    self.strip_extend = Some(None);
+                                    self.strip_collection = Some(None);
                                     Ok(())
                                 }
                             }
@@ -301,8 +302,8 @@ impl SetterSettings {
                             self.auto_into = false;
                             Ok(())
                         }
-                        "strip_extend" => {
-                            self.strip_extend = None;
+                        "strip_collection" => {
+                            self.strip_collection = None;
                             Ok(())
                         }
                         "strip_option" => {

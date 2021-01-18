@@ -1,7 +1,8 @@
 use proc_macro2::{Span, TokenStream};
-use quote::{quote, ToTokens};
+use quote::{quote, quote_spanned, ToTokens};
 use syn::parse::Error;
-use syn::{self, parse_quote, Generics, Ident};
+use syn::spanned::Spanned;
+use syn::{self, Ident};
 
 use crate::field_info::{FieldBuilderAttr, FieldInfo};
 use crate::util::{
@@ -212,8 +213,8 @@ impl<'a> StructInfo<'a> {
         let reconstructing = self.included_fields().map(|f| f.name).collect::<Vec<_>>();
 
         let &FieldInfo {
-            name: ref field_name,
-            ty: ref field_type,
+            name: field_name,
+            ty: field_type,
             ..
         } = field;
         let mut ty_generics: Vec<syn::GenericArgument> = self
@@ -279,9 +280,9 @@ impl<'a> StructInfo<'a> {
         } else {
             field_type
         };
-        let (arg_type, arg_expr, extend_generics) = if let Some(extend_init) = &field.builder_attr.setter.strip_extend {
-            let arg_expr = if let Some(extend_init) = extend_init {
-                extend_init.to_token_stream()
+        let (arg_type, arg_expr) = if let Some(collection_init) = &field.builder_attr.setter.strip_collection {
+            let arg_expr = if let Some((_, collection_init)) = collection_init {
+                collection_init.to_token_stream()
             } else {
                 let default = if let Some(default) = &field.builder_attr.default {
                     default.to_token_stream()
@@ -289,19 +290,16 @@ impl<'a> StructInfo<'a> {
                     quote!(::core::default::Default::default())
                 };
                 quote!({
-                    let mut extend: #arg_type = #default;
-                    extend.extend(::core::iter::once(#field_name));
-                    extend
+                    let mut collection: #arg_type = #default;
+                    ::core::iter::Extend::extend(&mut collection, ::core::iter::once(#field_name));
+                    collection
                 })
             };
-            (quote!(Argument), arg_expr, {
-                let mut generics: Generics = parse_quote!(<Argument>);
-                generics.where_clause = parse_quote!(where #arg_type: ::core::iter::Extend<Argument>);
-                generics
-            })
+            (quote!(<#arg_type as ::core::iter::IntoIterator>::Item), arg_expr)
         } else {
-            (arg_type.to_token_stream(), field_name.to_token_stream(), Generics::default())
+            (arg_type.to_token_stream(), field_name.to_token_stream())
         };
+
         let (arg_type, arg_expr) = if field.builder_attr.setter.auto_into {
             (quote!(impl core::convert::Into<#arg_type>), quote!(#arg_expr.into()))
         } else {
@@ -313,9 +311,7 @@ impl<'a> StructInfo<'a> {
             arg_expr
         };
 
-        let extend_where = &extend_generics.where_clause;
-
-        let repeat_items = if field.builder_attr.setter.strip_extend.is_some() {
+        let repeat_items = if field.builder_attr.setter.strip_collection.is_some() {
             let field_hygienic = Ident::new(
                 // Changing the name here doesn't really matter, but makes it easier to debug with `cargo expand`.
                 &format!("{}_argument", field_name),
@@ -325,11 +321,11 @@ impl<'a> StructInfo<'a> {
                 #[allow(dead_code, non_camel_case_types, missing_docs)]
                 impl #impl_generics #builder_name < #( #target_generics ),* > #where_clause {
                     #doc
-                    pub fn #field_name #extend_generics (self, #field_name: #arg_type) -> #builder_name < #( #target_generics ),* > #extend_where {
+                    pub fn #field_name (self, #field_name: #arg_type) -> #builder_name < #( #target_generics ),* > {
                         let #field_hygienic = #field_name;
                         let ( #(#reconstructing,)* ) = self.fields;
                         let mut #field_name = #field_name;
-                        #field_name.0.extend(::core::iter::once(#field_hygienic));
+                        ::core::iter::Extend::extend(&mut #field_name.0, ::core::iter::once(#field_hygienic));
                         #builder_name {
                             fields: ( #(#reconstructing,)* ),
                             _phantom: self._phantom,
@@ -360,11 +356,27 @@ impl<'a> StructInfo<'a> {
             }
         };
 
+        let (arg_name, forbid_unused_first) = if let Some(Some((ref eq, ref init))) = field.builder_attr.setter.strip_collection {
+            (
+                Ident::new(
+                    &format!("{}_first", field_name),
+                    // This places the `unused_variables` error caused by faulty collection seeds on the expression after `strip_collection =`
+                    // (more or less - we might only get the first token, but this should eventually improve with proc macro improvements),
+                    // which is much less confusing than having it on the field name.
+                    init.span(),
+                ),
+                // Place "the lint level is defined here" on `strip_collection =`'s `=`.
+                Some(quote_spanned!(eq.span=> #[forbid(unused_variables)])),
+            )
+        } else {
+            (field_name.clone(), None)
+        };
+
         Ok(quote! {
             #[allow(dead_code, non_camel_case_types, missing_docs)]
             impl #impl_generics #builder_name < #( #ty_generics ),* > #where_clause {
                 #doc
-                pub fn #field_name #extend_generics (self, #[deny(dead_code)] #field_name: #arg_type) -> #builder_name < #( #target_generics ),* > #extend_where {
+                pub fn #field_name (self, #forbid_unused_first #arg_name: #arg_type) -> #builder_name < #( #target_generics ),* > {
                     let #field_name = (#arg_expr,);
                     let ( #(#descructuring,)* ) = self.fields;
                     #builder_name {
