@@ -321,7 +321,12 @@ impl<'a> StructInfo<'a> {
                 #[allow(dead_code, non_camel_case_types, missing_docs)]
                 impl #impl_generics #builder_name < #( #target_generics ),* > #where_clause {
                     #doc
-                    pub fn #field_name (self, #field_name: #arg_type) -> #builder_name < #( #target_generics ),* > {
+                    pub fn #field_name<Argument> (self, #field_name: Argument) -> #builder_name < #( #target_generics ),* >
+                        // Making this repeat setter here further generic has a potential performance benefit:
+                        // Many collections are also `Extend<&T>` where `T: Copy`. Calling this overload will then
+                        // copy the value direction into the collection instead of through a stack temporary.
+                        where #field_type: ::core::iter::Extend<Argument>,
+                    {
                         let #field_hygienic = #field_name;
                         let ( #(#reconstructing,)* ) = self.fields;
                         let mut #field_name = #field_name;
