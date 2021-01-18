@@ -1,4 +1,4 @@
-use proc_macro2::TokenStream;
+use proc_macro2::{Span, TokenStream};
 use quote::quote;
 use syn::parse::Error;
 use syn::spanned::Spanned;
@@ -88,8 +88,14 @@ pub struct SetterSettings {
     pub doc: Option<syn::Expr>,
     pub skip: bool,
     pub auto_into: bool,
-    pub strip_collection: Option<Option<(Token![=], syn::Expr)>>,
+    pub strip_collection: Option<StripCollection>,
     pub strip_option: bool,
+}
+
+#[derive(Debug, Clone)]
+pub struct StripCollection {
+    pub keyword_span: Span,
+    pub custom_initializer: Option<(Token![=], syn::Expr)>,
 }
 
 impl FieldBuilderAttr {
@@ -238,7 +244,10 @@ impl SetterSettings {
                                 "Illegal setting - field is already calling extend(...) with the argument",
                             ))
                         } else {
-                            self.strip_collection = Some(Some((assign.eq_token, *assign.right)));
+                            self.strip_collection = Some(StripCollection {
+                                keyword_span: name.span(),
+                                custom_initializer: Some((assign.eq_token, *assign.right)),
+                            });
                             Ok(())
                         }
                     }
@@ -264,7 +273,10 @@ impl SetterSettings {
                                 if self.strip_collection.is_some() {
                                     Err(Error::new(path.span(), "Illegal setting - field is already calling extend(...) with the argument"))
                                 } else {
-                                    self.strip_collection = Some(None);
+                                    self.strip_collection = Some(StripCollection{
+                                        keyword_span: name.span(),
+                                        custom_initializer: None
+                                    });
                                     Ok(())
                                 }
                             }

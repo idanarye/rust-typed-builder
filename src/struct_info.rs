@@ -4,7 +4,7 @@ use syn::parse::Error;
 use syn::spanned::Spanned;
 use syn::{self, Ident};
 
-use crate::field_info::{FieldBuilderAttr, FieldInfo};
+use crate::field_info::{FieldBuilderAttr, FieldInfo, StripCollection};
 use crate::util::{
     empty_type, empty_type_tuple, expr_to_single_string, make_punctuated_single, modify_types_generics_hack,
     path_to_single_string, type_tuple,
@@ -280,26 +280,26 @@ impl<'a> StructInfo<'a> {
         } else {
             field_type
         };
-        let (arg_type, arg_expr) = if let Some(collection_init) = &field.builder_attr.setter.strip_collection {
-            let arg_expr = if let Some((_, collection_init)) = collection_init {
-                collection_init.to_token_stream()
-            } else {
-                let default = if let Some(default) = &field.builder_attr.default {
-                    default.to_token_stream()
-                } else {
-                    quote!(::core::default::Default::default())
-                };
-                quote!({
+        let (arg_type, arg_expr) = if let Some(StripCollection {
+            keyword_span,
+            ref custom_initializer,
+        }) = field.builder_attr.setter.strip_collection
+        {
+            let arg_expr = if let Some((_, init)) = custom_initializer {
+                init.to_token_stream()
+            } else if let Some(default) = &field.builder_attr.default {
+                quote_spanned!(keyword_span=> {
                     let mut collection: #arg_type = #default;
                     ::core::iter::Extend::extend(&mut collection, ::core::iter::once(#field_name));
                     collection
                 })
+            } else {
+                quote_spanned!(keyword_span=> ::<#arg_type as ::core::iter::FromIterator>::from_iter(::core::iter::once(#field_name)))
             };
             (quote!(<#arg_type as ::core::iter::IntoIterator>::Item), arg_expr)
         } else {
             (arg_type.to_token_stream(), field_name.to_token_stream())
         };
-
         let (arg_type, arg_expr) = if field.builder_attr.setter.auto_into {
             (quote!(impl core::convert::Into<#arg_type>), quote!(#arg_expr.into()))
         } else {
@@ -311,13 +311,13 @@ impl<'a> StructInfo<'a> {
             arg_expr
         };
 
-        let repeat_items = if field.builder_attr.setter.strip_collection.is_some() {
+        let repeat_items = if let Some(StripCollection { keyword_span, .. }) = field.builder_attr.setter.strip_collection {
             let field_hygienic = Ident::new(
                 // Changing the name here doesn't really matter, but makes it easier to debug with `cargo expand`.
                 &format!("{}_argument", field_name),
                 field_name.span().resolved_at(Span::mixed_site()),
             );
-            quote! {
+            quote_spanned! {keyword_span=>
                 #[allow(dead_code, non_camel_case_types, missing_docs)]
                 impl #impl_generics #builder_name < #( #target_generics ),* > #where_clause {
                     #doc
@@ -356,7 +356,11 @@ impl<'a> StructInfo<'a> {
             }
         };
 
-        let (arg_name, forbid_unused_first) = if let Some(Some((ref eq, ref init))) = field.builder_attr.setter.strip_collection {
+        let (arg_name, forbid_unused_first) = if let Some(StripCollection {
+            custom_initializer: Some((ref eq, ref init)),
+            ..
+        }) = field.builder_attr.setter.strip_collection
+        {
             (
                 Ident::new(
                     &format!("{}_first", field_name),
