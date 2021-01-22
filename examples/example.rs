@@ -31,7 +31,7 @@ struct Foo {
 
     // No `default`: This field must be set at least once.
     // You can explicitly create the collection from the first item (but this is not required even without `default`).
-    #[builder(setter(strip_collection = vec![v1_first]))]
+    #[builder(setter(strip_collection(from_first = |first| vec![first])))]
     v1: Vec<i32>,
 
     // Other `Extend` types are also supported.

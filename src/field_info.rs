@@ -2,7 +2,6 @@ use proc_macro2::{Span, TokenStream};
 use quote::quote;
 use syn::parse::Error;
 use syn::spanned::Spanned;
-use syn::{self, Token};
 
 use crate::util::ident_to_type;
 use crate::util::{expr_to_single_string, path_to_single_string};
@@ -95,7 +94,13 @@ pub struct SetterSettings {
 #[derive(Debug, Clone)]
 pub struct StripCollection {
     pub keyword_span: Span,
-    pub custom_initializer: Option<(Token![=], syn::Expr)>,
+    pub from_first: Option<FromFirst>,
+}
+
+#[derive(Debug, Clone)]
+pub struct FromFirst {
+    pub keyword_span: Span,
+    pub closure: syn::ExprClosure,
 }
 
 impl FieldBuilderAttr {
@@ -237,21 +242,59 @@ impl SetterSettings {
                         self.doc = Some(*assign.right);
                         Ok(())
                     }
+                    _ => Err(Error::new_spanned(&assign, format!("Unknown parameter {:?}", name))),
+                }
+            }
+            syn::Expr::Call(call) => {
+                let name =
+                    expr_to_single_string(&call.func).ok_or_else(|| Error::new_spanned(&call.func, "Expected identifier"))?;
+                match name.as_str() {
                     "strip_collection" => {
                         if self.strip_collection.is_some() {
                             Err(Error::new(
-                                assign.span(),
+                                call.span(),
                                 "Illegal setting - field is already calling extend(...) with the argument",
                             ))
+                        } else if let Some(attr) = call.attrs.first() {
+                            Err(Error::new_spanned(attr, "Unexpected attribute"))
                         } else {
-                            self.strip_collection = Some(StripCollection {
+                            let mut strip_collection = StripCollection {
                                 keyword_span: name.span(),
-                                custom_initializer: Some((assign.eq_token, *assign.right)),
-                            });
+                                from_first: None,
+                            };
+                            for arg in call.args {
+                                match arg {
+                                    syn::Expr::Assign(assign) => {
+                                        let name = expr_to_single_string(&assign.left)
+                                            .ok_or_else(|| Error::new_spanned(&assign.left, "Expected identifier"))?;
+                                        match name.as_str() {
+                                            "from_first" => match *assign.right {
+                                                syn::Expr::Closure(closure) => {
+                                                    strip_collection.from_first = Some(FromFirst {
+                                                        keyword_span: assign.left.span(),
+                                                        closure,
+                                                    })
+                                                }
+                                                other => {
+                                                    return Err(Error::new_spanned(other, "Expected closure (|first| <...>)"))
+                                                }
+                                            },
+                                            _ => {
+                                                return Err(Error::new_spanned(
+                                                    &assign.left,
+                                                    format!("Unknown parameter {:?}", name),
+                                                ))
+                                            }
+                                        }
+                                    }
+                                    _ => return Err(Error::new_spanned(arg, "Expected (<...>=<...>)")),
+                                }
+                            }
+                            self.strip_collection = Some(strip_collection);
                             Ok(())
                         }
                     }
-                    _ => Err(Error::new_spanned(&assign, format!("Unknown parameter {:?}", name))),
+                    _ => Err(Error::new_spanned(&call.func, format!("Unknown parameter {:?}", name))),
                 }
             }
             syn::Expr::Path(path) => {
@@ -275,7 +318,7 @@ impl SetterSettings {
                                 } else {
                                     self.strip_collection = Some(StripCollection{
                                         keyword_span: name.span(),
-                                        custom_initializer: None
+                                        from_first: None
                                     });
                                     Ok(())
                                 }
@@ -328,7 +371,7 @@ impl SetterSettings {
                     Err(Error::new_spanned(expr, "Expected simple identifier".to_owned()))
                 }
             }
-            _ => Err(Error::new_spanned(expr, "Expected (<...>=<...>)")),
+            _ => Err(Error::new_spanned(expr, "Expected (<...>=<...>) or (<...>(<...>))")),
         }
     }
 }

@@ -1,10 +1,9 @@
 use proc_macro2::{Span, TokenStream};
 use quote::{quote, quote_spanned, ToTokens};
 use syn::parse::Error;
-use syn::spanned::Spanned;
 use syn::{self, Ident};
 
-use crate::field_info::{FieldBuilderAttr, FieldInfo, StripCollection};
+use crate::field_info::{FieldBuilderAttr, FieldInfo, FromFirst, StripCollection};
 use crate::util::{
     empty_type, empty_type_tuple, expr_to_single_string, make_punctuated_single, modify_types_generics_hack,
     path_to_single_string, type_tuple,
@@ -281,20 +280,22 @@ impl<'a> StructInfo<'a> {
             field_type
         };
         let (arg_type, arg_expr) = if let Some(StripCollection {
-            keyword_span,
-            ref custom_initializer,
+            ref keyword_span,
+            ref from_first,
         }) = field.builder_attr.setter.strip_collection
         {
-            let arg_expr = if let Some((_, init)) = custom_initializer {
-                init.to_token_stream()
+            let arg_expr = if let Some(FromFirst { keyword_span, closure }) = from_first {
+                // `Span::mixed_site()`-resolution suppresses `clippy::redundant_closure_call` on
+                // the generated code only.
+                quote_spanned!(keyword_span.resolved_at(Span::mixed_site())=> (#closure)(#field_name))
             } else if let Some(default) = &field.builder_attr.default {
-                quote_spanned!(keyword_span=> {
+                quote_spanned!(*keyword_span=> {
                     let mut collection: #arg_type = #default;
                     ::core::iter::Extend::extend(&mut collection, ::core::iter::once(#field_name));
                     collection
                 })
             } else {
-                quote_spanned!(keyword_span=> ::<#arg_type as ::core::iter::FromIterator>::from_iter(::core::iter::once(#field_name)))
+                quote_spanned!(*keyword_span=> ::<#arg_type as ::core::iter::FromIterator>::from_iter(::core::iter::once(#field_name)))
             };
             (quote!(<#arg_type as ::core::iter::IntoIterator>::Item), arg_expr)
         } else {
@@ -361,31 +362,11 @@ impl<'a> StructInfo<'a> {
             }
         };
 
-        let (arg_name, forbid_unused_first) = if let Some(StripCollection {
-            custom_initializer: Some((ref eq, ref init)),
-            ..
-        }) = field.builder_attr.setter.strip_collection
-        {
-            (
-                Ident::new(
-                    &format!("{}_first", field_name),
-                    // This places the `unused_variables` error caused by faulty collection seeds on the expression after `strip_collection =`
-                    // (more or less - we might only get the first token, but this should eventually improve with proc macro improvements),
-                    // which is much less confusing than having it on the field name.
-                    init.span(),
-                ),
-                // Place "the lint level is defined here" on `strip_collection =`'s `=`.
-                Some(quote_spanned!(eq.span=> #[forbid(unused_variables)])),
-            )
-        } else {
-            (field_name.clone(), None)
-        };
-
         Ok(quote! {
             #[allow(dead_code, non_camel_case_types, missing_docs)]
             impl #impl_generics #builder_name < #( #ty_generics ),* > #where_clause {
                 #doc
-                pub fn #field_name (self, #forbid_unused_first #arg_name: #arg_type) -> #builder_name < #( #target_generics ),* > {
+                pub fn #field_name (self, #field_name: #arg_type) -> #builder_name < #( #target_generics ),* > {
                     let #field_name = (#arg_expr,);
                     let ( #(#descructuring,)* ) = self.fields;
                     #builder_name {
