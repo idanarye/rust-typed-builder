@@ -1,7 +1,7 @@
+use proc_macro2::TokenStream;
 use quote::quote;
 use syn::parse::Error;
 use syn::spanned::Spanned;
-use proc_macro2::TokenStream;
 
 use crate::util::ident_to_type;
 use crate::util::{expr_to_single_string, path_to_single_string};
@@ -21,10 +21,7 @@ impl<'a> FieldInfo<'a> {
             Ok(FieldInfo {
                 ordinal,
                 name: &name,
-                generic_ident: syn::Ident::new(
-                    &format!("__{}", name),
-                    proc_macro2::Span::call_site(),
-                ),
+                generic_ident: syn::Ident::new(&format!("__{}", name), proc_macro2::Span::call_site()),
                 ty: &field.ty,
                 builder_attr: field_defaults.with(&field.attrs)?,
             })
@@ -55,12 +52,12 @@ impl<'a> FieldInfo<'a> {
     pub fn type_from_inside_option(&self) -> Option<&syn::Type> {
         let path = if let syn::Type::Path(type_path) = self.ty {
             if type_path.qself.is_some() {
-                return None
+                return None;
             } else {
                 &type_path.path
             }
         } else {
-            return None
+            return None;
         };
         let segment = path.segments.last()?;
         if segment.ident != "Option" {
@@ -138,8 +135,8 @@ impl FieldBuilderAttr {
     pub fn apply_meta(&mut self, expr: syn::Expr) -> Result<(), Error> {
         match expr {
             syn::Expr::Assign(assign) => {
-                let name = expr_to_single_string(&assign.left)
-                    .ok_or_else(|| Error::new_spanned(&assign.left, "Expected identifier"))?;
+                let name =
+                    expr_to_single_string(&assign.left).ok_or_else(|| Error::new_spanned(&assign.left, "Expected identifier"))?;
                 match name.as_str() {
                     "default" => {
                         self.default = Some(*assign.right);
@@ -153,33 +150,24 @@ impl FieldBuilderAttr {
                         {
                             use std::str::FromStr;
                             let tokenized_code = TokenStream::from_str(&code.value())?;
-                            self.default = Some(
-                                syn::parse(tokenized_code.into())
-                                    .map_err(|e| Error::new_spanned(code, format!("{}", e)))?,
-                            );
+                            self.default =
+                                Some(syn::parse(tokenized_code.into()).map_err(|e| Error::new_spanned(code, format!("{}", e)))?);
                         } else {
                             return Err(Error::new_spanned(assign.right, "Expected string"));
                         }
                         Ok(())
                     }
-                    _ => Err(Error::new_spanned(
-                        &assign,
-                        format!("Unknown parameter {:?}", name),
-                    )),
+                    _ => Err(Error::new_spanned(&assign, format!("Unknown parameter {:?}", name))),
                 }
             }
             syn::Expr::Path(path) => {
-                let name = path_to_single_string(&path.path)
-                    .ok_or_else(|| Error::new_spanned(&path, "Expected identifier"))?;
+                let name = path_to_single_string(&path.path).ok_or_else(|| Error::new_spanned(&path, "Expected identifier"))?;
                 match name.as_str() {
                     "default" => {
                         self.default = Some(syn::parse(quote!(Default::default()).into()).unwrap());
                         Ok(())
                     }
-                    _ => Err(Error::new_spanned(
-                        &path,
-                        format!("Unknown parameter {:?}", name),
-                    ))
+                    _ => Err(Error::new_spanned(&path, format!("Unknown parameter {:?}", name))),
                 }
             }
             syn::Expr::Call(call) => {
@@ -187,7 +175,8 @@ impl FieldBuilderAttr {
                     path_to_single_string(&path.path)
                 } else {
                     None
-                }.ok_or_else(|| {
+                }
+                .ok_or_else(|| {
                     let call_func = &call.func;
                     let call_func = quote!(#call_func);
                     Error::new_spanned(&call.func, format!("Illegal builder setting group {}", call_func))
@@ -199,33 +188,32 @@ impl FieldBuilderAttr {
                         }
                         Ok(())
                     }
-                    _ => {
-                        Err(Error::new_spanned(&call.func, format!("Illegal builder setting group name {}", subsetting_name)))
-                    }
+                    _ => Err(Error::new_spanned(
+                        &call.func,
+                        format!("Illegal builder setting group name {}", subsetting_name),
+                    )),
                 }
-            },
+            }
             syn::Expr::Unary(syn::ExprUnary {
                 op: syn::UnOp::Not(_),
                 expr,
                 ..
             }) => {
                 if let syn::Expr::Path(path) = *expr {
-                    let name = path_to_single_string(&path.path)
-                        .ok_or_else(|| Error::new_spanned(&path, "Expected identifier"))?;
+                    let name =
+                        path_to_single_string(&path.path).ok_or_else(|| Error::new_spanned(&path, "Expected identifier"))?;
                     match name.as_str() {
                         "default" => {
                             self.default = None;
                             Ok(())
                         }
-                        _ => Err(Error::new_spanned(path, "Unknown setting".to_owned()))
+                        _ => Err(Error::new_spanned(path, "Unknown setting".to_owned())),
                     }
                 } else {
                     Err(Error::new_spanned(expr, "Expected simple identifier".to_owned()))
                 }
-            },
-            _ => {
-                Err(Error::new_spanned(expr, "Expected (<...>=<...>)"))
-            },
+            }
+            _ => Err(Error::new_spanned(expr, "Expected (<...>=<...>)")),
         }
     }
 }
@@ -234,22 +222,18 @@ impl SetterSettings {
     fn apply_meta(&mut self, expr: syn::Expr) -> Result<(), Error> {
         match expr {
             syn::Expr::Assign(assign) => {
-                let name = expr_to_single_string(&assign.left)
-                    .ok_or_else(|| Error::new_spanned(&assign.left, "Expected identifier"))?;
+                let name =
+                    expr_to_single_string(&assign.left).ok_or_else(|| Error::new_spanned(&assign.left, "Expected identifier"))?;
                 match name.as_str() {
                     "doc" => {
                         self.doc = Some(*assign.right);
                         Ok(())
                     }
-                    _ => Err(Error::new_spanned(
-                        &assign,
-                        format!("Unknown parameter {:?}", name),
-                    )),
+                    _ => Err(Error::new_spanned(&assign, format!("Unknown parameter {:?}", name))),
                 }
-            },
+            }
             syn::Expr::Path(path) => {
-                let name = path_to_single_string(&path.path)
-                    .ok_or_else(|| Error::new_spanned(&path, "Expected identifier"))?;
+                let name = path_to_single_string(&path.path).ok_or_else(|| Error::new_spanned(&path, "Expected identifier"))?;
                 macro_rules! handle_fields {
                     ( $( $flag:expr, $field:ident, $already:expr; )* ) => {
                         match name.as_str() {
@@ -275,38 +259,38 @@ impl SetterSettings {
                     "into", auto_into, "calling into() on the argument";
                     "strip_option", strip_option, "putting the argument in Some(...)";
                 )
-            },
+            }
             syn::Expr::Unary(syn::ExprUnary {
                 op: syn::UnOp::Not(_),
                 expr,
                 ..
             }) => {
                 if let syn::Expr::Path(path) = *expr {
-                    let name = path_to_single_string(&path.path)
-                        .ok_or_else(|| Error::new_spanned(&path, "Expected identifier"))?;
+                    let name =
+                        path_to_single_string(&path.path).ok_or_else(|| Error::new_spanned(&path, "Expected identifier"))?;
                     match name.as_str() {
                         "doc" => {
                             self.doc = None;
                             Ok(())
-                        },
+                        }
                         "skip" => {
                             self.skip = false;
                             Ok(())
-                        },
+                        }
                         "auto_into" => {
                             self.auto_into = false;
                             Ok(())
-                        },
+                        }
                         "strip_option" => {
                             self.strip_option = false;
                             Ok(())
-                        },
-                        _ => Err(Error::new_spanned(path, "Unknown setting".to_owned()))
+                        }
+                        _ => Err(Error::new_spanned(path, "Unknown setting".to_owned())),
                     }
                 } else {
                     Err(Error::new_spanned(expr, "Expected simple identifier".to_owned()))
                 }
-            },
+            }
             _ => Err(Error::new_spanned(expr, "Expected (<...>=<...>)")),
         }
     }

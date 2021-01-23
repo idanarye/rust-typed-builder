@@ -170,31 +170,11 @@ fn impl_my_derive(ast: &syn::DeriveInput) -> Result<TokenStream, Error> {
                     #build_method
                 }
             }
-            syn::Fields::Unnamed(_) => {
-                return Err(Error::new(
-                    ast.span(),
-                    "TypedBuilder is not supported for tuple structs",
-                ))
-            }
-            syn::Fields::Unit => {
-                return Err(Error::new(
-                    ast.span(),
-                    "TypedBuilder is not supported for unit structs",
-                ))
-            }
+            syn::Fields::Unnamed(_) => return Err(Error::new(ast.span(), "TypedBuilder is not supported for tuple structs")),
+            syn::Fields::Unit => return Err(Error::new(ast.span(), "TypedBuilder is not supported for unit structs")),
         },
-        syn::Data::Enum(_) => {
-            return Err(Error::new(
-                ast.span(),
-                "TypedBuilder is not supported for enums",
-            ))
-        }
-        syn::Data::Union(_) => {
-            return Err(Error::new(
-                ast.span(),
-                "TypedBuilder is not supported for unions",
-            ))
-        }
+        syn::Data::Enum(_) => return Err(Error::new(ast.span(), "TypedBuilder is not supported for enums")),
+        syn::Data::Union(_) => return Err(Error::new(ast.span(), "TypedBuilder is not supported for unions")),
     };
     Ok(data)
 }

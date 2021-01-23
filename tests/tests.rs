@@ -113,43 +113,43 @@ fn test_default() {
 
     assert!(
         Foo::builder().build()
-        == Foo {
-            x: None,
-            y: 10,
-            z: vec![20, 30, 40]
-        }
+            == Foo {
+                x: None,
+                y: 10,
+                z: vec![20, 30, 40]
+            }
     );
     assert!(
         Foo::builder().x(1).build()
-        == Foo {
-            x: Some(1),
-            y: 10,
-            z: vec![20, 30, 40]
-        }
+            == Foo {
+                x: Some(1),
+                y: 10,
+                z: vec![20, 30, 40]
+            }
     );
     assert!(
         Foo::builder().y(2).build()
-        == Foo {
-            x: None,
-            y: 2,
-            z: vec![20, 30, 40]
-        }
+            == Foo {
+                x: None,
+                y: 2,
+                z: vec![20, 30, 40]
+            }
     );
     assert!(
         Foo::builder().x(1).y(2).build()
-        == Foo {
-            x: Some(1),
-            y: 2,
-            z: vec![20, 30, 40]
-        }
+            == Foo {
+                x: Some(1),
+                y: 2,
+                z: vec![20, 30, 40]
+            }
     );
     assert!(
         Foo::builder().z(vec![1, 2, 3]).build()
-        == Foo {
-            x: None,
-            y: 10,
-            z: vec![1, 2, 3]
-        }
+            == Foo {
+                x: None,
+                y: 10,
+                z: vec![1, 2, 3]
+            }
     );
 }
 
@@ -167,43 +167,43 @@ fn test_field_dependencies_in_build() {
 
     assert!(
         Foo::builder().build()
-        == Foo {
-            x: None,
-            y: 10,
-            z: vec![10, 30, 40]
-        }
+            == Foo {
+                x: None,
+                y: 10,
+                z: vec![10, 30, 40]
+            }
     );
     assert!(
         Foo::builder().x(1).build()
-        == Foo {
-            x: Some(1),
-            y: 10,
-            z: vec![10, 30, 40]
-        }
+            == Foo {
+                x: Some(1),
+                y: 10,
+                z: vec![10, 30, 40]
+            }
     );
     assert!(
         Foo::builder().y(2).build()
-        == Foo {
-            x: None,
-            y: 2,
-            z: vec![2, 30, 40]
-        }
+            == Foo {
+                x: None,
+                y: 2,
+                z: vec![2, 30, 40]
+            }
     );
     assert!(
         Foo::builder().x(1).y(2).build()
-        == Foo {
-            x: Some(1),
-            y: 2,
-            z: vec![2, 30, 40]
-        }
+            == Foo {
+                x: Some(1),
+                y: 2,
+                z: vec![2, 30, 40]
+            }
     );
     assert!(
         Foo::builder().z(vec![1, 2, 3]).build()
-        == Foo {
-            x: None,
-            y: 10,
-            z: vec![1, 2, 3]
-        }
+            == Foo {
+                x: None,
+                y: 10,
+                z: vec![1, 2, 3]
+            }
     );
 }
 
@@ -232,18 +232,18 @@ fn test_docs() {
         builder_type_doc = "PointBuilder type docs",
         build_method_doc = "PointBuilder.build() method docs"
     )]
-        struct Point {
-            #[allow(dead_code)]
-            x: i32,
-            #[builder(
+    struct Point {
+        #[allow(dead_code)]
+        x: i32,
+        #[builder(
                 default = x,
                 setter(
                     doc = "Set `z`. If you don’t specify a value it’ll default to the value specified for `x`.",
                 ),
             )]
-                #[allow(dead_code)]
-                y: i32,
-        }
+        #[allow(dead_code)]
+        y: i32,
+    }
 
     let _ = Point::builder();
 }
@@ -299,33 +299,39 @@ fn test_builder_type_stability_with_other_generics() {
     }
 
     assert!(Foo::builder().x_default().y(1.0).build() == Foo { x: 0, y: 1.0 });
-    assert!(Foo::builder().y("hello".to_owned()).x_default().build() == Foo { x: "", y: "hello".to_owned() });
+    assert!(
+        Foo::builder().y("hello".to_owned()).x_default().build()
+            == Foo {
+                x: "",
+                y: "hello".to_owned()
+            }
+    );
 }
 
 #[test]
 fn test_builder_type_with_default_on_generic_type() {
     #[derive(PartialEq, TypedBuilder)]
-    struct Types<X, Y=()> {
+    struct Types<X, Y = ()> {
         x: X,
         y: Y,
     }
-    assert!(Types::builder().x(()).y(()).build() == Types { x:(), y: () });
+    assert!(Types::builder().x(()).y(()).build() == Types { x: (), y: () });
 
     #[derive(PartialEq, TypedBuilder)]
-    struct TypeAndLifetime<'a, X,Y:Default, Z=usize> {
+    struct TypeAndLifetime<'a, X, Y: Default, Z = usize> {
         x: X,
         y: Y,
-        z:&'a Z,
+        z: &'a Z,
     }
     let a = 0;
-    assert!(TypeAndLifetime::builder().x(()).y(0).z(&a).build() == TypeAndLifetime { x:(), y: 0, z:&0 });
+    assert!(TypeAndLifetime::builder().x(()).y(0).z(&a).build() == TypeAndLifetime { x: (), y: 0, z: &0 });
 
     #[derive(PartialEq, TypedBuilder)]
-    struct Foo<'a, X, Y: Default, Z:Default=usize, M =()> {
+    struct Foo<'a, X, Y: Default, Z: Default = usize, M = ()> {
         x: X,
         y: &'a Y,
         z: Z,
-        m: M
+        m: M,
     }
 
     impl<'a, X, Y: Default, M, X_, Y_, M_> FooBuilder<'a, (X_, Y_, (), M_), X, Y, usize, M> {
@@ -334,7 +340,7 @@ fn test_builder_type_with_default_on_generic_type() {
         }
     }
 
-    impl<'a, X, Y: Default, Z:Default, X_, Y_, Z_> FooBuilder<'a, (X_, Y_, Z_, ()), X, Y, Z, ()> {
+    impl<'a, X, Y: Default, Z: Default, X_, Y_, Z_> FooBuilder<'a, (X_, Y_, Z_, ()), X, Y, Z, ()> {
         fn m_default(self) -> FooBuilder<'a, (X_, Y_, Z_, ((),)), X, Y, Z, ()> {
             self.m(())
         }
@@ -344,13 +350,28 @@ fn test_builder_type_with_default_on_generic_type() {
     Foo::<(), _, _, f64>::builder().x(()).y(&a).z_default().m(1.0).build();
     Foo::<(), _, _, _>::builder().x(()).y(&a).z_default().m_default().build();
 
-    assert!(Foo::builder().x(()).y(&a).z_default().m(1.0).build() == Foo { x:(), y: &0, z: 0, m:1.0 });
-    assert!(Foo::builder().x(()).y(&a).z(9).m(1.0).build() == Foo { x:(), y: &0, z: 9, m:1.0 });
+    assert!(
+        Foo::builder().x(()).y(&a).z_default().m(1.0).build()
+            == Foo {
+                x: (),
+                y: &0,
+                z: 0,
+                m: 1.0
+            }
+    );
+    assert!(
+        Foo::builder().x(()).y(&a).z(9).m(1.0).build()
+            == Foo {
+                x: (),
+                y: &0,
+                z: 9,
+                m: 1.0
+            }
+    );
 }
 
 #[test]
 fn test_builder_type_skip_into() {
-
     #[derive(PartialEq, TypedBuilder)]
     struct Foo<X> {
         x: X,
@@ -359,12 +380,11 @@ fn test_builder_type_skip_into() {
     // compile test if rustc can infer type for `x`
     Foo::builder().x(()).build();
 
-    assert!(Foo::builder().x(()).build() == Foo { x:()});
+    assert!(Foo::builder().x(()).build() == Foo { x: () });
 }
 
 #[test]
 fn test_default_code() {
-
     #[derive(PartialEq, TypedBuilder)]
     struct Foo {
         #[builder(default_code = "\"text1\".to_owned()")]
@@ -374,12 +394,17 @@ fn test_default_code() {
         y: String,
     }
 
-    assert!(Foo::builder().build() == Foo { x: "text1".to_owned(), y: "text2".to_owned() });
+    assert!(
+        Foo::builder().build()
+            == Foo {
+                x: "text1".to_owned(),
+                y: "text2".to_owned()
+            }
+    );
 }
 
 #[test]
 fn test_field_defaults_default_value() {
-
     #[derive(PartialEq, TypedBuilder)]
     #[builder(field_defaults(default = 12))]
     struct Foo {
@@ -390,12 +415,18 @@ fn test_field_defaults_default_value() {
         z: i32,
     }
 
-    assert!(Foo::builder().y("bla".to_owned()).build() == Foo { x: 12, y: "bla".to_owned(), z: 13 });
+    assert!(
+        Foo::builder().y("bla".to_owned()).build()
+            == Foo {
+                x: 12,
+                y: "bla".to_owned(),
+                z: 13
+            }
+    );
 }
 
 #[test]
 fn test_field_defaults_setter_options() {
-
     #[derive(PartialEq, TypedBuilder)]
     #[builder(field_defaults(setter(strip_option)))]
     struct Foo {
@@ -409,7 +440,6 @@ fn test_field_defaults_setter_options() {
 
 #[test]
 fn test_clone_builder() {
-
     #[derive(PartialEq, Default)]
     struct Uncloneable;
 
@@ -423,13 +453,26 @@ fn test_clone_builder() {
 
     let semi_built = Foo::builder().x(1);
 
-    assert!(semi_built.clone().y(2).build() == Foo { x: 1, y: 2, z: Uncloneable });
-    assert!(semi_built.y(3).build() == Foo { x: 1, y: 3, z: Uncloneable });
+    assert!(
+        semi_built.clone().y(2).build()
+            == Foo {
+                x: 1,
+                y: 2,
+                z: Uncloneable
+            }
+    );
+    assert!(
+        semi_built.y(3).build()
+            == Foo {
+                x: 1,
+                y: 3,
+                z: Uncloneable
+            }
+    );
 }
 
 #[test]
 fn test_clone_builder_with_generics() {
-
     #[derive(PartialEq, Default)]
     struct Uncloneable;
 
@@ -452,7 +495,10 @@ fn test_clone_builder_with_generics() {
     // Just to make sure it can build with generic bounds
     #[allow(dead_code)]
     #[derive(TypedBuilder)]
-    struct Bar<T: std::fmt::Debug> where T: std::fmt::Display {
+    struct Bar<T: std::fmt::Debug>
+    where
+        T: std::fmt::Display,
+    {
         x: T,
     }
 }

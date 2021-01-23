@@ -2,18 +2,10 @@ use proc_macro2::TokenStream;
 use quote::quote;
 use syn::parse::Error;
 
-use crate::field_info::{
-    FieldInfo,
-    FieldBuilderAttr,
-};
+use crate::field_info::{FieldBuilderAttr, FieldInfo};
 use crate::util::{
-    empty_type,
-    type_tuple,
-    empty_type_tuple,
-    make_punctuated_single,
-    modify_types_generics_hack,
-    expr_to_single_string,
-    path_to_single_string,
+    empty_type, empty_type_tuple, expr_to_single_string, make_punctuated_single, modify_types_generics_hack,
+    path_to_single_string, type_tuple,
 };
 
 #[derive(Debug)]
@@ -34,10 +26,7 @@ impl<'a> StructInfo<'a> {
         self.fields.iter().filter(|f| !f.builder_attr.setter.skip)
     }
 
-    pub fn new(
-        ast: &'a syn::DeriveInput,
-        fields: impl Iterator<Item = &'a syn::Field>,
-    ) -> Result<StructInfo<'a>, Error> {
+    pub fn new(ast: &'a syn::DeriveInput, fields: impl Iterator<Item = &'a syn::Field>) -> Result<StructInfo<'a>, Error> {
         let builder_attr = TypeBuilderAttr::new(&ast.attrs)?;
         let builder_name = format!("{}Builder", ast.ident);
         Ok(StructInfo {
@@ -50,14 +39,8 @@ impl<'a> StructInfo<'a> {
                 .collect::<Result<_, _>>()?,
             builder_attr,
             builder_name: syn::Ident::new(&builder_name, proc_macro2::Span::call_site()),
-            conversion_helper_trait_name: syn::Ident::new(
-                &format!("{}_Optional", builder_name),
-                proc_macro2::Span::call_site(),
-            ),
-            core: syn::Ident::new(
-                &format!("{}_core", builder_name),
-                proc_macro2::Span::call_site(),
-            ),
+            conversion_helper_trait_name: syn::Ident::new(&format!("{}_Optional", builder_name), proc_macro2::Span::call_site()),
+            core: syn::Ident::new(&format!("{}_core", builder_name), proc_macro2::Span::call_site()),
         })
     }
 
@@ -75,7 +58,8 @@ impl<'a> StructInfo<'a> {
             ..
         } = *self;
         let (impl_generics, ty_generics, where_clause) = self.generics.split_for_impl();
-        let all_fields_param = syn::GenericParam::Type(syn::Ident::new("TypedBuilderFields", proc_macro2::Span::call_site()).into());
+        let all_fields_param =
+            syn::GenericParam::Type(syn::Ident::new("TypedBuilderFields", proc_macro2::Span::call_site()).into());
         let b_generics = self.modify_generics(|g| {
             g.params.insert(0, all_fields_param.clone());
         });
@@ -103,13 +87,14 @@ impl<'a> StructInfo<'a> {
         let builder_method_doc = match self.builder_attr.builder_method_doc {
             Some(ref doc) => quote!(#doc),
             None => {
-                let doc = format!("
+                let doc = format!(
+                    "
                     Create a builder for building `{name}`.
                     On the builder, call {setters} to set the values of the fields.
                     Finally, call `.build()` to create the instance of `{name}`.
                     ",
-                    name=self.name,
-                    setters={
+                    name = self.name,
+                    setters = {
                         let mut result = String::new();
                         let mut is_first = true;
                         for field in self.included_fields() {
@@ -125,7 +110,8 @@ impl<'a> StructInfo<'a> {
                             }
                         }
                         result
-                    });
+                    }
+                );
                 quote!(#doc)
             }
         };
@@ -133,7 +119,10 @@ impl<'a> StructInfo<'a> {
             match self.builder_attr.builder_type_doc {
                 Some(ref doc) => quote!(#[doc = #doc]),
                 None => {
-                    let doc = format!("Builder for [`{name}`] instances.\n\nSee [`{name}::builder()`] for more info.", name = name);
+                    let doc = format!(
+                        "Builder for [`{name}`] instances.\n\nSee [`{name}::builder()`] for more info.",
+                        name = name
+                    );
                     quote!(#[doc = #doc])
                 }
             }
@@ -206,24 +195,17 @@ impl<'a> StructInfo<'a> {
     }
 
     pub fn field_impl(&self, field: &FieldInfo) -> Result<TokenStream, Error> {
-        let StructInfo {
-            ref builder_name,
-            ..
-        } = *self;
+        let StructInfo { ref builder_name, .. } = *self;
 
-        let descructuring = self
-            .included_fields()
-            .map(|f| {
-                if f.ordinal == field.ordinal {
-                    quote!(_)
-                } else {
-                    let name = f.name;
-                    quote!(#name)
-                }
-            });
-        let reconstructing = self
-            .included_fields()
-            .map(|f| f.name);
+        let descructuring = self.included_fields().map(|f| {
+            if f.ordinal == field.ordinal {
+                quote!(_)
+            } else {
+                let name = f.name;
+                quote!(#name)
+            }
+        });
+        let reconstructing = self.included_fields().map(|f| f.name);
 
         let &FieldInfo {
             name: ref field_name,
@@ -239,9 +221,7 @@ impl<'a> StructInfo<'a> {
                     let ident = type_param.ident.clone();
                     syn::parse(quote!(#ident).into()).unwrap()
                 }
-                syn::GenericParam::Lifetime(lifetime_def) => {
-                    syn::GenericArgument::Lifetime(lifetime_def.lifetime.clone())
-                }
+                syn::GenericParam::Lifetime(lifetime_def) => syn::GenericArgument::Lifetime(lifetime_def.lifetime.clone()),
                 syn::GenericParam::Const(const_param) => {
                     let ident = const_param.ident.clone();
                     syn::parse(quote!(#ident).into()).unwrap()
@@ -267,11 +247,18 @@ impl<'a> StructInfo<'a> {
         });
         let mut target_generics = ty_generics.clone();
 
-        let index_after_lifetime_in_generics = target_generics.iter().filter(|arg| {
-            matches!(arg, syn::GenericArgument::Lifetime(_))
-        }).count();
-        target_generics.insert(index_after_lifetime_in_generics, syn::GenericArgument::Type(target_generics_tuple.into()));
-        ty_generics.insert(index_after_lifetime_in_generics, syn::GenericArgument::Type(ty_generics_tuple.into()));
+        let index_after_lifetime_in_generics = target_generics
+            .iter()
+            .filter(|arg| matches!(arg, syn::GenericArgument::Lifetime(_)))
+            .count();
+        target_generics.insert(
+            index_after_lifetime_in_generics,
+            syn::GenericArgument::Type(target_generics_tuple.into()),
+        );
+        ty_generics.insert(
+            index_after_lifetime_in_generics,
+            syn::GenericArgument::Type(ty_generics_tuple.into()),
+        );
         let (impl_generics, _, where_clause) = generics.split_for_impl();
         let doc = match field.builder_attr.setter.doc {
             Some(ref doc) => quote!(#[doc = #doc]),
@@ -281,22 +268,17 @@ impl<'a> StructInfo<'a> {
         // NOTE: both auto_into and strip_option affect `arg_type` and `arg_expr`, but the order of
         // nesting is different so we have to do this little dance.
         let arg_type = if field.builder_attr.setter.strip_option {
-            let internal_type = field.type_from_inside_option()
+            let internal_type = field
+                .type_from_inside_option()
                 .ok_or_else(|| Error::new_spanned(&field_type, "can't `strip_option` - field is not `Option<...>`"))?;
             internal_type
         } else {
             field_type
         };
         let (arg_type, arg_expr) = if field.builder_attr.setter.auto_into {
-            (
-                quote!(impl core::convert::Into<#arg_type>),
-                quote!(#field_name.into()),
-            )
+            (quote!(impl core::convert::Into<#arg_type>), quote!(#field_name.into()))
         } else {
-            (
-                quote!(#arg_type),
-                quote!(#field_name),
-            )
+            (quote!(#arg_type), quote!(#field_name))
         };
         let arg_expr = if field.builder_attr.setter.strip_option {
             quote!(Some(#arg_expr))
@@ -347,8 +329,7 @@ impl<'a> StructInfo<'a> {
         } = self;
 
         let FieldInfo {
-            name: ref field_name,
-            ..
+            name: ref field_name, ..
         } = field;
         let mut builder_generics: Vec<syn::GenericArgument> = self
             .generics
@@ -359,9 +340,7 @@ impl<'a> StructInfo<'a> {
                     let ident = &type_param.ident;
                     syn::parse(quote!(#ident).into()).unwrap()
                 }
-                syn::GenericParam::Lifetime(lifetime_def) => {
-                    syn::GenericArgument::Lifetime(lifetime_def.lifetime.clone())
-                }
+                syn::GenericParam::Lifetime(lifetime_def) => syn::GenericArgument::Lifetime(lifetime_def.lifetime.clone()),
                 syn::GenericParam::Const(const_param) => {
                     let ident = &const_param.ident;
                     syn::parse(quote!(#ident).into()).unwrap()
@@ -374,7 +353,11 @@ impl<'a> StructInfo<'a> {
                 if f.builder_attr.default.is_some() {
                     // `f` is not mandatory - it does not have it's own fake `build` method, so `field` will need
                     // to warn about missing `field` whether or not `f` is set.
-                    assert!(f.ordinal != field.ordinal, "`required_field_impl` called for optional field {}", field.name);
+                    assert!(
+                        f.ordinal != field.ordinal,
+                        "`required_field_impl` called for optional field {}",
+                        field.name
+                    );
                     g.params.push(f.generic_ty_param());
                     builder_generics_tuple.elems.push_value(f.type_ident());
                 } else if f.ordinal < field.ordinal {
@@ -395,18 +378,19 @@ impl<'a> StructInfo<'a> {
             }
         });
 
-        let index_after_lifetime_in_generics = builder_generics.iter().filter(|arg| {
-            matches!(arg, syn::GenericArgument::Lifetime(_))
-        }).count();
-        builder_generics.insert(index_after_lifetime_in_generics, syn::GenericArgument::Type(builder_generics_tuple.into()));
+        let index_after_lifetime_in_generics = builder_generics
+            .iter()
+            .filter(|arg| matches!(arg, syn::GenericArgument::Lifetime(_)))
+            .count();
+        builder_generics.insert(
+            index_after_lifetime_in_generics,
+            syn::GenericArgument::Type(builder_generics_tuple.into()),
+        );
         let (impl_generics, _, where_clause) = generics.split_for_impl();
         let (_, ty_generics, _) = self.generics.split_for_impl();
 
         let early_build_error_type_name = syn::Ident::new(
-            &format!(
-                "{}_Error_Missing_required_field_{}",
-                builder_name, field_name
-            ),
+            &format!("{}_Error_Missing_required_field_{}", builder_name, field_name),
             proc_macro2::Span::call_site(),
         );
         let early_build_error_message = format!("Missing required field {}", field_name);
@@ -444,16 +428,12 @@ impl<'a> StructInfo<'a> {
                         modifier: syn::TraitBoundModifier::None,
                         path: syn::PathSegment {
                             ident: self.conversion_helper_trait_name.clone(),
-                            arguments: syn::PathArguments::AngleBracketed(
-                                syn::AngleBracketedGenericArguments {
-                                    colon2_token: None,
-                                    lt_token: Default::default(),
-                                    args: make_punctuated_single(syn::GenericArgument::Type(
-                                        field.ty.clone(),
-                                    )),
-                                    gt_token: Default::default(),
-                                },
-                            ),
+                            arguments: syn::PathArguments::AngleBracketed(syn::AngleBracketedGenericArguments {
+                                colon2_token: None,
+                                lt_token: Default::default(),
+                                args: make_punctuated_single(syn::GenericArgument::Type(field.ty.clone())),
+                                gt_token: Default::default(),
+                            }),
                         }
                         .into(),
                     };
@@ -468,18 +448,22 @@ impl<'a> StructInfo<'a> {
         let (_, ty_generics, where_clause) = self.generics.split_for_impl();
 
         let modified_ty_generics = modify_types_generics_hack(&ty_generics, |args| {
-            args.insert(0, syn::GenericArgument::Type(type_tuple(self.included_fields().map(|field| {
-                if field.builder_attr.default.is_some() {
-                    field.type_ident()
-                } else {
-                    field.tuplized_type_ty_param()
-                }
-            })).into()));
+            args.insert(
+                0,
+                syn::GenericArgument::Type(
+                    type_tuple(self.included_fields().map(|field| {
+                        if field.builder_attr.default.is_some() {
+                            field.type_ident()
+                        } else {
+                            field.tuplized_type_ty_param()
+                        }
+                    }))
+                    .into(),
+                ),
+            );
         });
 
-        let descructuring = self
-            .included_fields()
-            .map(|f| f.name);
+        let descructuring = self.included_fields().map(|f| f.name);
 
         let helper_trait_name = &self.conversion_helper_trait_name;
         // The default of a field can refer to earlier-defined fields, which we handle by
@@ -582,8 +566,8 @@ impl TypeBuilderAttr {
     fn apply_meta(&mut self, expr: syn::Expr) -> Result<(), Error> {
         match expr {
             syn::Expr::Assign(assign) => {
-                let name = expr_to_single_string(&assign.left)
-                    .ok_or_else(|| Error::new_spanned(&assign.left, "Expected identifier"))?;
+                let name =
+                    expr_to_single_string(&assign.left).ok_or_else(|| Error::new_spanned(&assign.left, "Expected identifier"))?;
                 match name.as_str() {
                     "builder_method_doc" => {
                         self.builder_method_doc = Some(*assign.right);
@@ -599,24 +583,17 @@ impl TypeBuilderAttr {
                         self.doc = true;
                         Ok(())
                     }
-                    _ => Err(Error::new_spanned(
-                        &assign,
-                        format!("Unknown parameter {:?}", name),
-                    )),
+                    _ => Err(Error::new_spanned(&assign, format!("Unknown parameter {:?}", name))),
                 }
             }
             syn::Expr::Path(path) => {
-                let name = path_to_single_string(&path.path)
-                    .ok_or_else(|| Error::new_spanned(&path, "Expected identifier"))?;
+                let name = path_to_single_string(&path.path).ok_or_else(|| Error::new_spanned(&path, "Expected identifier"))?;
                 match name.as_str() {
                     "doc" => {
                         self.doc = true;
                         Ok(())
                     }
-                    _ => Err(Error::new_spanned(
-                        &path,
-                        format!("Unknown parameter {:?}", name),
-                    )),
+                    _ => Err(Error::new_spanned(&path, format!("Unknown parameter {:?}", name))),
                 }
             }
             syn::Expr::Call(call) => {
@@ -624,7 +601,8 @@ impl TypeBuilderAttr {
                     path_to_single_string(&path.path)
                 } else {
                     None
-                }.ok_or_else(|| {
+                }
+                .ok_or_else(|| {
                     let call_func = &call.func;
                     let call_func = quote!(#call_func);
                     Error::new_spanned(&call.func, format!("Illegal builder setting group {}", call_func))
@@ -636,9 +614,10 @@ impl TypeBuilderAttr {
                         }
                         Ok(())
                     }
-                    _ => {
-                        Err(Error::new_spanned(&call.func, format!("Illegal builder setting group name {}", subsetting_name)))
-                    }
+                    _ => Err(Error::new_spanned(
+                        &call.func,
+                        format!("Illegal builder setting group name {}", subsetting_name),
+                    )),
                 }
             }
             _ => Err(Error::new_spanned(expr, "Expected (<...>=<...>)")),

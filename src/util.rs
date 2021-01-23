@@ -33,10 +33,7 @@ pub fn ident_to_type(ident: syn::Ident) -> syn::Type {
         ident,
         arguments: Default::default(),
     });
-    syn::Type::Path(syn::TypePath {
-        qself: None,
-        path,
-    })
+    syn::Type::Path(syn::TypePath { qself: None, path })
 }
 
 pub fn empty_type() -> syn::Type {
@@ -71,21 +68,16 @@ pub fn make_punctuated_single<T, P: Default>(value: T) -> syn::punctuated::Punct
     punctuated
 }
 
-pub fn modify_types_generics_hack<F>(
-    ty_generics: &syn::TypeGenerics,
-    mut mutator: F,
-) -> syn::AngleBracketedGenericArguments
+pub fn modify_types_generics_hack<F>(ty_generics: &syn::TypeGenerics, mut mutator: F) -> syn::AngleBracketedGenericArguments
 where
     F: FnMut(&mut syn::punctuated::Punctuated<syn::GenericArgument, syn::token::Comma>),
 {
-    let mut abga: syn::AngleBracketedGenericArguments =
-        syn::parse(ty_generics.clone().into_token_stream().into()).unwrap_or_else(|_| {
-            syn::AngleBracketedGenericArguments {
-                colon2_token: None,
-                lt_token: Default::default(),
-                args: Default::default(),
-                gt_token: Default::default(),
-            }
+    let mut abga: syn::AngleBracketedGenericArguments = syn::parse(ty_generics.clone().into_token_stream().into())
+        .unwrap_or_else(|_| syn::AngleBracketedGenericArguments {
+            colon2_token: None,
+            lt_token: Default::default(),
+            args: Default::default(),
+            gt_token: Default::default(),
         });
     mutator(&mut abga.args);
     abga
