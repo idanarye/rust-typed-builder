@@ -1,3 +1,5 @@
+#![allow(clippy::blacklisted_name, clippy::type_complexity)]
+
 use typed_builder::TypedBuilder;
 
 #[test]
@@ -422,7 +424,7 @@ fn test_clone_builder() {
     let semi_built = Foo::builder().x(1);
 
     assert!(semi_built.clone().y(2).build() == Foo { x: 1, y: 2, z: Uncloneable });
-    assert!(semi_built.clone().y(3).build() == Foo { x: 1, y: 3, z: Uncloneable });
+    assert!(semi_built.y(3).build() == Foo { x: 1, y: 3, z: Uncloneable });
 }
 
 #[test]
@@ -440,7 +442,7 @@ fn test_clone_builder_with_generics() {
     let semi_built1 = Foo::builder().x(1);
 
     assert!(semi_built1.clone().y(2).build() == Foo { x: 1, y: 2 });
-    assert!(semi_built1.clone().y(3).build() == Foo { x: 1, y: 3 });
+    assert!(semi_built1.y(3).build() == Foo { x: 1, y: 3 });
 
     let semi_built2 = Foo::builder().x("four");
 

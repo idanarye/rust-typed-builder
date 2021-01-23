@@ -1,5 +1,4 @@
 use quote::quote;
-use syn;
 use syn::parse::Error;
 use syn::spanned::Spanned;
 use proc_macro2::TokenStream;
@@ -75,7 +74,7 @@ impl<'a> FieldInfo<'a> {
         if let syn::GenericArgument::Type(ty) = generic_params.args.first()? {
             Some(ty)
         } else {
-            return None;
+            None
         }
     }
 }
@@ -98,7 +97,7 @@ impl FieldBuilderAttr {
     pub fn with(mut self, attrs: &[syn::Attribute]) -> Result<Self, Error> {
         let mut skip_tokens = None;
         for attr in attrs {
-            if path_to_single_string(&attr.path).as_ref().map(|s| &**s) != Some("builder") {
+            if path_to_single_string(&attr.path).as_deref() != Some("builder") {
                 continue;
             }
 
@@ -218,10 +217,10 @@ impl FieldBuilderAttr {
                             self.default = None;
                             Ok(())
                         }
-                        _ => Err(Error::new_spanned(path, format!("Unknown setting")))
+                        _ => Err(Error::new_spanned(path, "Unknown setting".to_owned()))
                     }
                 } else {
-                    Err(Error::new_spanned(expr, format!("Expected simple identifier")))
+                    Err(Error::new_spanned(expr, "Expected simple identifier".to_owned()))
                 }
             },
             _ => {
@@ -302,10 +301,10 @@ impl SetterSettings {
                             self.strip_option = false;
                             Ok(())
                         },
-                        _ => Err(Error::new_spanned(path, format!("Unknown setting")))
+                        _ => Err(Error::new_spanned(path, "Unknown setting".to_owned()))
                     }
                 } else {
-                    Err(Error::new_spanned(expr, format!("Expected simple identifier")))
+                    Err(Error::new_spanned(expr, "Expected simple identifier".to_owned()))
                 }
             },
             _ => Err(Error::new_spanned(expr, "Expected (<...>=<...>)")),

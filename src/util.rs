@@ -1,5 +1,3 @@
-use syn;
-
 use quote::ToTokens;
 
 pub fn path_to_single_string(path: &syn::Path) -> Option<String> {
@@ -32,12 +30,12 @@ pub fn ident_to_type(ident: syn::Ident) -> syn::Type {
         segments: Default::default(),
     };
     path.segments.push(syn::PathSegment {
-        ident: ident,
+        ident,
         arguments: Default::default(),
     });
     syn::Type::Path(syn::TypePath {
         qself: None,
-        path: path,
+        path,
     })
 }
 

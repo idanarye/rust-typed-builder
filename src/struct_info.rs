@@ -1,5 +1,3 @@
-use syn;
-
 use proc_macro2::TokenStream;
 use quote::quote;
 use syn::parse::Error;
@@ -50,7 +48,7 @@ impl<'a> StructInfo<'a> {
                 .enumerate()
                 .map(|(i, f)| FieldInfo::new(i, f, builder_attr.field_defaults.clone()))
                 .collect::<Result<_, _>>()?,
-            builder_attr: builder_attr,
+            builder_attr,
             builder_name: syn::Ident::new(&builder_name, proc_macro2::Span::call_site()),
             conversion_helper_trait_name: syn::Ident::new(
                 &format!("{}_Optional", builder_name),
@@ -259,7 +257,7 @@ impl<'a> StructInfo<'a> {
                     target_generics_tuple.elems.push_value(f.tuplized_type_ty_param());
                 } else {
                     g.params.push(f.generic_ty_param());
-                    let generic_argument: syn::Type = f.type_ident().into();
+                    let generic_argument: syn::Type = f.type_ident();
                     ty_generics_tuple.elems.push_value(generic_argument.clone());
                     target_generics_tuple.elems.push_value(generic_argument);
                 }
@@ -270,7 +268,7 @@ impl<'a> StructInfo<'a> {
         let mut target_generics = ty_generics.clone();
 
         let index_after_lifetime_in_generics = target_generics.iter().filter(|arg| {
-            if let syn::GenericArgument::Lifetime(_) = arg { true } else { false }
+            matches!(arg, syn::GenericArgument::Lifetime(_))
         }).count();
         target_generics.insert(index_after_lifetime_in_generics, syn::GenericArgument::Type(target_generics_tuple.into()));
         ty_generics.insert(index_after_lifetime_in_generics, syn::GenericArgument::Type(ty_generics_tuple.into()));
@@ -378,7 +376,7 @@ impl<'a> StructInfo<'a> {
                     // to warn about missing `field` whether or not `f` is set.
                     assert!(f.ordinal != field.ordinal, "`required_field_impl` called for optional field {}", field.name);
                     g.params.push(f.generic_ty_param());
-                    builder_generics_tuple.elems.push_value(f.type_ident().into());
+                    builder_generics_tuple.elems.push_value(f.type_ident());
                 } else if f.ordinal < field.ordinal {
                     // Only add a `build` method that warns about missing `field` if `f` is set. If `f` is not set,
                     // `f`'s `build` method will warn, since it appears earlier in the argument list.
@@ -390,7 +388,7 @@ impl<'a> StructInfo<'a> {
                     // show a warning for `field` and not for `f` - which means this warning should appear whether
                     // or not `f` is set.
                     g.params.push(f.generic_ty_param());
-                    builder_generics_tuple.elems.push_value(f.type_ident().into());
+                    builder_generics_tuple.elems.push_value(f.type_ident());
                 }
 
                 builder_generics_tuple.elems.push_punct(Default::default());
@@ -398,7 +396,7 @@ impl<'a> StructInfo<'a> {
         });
 
         let index_after_lifetime_in_generics = builder_generics.iter().filter(|arg| {
-            if let syn::GenericArgument::Lifetime(_) = arg { true } else { false }
+            matches!(arg, syn::GenericArgument::Lifetime(_))
         }).count();
         builder_generics.insert(index_after_lifetime_in_generics, syn::GenericArgument::Type(builder_generics_tuple.into()));
         let (impl_generics, _, where_clause) = generics.split_for_impl();
@@ -483,14 +481,14 @@ impl<'a> StructInfo<'a> {
             .included_fields()
             .map(|f| f.name);
 
-        let ref helper_trait_name = self.conversion_helper_trait_name;
+        let helper_trait_name = &self.conversion_helper_trait_name;
         // The default of a field can refer to earlier-defined fields, which we handle by
         // writing out a bunch of `let` statements first, which can each refer to earlier ones.
         // This means that field ordering may actually be significant, which isn’t ideal. We could
         // relax that restriction by calculating a DAG of field default dependencies and
         // reordering based on that, but for now this much simpler thing is a reasonable approach.
         let assignments = self.fields.iter().map(|field| {
-            let ref name = field.name;
+            let name = &field.name;
             if let Some(ref default) = field.builder_attr.default {
                 if field.builder_attr.setter.skip {
                     quote!(let #name = #default;)
@@ -528,7 +526,6 @@ impl<'a> StructInfo<'a> {
                 }
             }
         )
-        .into()
     }
 }
 
@@ -555,7 +552,7 @@ impl TypeBuilderAttr {
     pub fn new(attrs: &[syn::Attribute]) -> Result<TypeBuilderAttr, Error> {
         let mut result = TypeBuilderAttr::default();
         for attr in attrs {
-            if path_to_single_string(&attr.path).as_ref().map(|s| &**s) != Some("builder") {
+            if path_to_single_string(&attr.path).as_deref() != Some("builder") {
                 continue;
             }
 
