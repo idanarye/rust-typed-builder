@@ -105,3 +105,19 @@ jobs:
         with:
           command: doc
           args: --no-deps
+  docs-ghpages:
+    name: Update Docs in GitHub Pages
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/master'
+    steps:
+    - uses: actions/checkout@v2
+    - name: Build docs
+      env:
+        GITHUB_REPO: ${{ github.repository }}
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      run: |-
+        cargo doc --verbose &&
+        echo "<meta http-equiv=refresh content=0;url=typed_builder/index.html>" > target/doc/index.html &&
+        pip install ghp-import --user && export PATH=$HOME/.local/bin:$PATH &&
+        ghp-import -n target/doc &&
+        git push -fq https://${GITHUB_TOKEN}@github.com/${GITHUB_REPO}.git gh-pages

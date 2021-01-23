@@ -1,4 +1,4 @@
-[![Build Status](https://api.travis-ci.org/idanarye/rust-typed-builder.svg?branch=master)](https://travis-ci.org/idanarye/rust-typed-builder)
+[![Build Status](https://github.com/idanarye/rust-typed-builder/workflows/CI/badge.svg)](https://github.com/idanarye/rust-typed-builder/actions)
 [![Latest Version](https://img.shields.io/crates/v/typed-builder.svg)](https://crates.io/crates/typed-builder)
 [![Rust Documentation](https://img.shields.io/badge/api-rustdoc-blue.svg)](https://idanarye.github.io/rust-typed-builder/)
 
