@@ -7,6 +7,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ## [Unreleased]
 ### Added
 - Builder type implements `Clone` when all set fields support clone.
+- Fix code generation for raw identifiers.
 
 ## 0.8.0 - 2020-12-06
 ### Changed

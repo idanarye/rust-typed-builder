@@ -502,3 +502,28 @@ fn test_clone_builder_with_generics() {
         x: T,
     }
 }
+
+#[test]
+fn test_builder_on_struct_with_keywords() {
+    #[allow(non_camel_case_types)]
+    #[derive(PartialEq, TypedBuilder)]
+    struct r#struct {
+        r#fn: u32,
+        #[builder(default, setter(strip_option))]
+        r#type: Option<u32>,
+        #[builder(default = Some(()), setter(skip))]
+        r#enum: Option<()>,
+        #[builder(setter(into))]
+        r#union: String,
+    }
+
+    assert!(
+        r#struct::builder().r#fn(1).r#union("two").build()
+            == r#struct {
+                r#fn: 1,
+                r#type: None,
+                r#enum: Some(()),
+                r#union: "two".to_owned(),
+            }
+    );
+}

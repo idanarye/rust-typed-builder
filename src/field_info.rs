@@ -3,8 +3,7 @@ use quote::quote;
 use syn::parse::Error;
 use syn::spanned::Spanned;
 
-use crate::util::ident_to_type;
-use crate::util::{expr_to_single_string, path_to_single_string};
+use crate::util::{expr_to_single_string, ident_to_type, path_to_single_string, strip_raw_ident_prefix};
 
 #[derive(Debug)]
 pub struct FieldInfo<'a> {
@@ -21,7 +20,10 @@ impl<'a> FieldInfo<'a> {
             Ok(FieldInfo {
                 ordinal,
                 name: &name,
-                generic_ident: syn::Ident::new(&format!("__{}", name), proc_macro2::Span::call_site()),
+                generic_ident: syn::Ident::new(
+                    &format!("__{}", strip_raw_ident_prefix(name.to_string())),
+                    proc_macro2::Span::call_site(),
+                ),
                 ty: &field.ty,
                 builder_attr: field_defaults.with(&field.attrs)?,
             })
