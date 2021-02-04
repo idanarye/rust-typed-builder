@@ -1,6 +1,6 @@
 use quote::ToTokens;
 
-pub fn path_to_single_string(path: &syn::Path) -> Option<String> {
+pub fn path_to_single_ident(path: &syn::Path) -> Option<&syn::Ident> {
     if path.leading_colon.is_some() {
         return None;
     }
@@ -13,7 +13,11 @@ pub fn path_to_single_string(path: &syn::Path) -> Option<String> {
     if segment.arguments != syn::PathArguments::None {
         return None;
     }
-    Some(segment.ident.to_string())
+    Some(&segment.ident)
+}
+
+pub fn path_to_single_string(path: &syn::Path) -> Option<String> {
+    path_to_single_ident(path).map(|i| i.to_string())
 }
 
 pub fn expr_to_single_string(expr: &syn::Expr) -> Option<String> {

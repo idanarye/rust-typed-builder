@@ -3,7 +3,7 @@ use quote::quote;
 use syn::parse::Error;
 use syn::spanned::Spanned;
 
-use crate::util::{expr_to_single_string, ident_to_type, path_to_single_string, strip_raw_ident_prefix};
+use crate::util::{expr_to_single_string, ident_to_type, path_to_single_ident, path_to_single_string, strip_raw_ident_prefix};
 
 #[derive(Debug)]
 pub struct FieldInfo<'a> {
@@ -89,20 +89,50 @@ pub struct SetterSettings {
     pub doc: Option<syn::Expr>,
     pub skip: bool,
     pub auto_into: bool,
-    pub strip_collection: Option<StripCollection>,
+    pub extend: Option<ExtendField>,
     pub strip_option: bool,
 }
 
 #[derive(Debug, Clone)]
-pub struct StripCollection {
-    pub keyword_span: Span,
-    pub from_first: Option<FromFirst>,
+pub enum Configurable<T> {
+    Unset,
+    Auto { keyword_span: Span },
+    Custom { keyword_span: Span, value: T },
 }
 
 #[derive(Debug, Clone)]
-pub struct FromFirst {
+pub struct Configured<T> {
     pub keyword_span: Span,
-    pub closure: syn::ExprClosure,
+    pub value: T,
+}
+
+impl<T> Configurable<T> {
+    pub fn into_configured(self, auto: impl FnOnce(Span) -> T) -> Option<Configured<T>> {
+        match self {
+            Configurable::Unset => None,
+            Configurable::Auto { keyword_span } => Some(Configured {
+                keyword_span,
+                value: auto(keyword_span),
+            }),
+            Configurable::Custom { keyword_span, value } => Some(Configured { keyword_span, value }),
+        }
+    }
+
+    pub fn ensure_unset(&self, error_span: Span) -> Result<(), Error> {
+        if matches!(self, Configurable::Unset) {
+            Ok(())
+        } else {
+            Err(Error::new(error_span, "Duplicate option"))
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct ExtendField {
+    pub keyword_span: Span,
+    pub from_first: Configurable<syn::ExprClosure>,
+    pub from_iter: Configurable<syn::ExprClosure>,
+    pub item_name: Option<syn::Ident>,
 }
 
 impl FieldBuilderAttr {
@@ -251,8 +281,8 @@ impl SetterSettings {
                 let name =
                     expr_to_single_string(&call.func).ok_or_else(|| Error::new_spanned(&call.func, "Expected identifier"))?;
                 match name.as_str() {
-                    "strip_collection" => {
-                        if self.strip_collection.is_some() {
+                    "extend" => {
+                        if self.extend.is_some() {
                             Err(Error::new(
                                 call.span(),
                                 "Illegal setting - field is already calling extend(...) with the argument",
@@ -260,9 +290,11 @@ impl SetterSettings {
                         } else if let Some(attr) = call.attrs.first() {
                             Err(Error::new_spanned(attr, "Unexpected attribute"))
                         } else {
-                            let mut strip_collection = StripCollection {
+                            let mut extend = ExtendField {
                                 keyword_span: name.span(),
-                                from_first: None,
+                                from_first: Configurable::Unset,
+                                from_iter: Configurable::Unset,
+                                item_name: None,
                             };
                             for arg in call.args {
                                 match arg {
@@ -270,17 +302,47 @@ impl SetterSettings {
                                         let name = expr_to_single_string(&assign.left)
                                             .ok_or_else(|| Error::new_spanned(&assign.left, "Expected identifier"))?;
                                         match name.as_str() {
-                                            "from_first" => match *assign.right {
-                                                syn::Expr::Closure(closure) => {
-                                                    strip_collection.from_first = Some(FromFirst {
-                                                        keyword_span: assign.left.span(),
-                                                        closure,
-                                                    })
+                                            "from_first" => {
+                                                extend.from_first.ensure_unset(assign.left.span())?;
+                                                match *assign.right {
+                                                    syn::Expr::Closure(closure) => {
+                                                        extend.from_first = Configurable::Custom {
+                                                            keyword_span: assign.left.span(),
+                                                            value: closure,
+                                                        }
+                                                    }
+                                                    other => {
+                                                        return Err(Error::new_spanned(other, "Expected closure (|first| <...>)"))
+                                                    }
                                                 }
-                                                other => {
-                                                    return Err(Error::new_spanned(other, "Expected closure (|first| <...>)"))
+                                            }
+                                            "from_iter" => {
+                                                extend.from_iter.ensure_unset(assign.left.span())?;
+                                                match *assign.right {
+                                                    syn::Expr::Closure(closure) => {
+                                                        extend.from_iter = Configurable::Custom {
+                                                            keyword_span: assign.left.span(),
+                                                            value: closure,
+                                                        }
+                                                    }
+                                                    other => {
+                                                        return Err(Error::new_spanned(other, "Expected closure (|iter| <...>)"))
+                                                    }
                                                 }
-                                            },
+                                            }
+                                            "item_name" => {
+                                                if extend.item_name.is_some() {
+                                                    return Err(Error::new_spanned(assign.left, "Duplicate option"));
+                                                }
+                                                match *assign.right {
+                                                    syn::Expr::Path(path) => {
+                                                        let name = path_to_single_ident(&path.path)
+                                                            .ok_or_else(|| Error::new_spanned(&path, "Expected identifier"))?;
+                                                        extend.item_name = Some(name.clone())
+                                                    }
+                                                    other => return Err(Error::new_spanned(other, "Expected identifier")),
+                                                }
+                                            }
                                             _ => {
                                                 return Err(Error::new_spanned(
                                                     &assign.left,
@@ -289,10 +351,29 @@ impl SetterSettings {
                                             }
                                         }
                                     }
-                                    _ => return Err(Error::new_spanned(arg, "Expected (<...>=<...>)")),
+                                    syn::Expr::Path(path) => {
+                                        let name = path_to_single_string(&path.path)
+                                            .ok_or_else(|| Error::new_spanned(&path, "Expected identifier"))?;
+                                        match name.as_str() {
+                                            "from_first" => {
+                                                extend.from_first.ensure_unset(path.span())?;
+                                                extend.from_first = Configurable::Auto {
+                                                    keyword_span: path.span(),
+                                                };
+                                            }
+                                            "from_iter" => {
+                                                extend.from_iter.ensure_unset(path.span())?;
+                                                extend.from_iter = Configurable::Auto {
+                                                    keyword_span: path.span(),
+                                                };
+                                            }
+                                            _ => return Err(Error::new_spanned(&path, format!("Unknown parameter {:?}", name))),
+                                        }
+                                    }
+                                    _ => return Err(Error::new_spanned(arg, "Expected (<...>) or (<...>=<...>)")),
                                 }
                             }
-                            self.strip_collection = Some(strip_collection);
+                            self.extend = Some(extend);
                             Ok(())
                         }
                     }
@@ -314,13 +395,15 @@ impl SetterSettings {
                                     }
                                 }
                             )*
-                            "strip_collection" => {
-                                if self.strip_collection.is_some() {
+                            "extend" => {
+                                if self.extend.is_some() {
                                     Err(Error::new(path.span(), "Illegal setting - field is already calling extend(...) with the argument"))
                                 } else {
-                                    self.strip_collection = Some(StripCollection{
+                                    self.extend = Some(ExtendField {
                                         keyword_span: name.span(),
-                                        from_first: None
+                                        from_first: Configurable::Auto { keyword_span:name.span() },
+                                        from_iter: Configurable::Auto { keyword_span:name.span() },
+                                        item_name: None,
                                     });
                                     Ok(())
                                 }
@@ -359,8 +442,8 @@ impl SetterSettings {
                             self.auto_into = false;
                             Ok(())
                         }
-                        "strip_collection" => {
-                            self.strip_collection = None;
+                        "extend" => {
+                            self.extend = None;
                             Ok(())
                         }
                         "strip_option" => {

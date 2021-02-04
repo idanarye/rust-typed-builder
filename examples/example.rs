@@ -25,23 +25,23 @@ struct Foo {
     z: i32,
 
     // #[builder(default)] without parameter - don't require this field
-    // #[builder(setter(strip_collection))] without parameter - start with the default and extend from there
-    #[builder(default, setter(strip_collection))]
+    // #[builder(setter(extend))] without parameter - start with the default and extend from there
+    #[builder(default, setter(extend(from_first, item_name = i0)))]
     v0: Vec<i32>,
 
     // No `default`: This field must be set at least once.
     // You can explicitly create the collection from the first item (but this is not required even without `default`).
-    #[builder(setter(strip_collection(from_first = |first| vec![first])))]
+    #[builder(setter(extend(from_first = |first| vec![first])))]
     v1: Vec<i32>,
 
     // Other `Extend` types are also supported.
-    #[builder(default, setter(strip_collection))]
+    #[builder(default, setter(extend))]
     h: HashMap<i32, i32>,
 }
 
 fn main() {
     assert!(
-        Foo::builder().x(1).y(2).z(3).v0(4).v1(5).h((6, 7)).build()
+        Foo::builder().x(1).y(2).z(3).i0(4).v1_item(5).h_item((6, 7)).build()
             == Foo {
                 x: 1,
                 y: Some(2),
@@ -54,7 +54,7 @@ fn main() {
 
     // Change the order of construction:
     assert!(
-        Foo::builder().z(1).x(2).h((3, 4)).v1(5).v0(6).y(7).build()
+        Foo::builder().z(1).x(2).h_item((3, 4)).v1_item(5).i0(6).y(7).build()
             == Foo {
                 x: 2,
                 y: Some(7),
@@ -67,7 +67,7 @@ fn main() {
 
     // Optional fields are optional:
     assert!(
-        Foo::builder().x(1).v1(2).build()
+        Foo::builder().x(1).v1_item(2).build()
             == Foo {
                 x: 1,
                 y: None,
@@ -80,7 +80,16 @@ fn main() {
 
     // Extend fields can be set multiple times:
     assert!(
-        Foo::builder().x(1).v0(2).v0(3).v0(4).v1(5).v1(6).h((7, 8)).h((9, 10)).build()
+        Foo::builder()
+            .x(1)
+            .i0(2)
+            .i0(3)
+            .i0(4)
+            .v1_item(5)
+            .v1_item(6)
+            .h_item((7, 8))
+            .h_item((9, 10))
+            .build()
             == Foo {
                 x: 1,
                 y: None,

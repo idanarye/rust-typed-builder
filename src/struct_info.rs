@@ -1,9 +1,8 @@
 use proc_macro2::{Span, TokenStream};
-use quote::{quote, quote_spanned, ToTokens};
+use quote::{quote, quote_spanned};
 use syn::parse::Error;
-use syn::{self, Ident};
 
-use crate::field_info::{FieldBuilderAttr, FieldInfo, FromFirst, StripCollection};
+use crate::field_info::{Configured, ExtendField, FieldBuilderAttr, FieldInfo};
 use crate::util::{
     empty_type, empty_type_tuple, expr_to_single_string, make_punctuated_single, modify_types_generics_hack,
     path_to_single_string, strip_raw_ident_prefix, type_tuple,
@@ -198,22 +197,19 @@ impl<'a> StructInfo<'a> {
     pub fn field_impl(&self, field: &FieldInfo) -> Result<TokenStream, Error> {
         let StructInfo { ref builder_name, .. } = *self;
 
-        let descructuring = self
-            .included_fields()
-            .map(|f| {
-                if f.ordinal == field.ordinal {
-                    quote!(_)
-                } else {
-                    let name = f.name;
-                    quote!(#name)
-                }
-            })
-            .collect::<Vec<_>>();
-        let reconstructing = self.included_fields().map(|f| f.name).collect::<Vec<_>>();
+        let descructuring = self.included_fields().map(|f| {
+            if f.ordinal == field.ordinal {
+                quote!(_)
+            } else {
+                let name = f.name;
+                quote!(#name)
+            }
+        });
+        let reconstructing = self.included_fields().map(|f| f.name);
 
         let &FieldInfo {
-            name: field_name,
-            ty: field_type,
+            name: ref field_name,
+            ty: ref field_type,
             ..
         } = field;
         let mut ty_generics: Vec<syn::GenericArgument> = self
@@ -269,77 +265,153 @@ impl<'a> StructInfo<'a> {
             None => quote!(),
         };
 
-        // NOTE: both auto_into and strip_option affect `arg_type` and `arg_expr`, but the order of
-        // nesting is different so we have to do this little dance.
-        let arg_type = if field.builder_attr.setter.strip_option {
-            let internal_type = field
-                .type_from_inside_option()
-                .ok_or_else(|| Error::new_spanned(&field_type, "can't `strip_option` - field is not `Option<...>`"))?;
-            internal_type
-        } else {
-            field_type
-        };
-        let (arg_type, arg_expr) = if let Some(StripCollection {
-            ref keyword_span,
-            ref from_first,
-        }) = field.builder_attr.setter.strip_collection
+        if let Some(ExtendField {
+            keyword_span,
+            from_first,
+            from_iter,
+            item_name,
+        }) = &field.builder_attr.setter.extend
         {
-            let arg_expr = if let Some(FromFirst { keyword_span, closure }) = from_first {
-                // `Span::mixed_site()`-resolution suppresses `clippy::redundant_closure_call` on
-                // the generated code only.
-                quote_spanned!(keyword_span.resolved_at(Span::mixed_site())=> (#closure)(#field_name))
-            } else if let Some(default) = &field.builder_attr.default {
-                quote_spanned!(*keyword_span=> {
-                    let mut collection: #arg_type = #default;
-                    ::core::iter::Extend::extend(&mut collection, ::core::iter::once(#field_name));
-                    collection
-                })
-            } else {
-                quote_spanned!(*keyword_span=> ::<#arg_type as ::core::iter::FromIterator>::from_iter(::core::iter::once(#field_name)))
-            };
-            (quote!(<#arg_type as ::core::iter::IntoIterator>::Item), arg_expr)
-        } else {
-            (arg_type.to_token_stream(), field_name.to_token_stream())
-        };
-        let (arg_type, arg_expr) = if field.builder_attr.setter.auto_into {
-            (quote!(impl core::convert::Into<#arg_type>), quote!(#arg_expr.into()))
-        } else {
-            (arg_type, arg_expr)
-        };
-        let arg_expr = if field.builder_attr.setter.strip_option {
-            quote!(Some(#arg_expr))
-        } else {
-            arg_expr
-        };
+            let item_name = item_name.clone().unwrap_or_else(|| {
+                syn::Ident::new(
+                    (field.name.to_string() + "_item").trim_start().trim_start_matches("r#"),
+                    field.name.span(),
+                )
+            });
 
-        let repeat_items = if let Some(StripCollection { keyword_span, .. }) = field.builder_attr.setter.strip_collection {
-            let field_hygienic = Ident::new(
-                // Changing the name here doesn't really matter, but makes it easier to debug with `cargo expand`.
-                &format!("{}_argument", field_name),
-                field_name.span().resolved_at(Span::mixed_site()),
-            );
-            quote_spanned! {keyword_span=>
-                #[allow(dead_code, non_camel_case_types, missing_docs)]
-                impl #impl_generics #builder_name < #( #target_generics ),* > #where_clause {
+            let descructuring = descructuring.collect::<Vec<_>>();
+            let reconstructing = reconstructing.collect::<Vec<_>>();
+
+            let from_first = from_first
+                .clone()
+                .into_configured(|span| {
+                    field
+                        .builder_attr
+                        .default
+                        .as_ref()
+                        .map(|default| {
+                            syn::parse2(quote_spanned!(span.resolved_at(Span::mixed_site())=> |first| {
+                                let mut extend = #default;
+                                ::core::iter::Extend::extend(&mut extend, ::core::iter::once(first));
+                                extend
+                            }))
+                            .expect("extend from_first from default")
+                        })
+                        .unwrap_or_else(|| {
+                            syn::parse2(quote_spanned! {span.resolved_at(Span::mixed_site())=>
+                                |first| ::core::iter::once(first).collect()
+                            })
+                            .expect("extend from_first collect")
+                        })
+                })
+                .map({
+                    |Configured { keyword_span, value }| {
+                    quote_spanned! {keyword_span.resolved_at(Span::mixed_site())=>
+                        #doc
+                        pub fn #item_name(self, #item_name: <#field_type as ::core::iter::IntoIterator>::Item) -> #builder_name<#(#target_generics),*> {
+                            let #field_name = ((#value)(#item_name),);
+                            let ( #(#descructuring,)* ) = self.fields;
+                            #builder_name {
+                                fields: ( #(#reconstructing,)* ),
+                                _phantom: self._phantom,
+                            }
+                        }
+                    }
+                }});
+            let from_iter = from_iter.clone().into_configured(|span| {
+                field
+                    .builder_attr
+                    .default
+                    .as_ref()
+                    .map(|default| {
+                        syn::parse2(quote_spanned!(span.resolved_at(Span::mixed_site())=> |iter| {
+                            let mut extend = #default;
+                            ::core::iter::Extend::extend(&mut extend, iter);
+                            extend
+                        }))
+                        .expect("extend from_iter from default")
+                    })
+                    .unwrap_or_else(|| {
+                        syn::parse2(quote_spanned!(span.resolved_at(Span::mixed_site())=> |iter| iter.collect()))
+                            .expect("extend from_iter collect")
+                    })
+            }).map(|Configured { keyword_span, value }| {
+                quote_spanned! {keyword_span.resolved_at(Span::mixed_site())=>
                     #doc
-                    pub fn #field_name<Argument> (self, #field_name: Argument) -> #builder_name < #( #target_generics ),* >
-                        // Making this repeat setter here further generic has a potential performance benefit:
-                        // Many collections are also `Extend<&T>` where `T: Copy`. Calling this overload will then
-                        // copy the value direction into the collection instead of through a stack temporary.
-                        where #field_type: ::core::iter::Extend<Argument>,
-                    {
-                        let #field_hygienic = #field_name;
-                        let ( #(#reconstructing,)* ) = self.fields;
-                        let mut #field_name = #field_name;
-                        ::core::iter::Extend::extend(&mut #field_name.0, ::core::iter::once(#field_hygienic));
+                    pub fn #field_name(self, #field_name: impl ::core::iter::Iterator<Item = <#field_type as ::core::iter::IntoIterator>::Item>) -> #builder_name<#(#target_generics),*> {
+                        let #field_name = ((#value)(#field_name),);
+                        let ( #(#descructuring,)* ) = self.fields;
                         #builder_name {
                             fields: ( #(#reconstructing,)* ),
                             _phantom: self._phantom,
                         }
                     }
                 }
-            }
+            });
+
+            Ok(quote_spanned! {keyword_span.resolved_at(Span::mixed_site())=>
+                #[allow(non_camel_case_types, missing_docs)]
+                impl #impl_generics #builder_name<#(#ty_generics),*> #where_clause {
+                    #from_first
+                    #from_iter
+                }
+
+                impl #impl_generics #builder_name<#(#target_generics),*> #where_clause {
+                    #doc
+                    pub fn #item_name<Item>(self, #item_name: Item) -> #builder_name<#(#target_generics),*>
+                    where
+                        #field_type: ::core::iter::Extend<Item>,
+                    {
+                        let ( #(#reconstructing,)* ) = self.fields;
+                        let mut #field_name = #field_name;
+                        ::core::iter::Extend::extend(&mut #field_name.0, ::core::iter::once(#item_name));
+                        #builder_name {
+                            fields: ( #(#reconstructing,)* ),
+                            _phantom: self._phantom,
+                        }
+                    }
+
+                    #doc
+                    pub fn #field_name<Iter, Item>(self, #field_name: Iter) -> #builder_name<#(#target_generics),*>
+                    where
+                        Iter: ::core::iter::IntoIterator<Item = Item>,
+                        #field_type: ::core::iter::Extend<Item>,
+                    {
+                        let items = #field_name;
+                        let ( #(#reconstructing,)* ) = self.fields;
+                        let mut #field_name = #field_name;
+                        ::core::iter::Extend::extend(&mut #field_name.0, items);
+                        #builder_name {
+                            fields: ( #(#reconstructing,)* ),
+                            _phantom: self._phantom,
+                        }
+                    }
+                }
+            })
         } else {
+            //Not `extend`.
+
+            // NOTE: both auto_into and strip_option affect `arg_type` and `arg_expr`, but the order of
+            // nesting is different so we have to do this little dance.
+            let arg_type = if field.builder_attr.setter.strip_option {
+                let internal_type = field
+                    .type_from_inside_option()
+                    .ok_or_else(|| Error::new_spanned(&field_type, "can't `strip_option` - field is not `Option<...>`"))?;
+                internal_type
+            } else {
+                field_type
+            };
+            let (arg_type, arg_expr) = if field.builder_attr.setter.auto_into {
+                (quote!(impl core::convert::Into<#arg_type>), quote!(#field_name.into()))
+            } else {
+                (quote!(#arg_type), quote!(#field_name))
+            };
+            let arg_expr = if field.builder_attr.setter.strip_option {
+                quote!(Some(#arg_expr))
+            } else {
+                arg_expr
+            };
+
             let repeated_fields_error_type_name = syn::Ident::new(
                 &format!(
                     "{}_Error_Repeated_field_{}",
@@ -349,7 +421,20 @@ impl<'a> StructInfo<'a> {
                 proc_macro2::Span::call_site(),
             );
             let repeated_fields_error_message = format!("Repeated field {}", field_name);
-            quote! {
+
+            Ok(quote! {
+                #[allow(dead_code, non_camel_case_types, missing_docs)]
+                impl #impl_generics #builder_name < #( #ty_generics ),* > #where_clause {
+                    #doc
+                    pub fn #field_name (self, #field_name: #arg_type) -> #builder_name < #( #target_generics ),* > {
+                        let #field_name = (#arg_expr,);
+                        let ( #(#descructuring,)* ) = self.fields;
+                        #builder_name {
+                            fields: ( #(#reconstructing,)* ),
+                            _phantom: self._phantom,
+                        }
+                    }
+                }
                 #[doc(hidden)]
                 #[allow(dead_code, non_camel_case_types, non_snake_case)]
                 pub enum #repeated_fields_error_type_name {}
@@ -363,24 +448,8 @@ impl<'a> StructInfo<'a> {
                         self
                     }
                 }
-            }
-        };
-
-        Ok(quote! {
-            #[allow(dead_code, non_camel_case_types, missing_docs)]
-            impl #impl_generics #builder_name < #( #ty_generics ),* > #where_clause {
-                #doc
-                pub fn #field_name (self, #field_name: #arg_type) -> #builder_name < #( #target_generics ),* > {
-                    let #field_name = (#arg_expr,);
-                    let ( #(#descructuring,)* ) = self.fields;
-                    #builder_name {
-                        fields: ( #(#reconstructing,)* ),
-                        _phantom: self._phantom,
-                    }
-                }
-            }
-            #repeat_items
-        })
+            })
+        }
     }
 
     pub fn required_field_impl(&self, field: &FieldInfo) -> Result<TokenStream, Error> {
