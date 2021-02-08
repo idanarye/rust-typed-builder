@@ -338,7 +338,7 @@ impl<'a> StructInfo<'a> {
             }).map(|Configured { keyword_span, value }| {
                 quote_spanned! {keyword_span.resolved_at(Span::mixed_site())=>
                     #doc
-                    pub fn #field_name(self, #field_name: impl ::core::iter::Iterator<Item = <#field_type as ::core::iter::IntoIterator>::Item>) -> #builder_name<#(#target_generics),*> {
+                    pub fn #field_name(self, #field_name: impl ::core::iter::IntoIterator<Item = <#field_type as ::core::iter::IntoIterator>::Item>) -> #builder_name<#(#target_generics),*> {
                         let #field_name = ((#value)(#field_name),);
                         let ( #(#descructuring,)* ) = self.fields;
                         #builder_name {
