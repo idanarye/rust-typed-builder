@@ -6,7 +6,7 @@ use syn::{self, Ident};
 use crate::field_info::{FieldBuilderAttr, FieldInfo, FromFirst, StripCollection};
 use crate::util::{
     empty_type, empty_type_tuple, expr_to_single_string, make_punctuated_single, modify_types_generics_hack,
-    path_to_single_string, type_tuple,
+    path_to_single_string, strip_raw_ident_prefix, type_tuple,
 };
 
 #[derive(Debug)]
@@ -29,7 +29,7 @@ impl<'a> StructInfo<'a> {
 
     pub fn new(ast: &'a syn::DeriveInput, fields: impl Iterator<Item = &'a syn::Field>) -> Result<StructInfo<'a>, Error> {
         let builder_attr = TypeBuilderAttr::new(&ast.attrs)?;
-        let builder_name = format!("{}Builder", ast.ident);
+        let builder_name = strip_raw_ident_prefix(format!("{}Builder", ast.ident));
         Ok(StructInfo {
             vis: &ast.vis,
             name: &ast.ident,
@@ -341,7 +341,11 @@ impl<'a> StructInfo<'a> {
             }
         } else {
             let repeated_fields_error_type_name = syn::Ident::new(
-                &format!("{}_Error_Repeated_field_{}", builder_name, field_name),
+                &format!(
+                    "{}_Error_Repeated_field_{}",
+                    builder_name,
+                    strip_raw_ident_prefix(field_name.to_string())
+                ),
                 proc_macro2::Span::call_site(),
             );
             let repeated_fields_error_message = format!("Repeated field {}", field_name);
@@ -448,7 +452,11 @@ impl<'a> StructInfo<'a> {
         let (_, ty_generics, _) = self.generics.split_for_impl();
 
         let early_build_error_type_name = syn::Ident::new(
-            &format!("{}_Error_Missing_required_field_{}", builder_name, field_name),
+            &format!(
+                "{}_Error_Missing_required_field_{}",
+                builder_name,
+                strip_raw_ident_prefix(field_name.to_string())
+            ),
             proc_macro2::Span::call_site(),
         );
         let early_build_error_message = format!("Missing required field {}", field_name);
