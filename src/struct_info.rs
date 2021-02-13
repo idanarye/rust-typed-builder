@@ -390,7 +390,7 @@ impl<'a> StructInfo<'a> {
                     #doc
                     pub fn #field_name(self, #field_name: impl ::core::iter::IntoIterator<Item = <#field_type as ::core::iter::IntoIterator>::Item>) -> #builder_name<#(#target_generics),*> {
                         #(#attrs)*
-                        #asyncness fn from_iter#generics((#input): __x) -> #field_type #where_clause {
+                        #asyncness fn from_iter#generics(#input: __x) -> #field_type #where_clause {
                             #body
                         }
 
