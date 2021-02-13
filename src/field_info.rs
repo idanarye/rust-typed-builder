@@ -66,6 +66,8 @@ impl<'a> FieldInfo<'a> {
     }
 
     pub fn type_from_inside_option(&self) -> Result<&syn::Type, Error> {
+        assert!(self.builder_attr.setter.strip_option);
+
         pub fn try_<'a>(field_info: &'a FieldInfo) -> Option<&'a syn::Type> {
             let path = if let syn::Type::Path(type_path) = field_info.ty {
                 if type_path.qself.is_some() {
