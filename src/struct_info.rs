@@ -285,24 +285,10 @@ impl<'a> StructInfo<'a> {
             let from_first = from_first
                 .clone()
                 .into_configured(|span| {
-                    field
-                        .builder_attr
-                        .default
-                        .as_ref()
-                        .map(|default| {
-                            syn::parse2(quote_spanned!(span.resolved_at(Span::mixed_site())=> |first| {
-                                let mut extend = #default;
-                                ::core::iter::Extend::extend(&mut extend, ::core::iter::once(first));
-                                extend
-                            }))
-                            .expect("extend from_first from default")
-                        })
-                        .unwrap_or_else(|| {
-                            syn::parse2(quote_spanned! {span.resolved_at(Span::mixed_site())=>
-                                |first| ::core::iter::once(first).collect()
-                            })
-                            .expect("extend from_first collect")
-                        })
+                    syn::parse2(quote_spanned! {span.resolved_at(Span::mixed_site())=>
+                        |first| ::core::iter::once(first).collect()
+                    })
+                    .expect("extend from_first collect")
                 })
                 .map({
                     |Configured { keyword_span, value }| {
@@ -322,22 +308,8 @@ impl<'a> StructInfo<'a> {
                 }});
             let from_iter = from_iter.clone()
             .into_configured(|span| {
-                field
-                    .builder_attr
-                    .default
-                    .as_ref()
-                    .map(|default| {
-                        syn::parse2(quote_spanned!(span.resolved_at(Span::mixed_site())=> |iter| {
-                            let mut extend = #default;
-                            ::core::iter::Extend::extend(&mut extend, iter);
-                            extend
-                        }))
-                        .expect("extend from_iter from default")
-                    })
-                    .unwrap_or_else(|| {
-                        syn::parse2(quote_spanned!(span.resolved_at(Span::mixed_site())=> |iter| iter.collect()))
-                            .expect("extend from_iter collect")
-                    })
+                syn::parse2(quote_spanned!(span.resolved_at(Span::mixed_site())=> |iter| iter.collect()))
+                    .expect("extend from_iter collect")
             }).map(|Configured { keyword_span, value }| {
                 let syn::ExprClosure {
                     attrs,

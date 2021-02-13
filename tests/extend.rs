@@ -31,37 +31,40 @@ fn item_name() {
 }
 
 #[test]
-fn extend_default() {
+fn default_and_implicit_initializers() {
     #[derive(TypedBuilder)]
     struct A {
         #[builder(default = vec![0], setter(extend))]
         v: Vec<i8>,
     }
 
-    assert_eq!(A::builder().v_item(2).build().v, vec![0, 2]);
-    assert_eq!(A::builder().v(vec![3, 4]).build().v, vec![0, 3, 4]);
+    assert_eq!(A::builder().build().v, vec![0]);
+    assert_eq!(A::builder().v_item(2).build().v, vec![2]);
+    assert_eq!(A::builder().v(vec![3, 4]).build().v, vec![3, 4]);
 }
 
 #[test]
-fn extend_default_explicit_auto() {
+fn default_and_explicit_auto_initializers() {
     #[derive(TypedBuilder)]
     struct A {
         #[builder(default = vec![0], setter(extend(from_first, from_iter)))]
         v: Vec<i8>,
     }
 
-    assert_eq!(A::builder().v_item(2).build().v, vec![0, 2]);
-    assert_eq!(A::builder().v(vec![3, 4]).build().v, vec![0, 3, 4]);
+    assert_eq!(A::builder().build().v, vec![0]);
+    assert_eq!(A::builder().v_item(2).build().v, vec![2]);
+    assert_eq!(A::builder().v(vec![3, 4]).build().v, vec![3, 4]);
 }
 
 #[test]
-fn ignore_default() {
+fn default_and_explicit_initializer_closures() {
     #[derive(TypedBuilder)]
     struct A {
         #[builder(default = vec![0], setter(extend(from_first = |first| vec![first], from_iter = |iter| iter.collect())))]
         v: Vec<i8>,
     }
 
+    assert_eq!(A::builder().build().v, vec![0]);
     assert_eq!(A::builder().v_item(2).build().v, vec![2]);
     assert_eq!(A::builder().v(vec![3, 4]).build().v, vec![3, 4]);
 }
