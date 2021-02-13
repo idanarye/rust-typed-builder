@@ -1,6 +1,6 @@
 use proc_macro2::{Span, TokenStream};
-use quote::{quote, quote_spanned};
-use syn::parse::Error;
+use quote::{quote, quote_spanned, ToTokens};
+use syn::{parse::Error, spanned::Spanned};
 
 use crate::field_info::{Configured, ExtendField, FieldBuilderAttr, FieldInfo};
 use crate::util::{
@@ -309,7 +309,9 @@ impl<'a> StructInfo<'a> {
                     quote_spanned! {keyword_span.resolved_at(Span::mixed_site())=>
                         #doc
                         pub fn #item_name(self, #item_name: <#field_type as ::core::iter::IntoIterator>::Item) -> #builder_name<#(#target_generics),*> {
-                            let #field_name = ((#value)(#item_name),);
+                            let from_item = #value;
+                            let _: &dyn FnOnce(<#field_type as ::core::iter::IntoIterator>::Item) -> #field_type = &from_item;
+                            let #field_name: (#field_type,) = ((from_item)(#item_name),);
                             let ( #(#descructuring,)* ) = self.fields;
                             #builder_name {
                                 fields: ( #(#reconstructing,)* ),
@@ -318,7 +320,8 @@ impl<'a> StructInfo<'a> {
                         }
                     }
                 }});
-            let from_iter = from_iter.clone().into_configured(|span| {
+            let from_iter = from_iter.clone()
+            .into_configured(|span| {
                 field
                     .builder_attr
                     .default
@@ -336,18 +339,74 @@ impl<'a> StructInfo<'a> {
                             .expect("extend from_iter collect")
                     })
             }).map(|Configured { keyword_span, value }| {
-                quote_spanned! {keyword_span.resolved_at(Span::mixed_site())=>
+                let syn::ExprClosure {
+                    attrs,
+                    asyncness,
+                    movability,
+                    capture: _, // No locals are in scope here, so this doesn't matter.
+                    or1_token,
+                    inputs,
+                    or2_token,
+                    output,
+                    body,
+                } = value;
+
+                if let Some(asyncness) = asyncness {
+                    return Err(Error::new_spanned(asyncness, "Expected synchronous closure"))
+                }
+
+                if let Some(movability) = movability {
+                    return Err(Error::new_spanned(movability, "Expected movable closure"))
+                }
+
+                let input = match inputs.len() {
+                    0 => return Err(Error::new_spanned(quote!(#or1_token #or2_token), "Expected one argument")),
+                    1 => inputs.into_iter().next().unwrap(),
+                    _ => return Err(Error::new_spanned(inputs, "Expected only one argument")),
+                };
+
+                if let syn::Pat::Type(syn::PatType { colon_token, ty, .. }) = input {
+                    return Err(Error::new_spanned(quote!(#colon_token #ty), "Did not expect argument type, since it is set explicitly by the macro"))
+                }
+
+                // This is a bit roundabout. In short:
+                // Iff the closure has an explicit return type, and this return type mismatches the builder field type,
+                // then the "mismatched types" error is located on that explicit closure type rather than on `from_iter`.
+                let body = match output {
+                    syn::ReturnType::Default => {
+                        // Transforming this like below would bread the `unused_braces` warning on the closure body.
+                        body.into_token_stream()
+                    }
+                    syn::ReturnType::Type(arrow, ty) => {
+                        let colon = syn::Token![:](arrow.span());
+                        quote_spanned!{ty.span()=>
+                            let output#colon #ty = #body;
+                            output
+                        }
+                    }
+                };
+
+                Ok(quote_spanned! {keyword_span.resolved_at(Span::mixed_site())=>
                     #doc
                     pub fn #field_name(self, #field_name: impl ::core::iter::IntoIterator<Item = <#field_type as ::core::iter::IntoIterator>::Item>) -> #builder_name<#(#target_generics),*> {
-                        let #field_name = ((#value)(#field_name),);
+                        #(#attrs)*
+                        #asyncness fn from_iter<I>((#input): I) -> #field_type
+                        where
+                            I: ::core::iter::Iterator<Item = <#field_type as ::core::iter::IntoIterator>::Item>
+                        {
+                            #body
+                        }
+
+                        let #field_name: (#field_type,) = (from_iter(#field_name.into_iter()),);
                         let ( #(#descructuring,)* ) = self.fields;
                         #builder_name {
                             fields: ( #(#reconstructing,)* ),
                             _phantom: self._phantom,
                         }
                     }
-                }
-            });
+                })
+            })
+            .transpose()?;
 
             Ok(quote_spanned! {keyword_span.resolved_at(Span::mixed_site())=>
                 #[allow(non_camel_case_types, missing_docs)]

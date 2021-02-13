@@ -367,7 +367,8 @@ impl SetterSettings {
                                                     keyword_span: path.span(),
                                                 };
                                             }
-                                            _ => return Err(Error::new_spanned(&path, format!("Unknown parameter {:?}", name))),
+                                            "item_name" => return Err(Error::new_spanned(path, "Expected (item_name = <...>)")),
+                                            _ => return Err(Error::new_spanned(path, format!("Unknown parameter {:?}", name))),
                                         }
                                     }
                                     _ => return Err(Error::new_spanned(arg, "Expected (<...>) or (<...>=<...>)")),
