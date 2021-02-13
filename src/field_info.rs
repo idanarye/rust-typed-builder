@@ -43,7 +43,14 @@ impl<'a> FieldInfo<'a> {
     pub fn tuplized_type_ty_param(&self) -> Result<syn::Type, Error> {
         let mut types = syn::punctuated::Punctuated::default();
         types.push(
-            if matches!(self.builder_attr.setter, SetterSettings { extend: Some(_), strip_option: true, .. }) {
+            if matches!(
+                self.builder_attr.setter,
+                SetterSettings {
+                    extend: Some(_),
+                    strip_option: true,
+                    ..
+                }
+            ) {
                 self.type_from_inside_option()?
             } else {
                 self.ty

@@ -637,8 +637,14 @@ impl<'a> StructInfo<'a> {
 
         let generics = self.try_modify_generics(|g| {
             for field in self.included_fields() {
-                let strip_option_extends =
-                    matches!(field.builder_attr.setter, SetterSettings { extend: Some(_), strip_option: true, .. });
+                let strip_option_extends = matches!(
+                    field.builder_attr.setter,
+                    SetterSettings {
+                        extend: Some(_),
+                        strip_option: true,
+                        ..
+                    }
+                );
 
                 if field.builder_attr.default.is_some() {
                     let trait_ref = syn::TraitBound {
@@ -703,7 +709,14 @@ impl<'a> StructInfo<'a> {
         // reordering based on that, but for now this much simpler thing is a reasonable approach.
         let assignments = self.fields.iter().map(|field| {
             let name = field.name;
-            let wrap_some = matches!(field.builder_attr.setter, SetterSettings { extend: Some(_), strip_option: true, .. });
+            let wrap_some = matches!(
+                field.builder_attr.setter,
+                SetterSettings {
+                    extend: Some(_),
+                    strip_option: true,
+                    ..
+                }
+            );
             if let Some(ref default) = field.builder_attr.default {
                 if field.builder_attr.setter.skip {
                     quote!(let #name = #default;)
