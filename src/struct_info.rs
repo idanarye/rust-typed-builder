@@ -311,6 +311,8 @@ impl<'a> StructInfo<'a> {
                 syn::parse2(quote_spanned!(span.resolved_at(Span::mixed_site())=> |iter| iter.collect()))
                     .expect("extend from_iter collect")
             }).map(|Configured { keyword_span, value }| {
+                // A plain closure like `|iter| iter.collect()` would require a generic type annotation on the parameter type,
+                // which unfortunately isn't possible. This means the closure is repackaged as nested function.
                 let syn::ExprClosure {
                     attrs,
                     asyncness,
@@ -323,12 +325,14 @@ impl<'a> StructInfo<'a> {
                     body,
                 } = value;
 
+                // A few error messages can be made much more direct on the way:
+
                 if let Some(asyncness) = asyncness {
-                    return Err(Error::new_spanned(asyncness, "Expected synchronous closure"))
+                    return Err(Error::new_spanned(asyncness, "Expected synchronous closure (Remove `async`)"))
                 }
 
                 if let Some(movability) = movability {
-                    return Err(Error::new_spanned(movability, "Expected movable closure"))
+                    return Err(Error::new_spanned(movability, "Expected movable closure (Remove `static`)"))
                 }
 
                 let input = match inputs.len() {
@@ -358,18 +362,39 @@ impl<'a> StructInfo<'a> {
                     }
                 };
 
+                let generics = self.modify_generics(|g| {
+                    g.params.push(syn::parse2(quote_spanned!{keyword_span.resolved_at(Span::mixed_site())=>
+                        __x: ::core::iter::Iterator<Item = <#field_type as ::core::iter::IntoIterator>::Item>
+                    }).expect("extend from_iter __x"))
+                });
+                let where_clause = generics.where_clause.as_ref();
+                let generics_for_function_generics = self.modify_generics(|g| {
+                    g.params.push(syn::GenericParam::Type(syn::TypeParam {
+                        attrs: vec![],
+                        ident: syn::Ident::new("_", keyword_span.resolved_at(Span::mixed_site())),
+                        colon_token: None,
+                        bounds: syn::punctuated::Punctuated::default(),
+                        eq_token: None,
+                        default: None,
+                    }))
+                });
+                let (_, type_generics, _) = generics_for_function_generics.split_for_impl();
+                let type_generics = type_generics.into_token_stream();
+                let function_generics = if type_generics.is_empty() {
+                    type_generics
+                } else {
+                    quote_spanned!(keyword_span.resolved_at(Span::mixed_site())=> ::#type_generics)
+                };
+
                 Ok(quote_spanned! {keyword_span.resolved_at(Span::mixed_site())=>
                     #doc
                     pub fn #field_name(self, #field_name: impl ::core::iter::IntoIterator<Item = <#field_type as ::core::iter::IntoIterator>::Item>) -> #builder_name<#(#target_generics),*> {
                         #(#attrs)*
-                        #asyncness fn from_iter<I>((#input): I) -> #field_type
-                        where
-                            I: ::core::iter::Iterator<Item = <#field_type as ::core::iter::IntoIterator>::Item>
-                        {
+                        #asyncness fn from_iter#generics((#input): __x) -> #field_type #where_clause {
                             #body
                         }
 
-                        let #field_name: (#field_type,) = (from_iter(#field_name.into_iter()),);
+                        let #field_name: (#field_type,) = (from_iter#function_generics(#field_name.into_iter()),);
                         let ( #(#descructuring,)* ) = self.fields;
                         #builder_name {
                             fields: ( #(#reconstructing,)* ),

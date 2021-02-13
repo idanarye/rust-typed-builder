@@ -68,3 +68,28 @@ fn default_and_explicit_initializer_closures() {
     assert_eq!(A::builder().v_item(2).build().v, vec![2]);
     assert_eq!(A::builder().v(vec![3, 4]).build().v, vec![3, 4]);
 }
+
+#[test]
+fn generic_inference() {
+    #[derive(TypedBuilder)]
+    struct A<T> {
+        #[builder(setter(extend))]
+        v: Vec<T>,
+    }
+
+    #[derive(TypedBuilder)]
+    struct B<S, T> {
+        #[builder(setter(extend))]
+        s: Vec<S>,
+        #[builder(setter(extend))]
+        t: Vec<T>,
+    }
+
+    let A { v: _v } = A::builder().v(vec![true]).build();
+    let _ = A::builder().v_item(0).build();
+
+    let B { s: _s, t: _t } = B::builder().s(vec![true]).t(vec![false]).build();
+    let _ = B::builder().s(vec![0]).t_item(1).build();
+    let _ = B::builder().s_item('a').t(vec![false]).build();
+    let _ = B::builder().s_item("b").t_item(1).build();
+}
