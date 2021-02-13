@@ -40,41 +40,52 @@ impl<'a> FieldInfo<'a> {
         ident_to_type(self.generic_ident.clone())
     }
 
-    pub fn tuplized_type_ty_param(&self) -> syn::Type {
+    pub fn tuplized_type_ty_param(&self) -> Result<syn::Type, Error> {
         let mut types = syn::punctuated::Punctuated::default();
-        types.push(self.ty.clone());
+        types.push(
+            if matches!(self.builder_attr.setter, SetterSettings { extend: Some(_), strip_option: true, .. }) {
+                self.type_from_inside_option()?
+            } else {
+                self.ty
+            }
+            .clone(),
+        );
         types.push_punct(Default::default());
-        syn::TypeTuple {
+        Ok(syn::TypeTuple {
             paren_token: Default::default(),
             elems: types,
         }
-        .into()
+        .into())
     }
 
-    pub fn type_from_inside_option(&self) -> Option<&syn::Type> {
-        let path = if let syn::Type::Path(type_path) = self.ty {
-            if type_path.qself.is_some() {
-                return None;
+    pub fn type_from_inside_option(&self) -> Result<&syn::Type, Error> {
+        pub fn try_<'a>(field_info: &'a FieldInfo) -> Option<&'a syn::Type> {
+            let path = if let syn::Type::Path(type_path) = field_info.ty {
+                if type_path.qself.is_some() {
+                    return None;
+                } else {
+                    &type_path.path
+                }
             } else {
-                &type_path.path
+                return None;
+            };
+            let segment = path.segments.last()?;
+            if segment.ident != "Option" {
+                return None;
             }
-        } else {
-            return None;
-        };
-        let segment = path.segments.last()?;
-        if segment.ident != "Option" {
-            return None;
+            let generic_params = if let syn::PathArguments::AngleBracketed(generic_params) = &segment.arguments {
+                generic_params
+            } else {
+                return None;
+            };
+            if let syn::GenericArgument::Type(ty) = generic_params.args.first()? {
+                Some(ty)
+            } else {
+                None
+            }
         }
-        let generic_params = if let syn::PathArguments::AngleBracketed(generic_params) = &segment.arguments {
-            generic_params
-        } else {
-            return None;
-        };
-        if let syn::GenericArgument::Type(ty) = generic_params.args.first()? {
-            Some(ty)
-        } else {
-            None
-        }
+
+        try_(self).ok_or_else(|| Error::new_spanned(&self.ty, "can't `strip_option` - field is not `Option<...>`"))
     }
 }
 

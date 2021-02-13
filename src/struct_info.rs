@@ -2,10 +2,10 @@ use proc_macro2::{Span, TokenStream};
 use quote::{quote, quote_spanned, ToTokens};
 use syn::{parse::Error, spanned::Spanned};
 
-use crate::field_info::{Configured, ExtendField, FieldBuilderAttr, FieldInfo};
+use crate::field_info::{Configured, ExtendField, FieldBuilderAttr, FieldInfo, SetterSettings};
 use crate::util::{
-    empty_type, empty_type_tuple, expr_to_single_string, make_punctuated_single, modify_types_generics_hack,
-    path_to_single_string, strip_raw_ident_prefix, type_tuple,
+    empty_type, empty_type_tuple, expr_to_single_string, make_punctuated_single, path_to_single_string, strip_raw_ident_prefix,
+    try_modify_types_generics_hack, type_tuple,
 };
 
 #[derive(Debug)]
@@ -50,6 +50,15 @@ impl<'a> StructInfo<'a> {
         generics
     }
 
+    fn try_modify_generics<F: FnMut(&mut syn::Generics) -> Result<(), Error>>(
+        &self,
+        mut mutator: F,
+    ) -> Result<syn::Generics, Error> {
+        let mut generics = self.generics.clone();
+        mutator(&mut generics)?;
+        Ok(generics)
+    }
+
     pub fn builder_creation_impl(&self) -> Result<TokenStream, Error> {
         let StructInfo {
             ref vis,
@@ -64,9 +73,10 @@ impl<'a> StructInfo<'a> {
             g.params.insert(0, all_fields_param.clone());
         });
         let empties_tuple = type_tuple(self.included_fields().map(|_| empty_type()));
-        let generics_with_empty = modify_types_generics_hack(&ty_generics, |args| {
+        let generics_with_empty = try_modify_types_generics_hack(&ty_generics, |args| {
             args.insert(0, syn::GenericArgument::Type(empties_tuple.clone().into()));
-        });
+            Ok(())
+        })?;
         let phantom_generics = self.generics.params.iter().map(|param| {
             let t = match param {
                 syn::GenericParam::Lifetime(lifetime) => {
@@ -178,10 +188,14 @@ impl<'a> StructInfo<'a> {
             #[allow(dead_code, non_camel_case_types, non_snake_case)]
             pub trait #trait_name<T> {
                 fn into_value<F: FnOnce() -> T>(self, default: F) -> T;
+                fn into_some_or_else<F: FnOnce() -> ::core::option::Option<T>>(self, default: F) -> ::core::option::Option<T>;
             }
 
             impl<T> #trait_name<T> for () {
                 fn into_value<F: FnOnce() -> T>(self, default: F) -> T {
+                    default()
+                }
+                fn into_some_or_else<F: FnOnce() -> ::core::option::Option<T>>(self, default: F) -> ::core::option::Option<T> {
                     default()
                 }
             }
@@ -189,6 +203,9 @@ impl<'a> StructInfo<'a> {
             impl<T> #trait_name<T> for (T,) {
                 fn into_value<F: FnOnce() -> T>(self, _: F) -> T {
                     self.0
+                }
+                fn into_some_or_else<F: FnOnce() -> ::core::option::Option<T>>(self, _: F) -> ::core::option::Option<T> {
+                    ::core::option::Option::Some(self.0)
                 }
             }
         })
@@ -230,11 +247,11 @@ impl<'a> StructInfo<'a> {
             .collect();
         let mut target_generics_tuple = empty_type_tuple();
         let mut ty_generics_tuple = empty_type_tuple();
-        let generics = self.modify_generics(|g| {
+        let generics = self.try_modify_generics(|g| {
             for f in self.included_fields() {
                 if f.ordinal == field.ordinal {
                     ty_generics_tuple.elems.push_value(empty_type());
-                    target_generics_tuple.elems.push_value(f.tuplized_type_ty_param());
+                    target_generics_tuple.elems.push_value(f.tuplized_type_ty_param()?);
                 } else {
                     g.params.push(f.generic_ty_param());
                     let generic_argument: syn::Type = f.type_ident();
@@ -244,7 +261,8 @@ impl<'a> StructInfo<'a> {
                 ty_generics_tuple.elems.push_punct(Default::default());
                 target_generics_tuple.elems.push_punct(Default::default());
             }
-        });
+            Ok(())
+        })?;
         let mut target_generics = ty_generics.clone();
 
         let index_after_lifetime_in_generics = target_generics
@@ -272,6 +290,15 @@ impl<'a> StructInfo<'a> {
             item_name,
         }) = &field.builder_attr.setter.extend
         {
+            // Changing the builder field type entirely here (instead of just the argument) means there
+            // won't be a need to unwrap an `Option` in every repeat field setter call.
+            let field_type = if field.builder_attr.setter.strip_option {
+                let internal_type = field.type_from_inside_option()?;
+                internal_type
+            } else {
+                field_type
+            };
+
             let item_name = item_name.clone().unwrap_or_else(|| {
                 syn::Ident::new(
                     (field.name.to_string() + "_item").trim_start().trim_start_matches("r#"),
@@ -450,10 +477,7 @@ impl<'a> StructInfo<'a> {
             // NOTE: both auto_into and strip_option affect `arg_type` and `arg_expr`, but the order of
             // nesting is different so we have to do this little dance.
             let arg_type = if field.builder_attr.setter.strip_option {
-                let internal_type = field
-                    .type_from_inside_option()
-                    .ok_or_else(|| Error::new_spanned(&field_type, "can't `strip_option` - field is not `Option<...>`"))?;
-                internal_type
+                field.type_from_inside_option()?
             } else {
                 field_type
             };
@@ -535,7 +559,7 @@ impl<'a> StructInfo<'a> {
             })
             .collect();
         let mut builder_generics_tuple = empty_type_tuple();
-        let generics = self.modify_generics(|g| {
+        let generics = self.try_modify_generics(|g| {
             for f in self.included_fields() {
                 if f.builder_attr.default.is_some() {
                     // `f` is not mandatory - it does not have it's own fake `build` method, so `field` will need
@@ -550,7 +574,7 @@ impl<'a> StructInfo<'a> {
                 } else if f.ordinal < field.ordinal {
                     // Only add a `build` method that warns about missing `field` if `f` is set. If `f` is not set,
                     // `f`'s `build` method will warn, since it appears earlier in the argument list.
-                    builder_generics_tuple.elems.push_value(f.tuplized_type_ty_param());
+                    builder_generics_tuple.elems.push_value(f.tuplized_type_ty_param()?);
                 } else if f.ordinal == field.ordinal {
                     builder_generics_tuple.elems.push_value(empty_type());
                 } else {
@@ -563,7 +587,8 @@ impl<'a> StructInfo<'a> {
 
                 builder_generics_tuple.elems.push_punct(Default::default());
             }
-        });
+            Ok(())
+        })?;
 
         let index_after_lifetime_in_generics = builder_generics
             .iter()
@@ -603,15 +628,18 @@ impl<'a> StructInfo<'a> {
         })
     }
 
-    pub fn build_method_impl(&self) -> TokenStream {
+    pub fn build_method_impl(&self) -> Result<TokenStream, Error> {
         let StructInfo {
             ref name,
             ref builder_name,
             ..
         } = *self;
 
-        let generics = self.modify_generics(|g| {
+        let generics = self.try_modify_generics(|g| {
             for field in self.included_fields() {
+                let strip_option_extends =
+                    matches!(field.builder_attr.setter, SetterSettings { extend: Some(_), strip_option: true, .. });
+
                 if field.builder_attr.default.is_some() {
                     let trait_ref = syn::TraitBound {
                         paren_token: None,
@@ -622,7 +650,11 @@ impl<'a> StructInfo<'a> {
                             arguments: syn::PathArguments::AngleBracketed(syn::AngleBracketedGenericArguments {
                                 colon2_token: None,
                                 lt_token: Default::default(),
-                                args: make_punctuated_single(syn::GenericArgument::Type(field.ty.clone())),
+                                args: make_punctuated_single(syn::GenericArgument::Type(if strip_option_extends {
+                                    field.type_from_inside_option()?.clone()
+                                } else {
+                                    field.ty.clone()
+                                })),
                                 gt_token: Default::default(),
                             }),
                         }
@@ -633,26 +665,33 @@ impl<'a> StructInfo<'a> {
                     g.params.push(generic_param.into());
                 }
             }
-        });
+            Ok(())
+        })?;
         let (impl_generics, _, _) = generics.split_for_impl();
 
         let (_, ty_generics, where_clause) = self.generics.split_for_impl();
 
-        let modified_ty_generics = modify_types_generics_hack(&ty_generics, |args| {
+        let modified_ty_generics = try_modify_types_generics_hack(&ty_generics, |args| {
             args.insert(
                 0,
                 syn::GenericArgument::Type(
-                    type_tuple(self.included_fields().map(|field| {
-                        if field.builder_attr.default.is_some() {
-                            field.type_ident()
-                        } else {
-                            field.tuplized_type_ty_param()
-                        }
-                    }))
+                    type_tuple(
+                        self.included_fields()
+                            .map(|field| {
+                                if field.builder_attr.default.is_some() {
+                                    Ok(field.type_ident())
+                                } else {
+                                    field.tuplized_type_ty_param()
+                                }
+                            })
+                            .collect::<Result<Vec<_>, _>>()?
+                            .into_iter(),
+                    )
                     .into(),
                 ),
             );
-        });
+            Ok(())
+        })?;
 
         let descructuring = self.included_fields().map(|f| f.name);
 
@@ -663,13 +702,18 @@ impl<'a> StructInfo<'a> {
         // relax that restriction by calculating a DAG of field default dependencies and
         // reordering based on that, but for now this much simpler thing is a reasonable approach.
         let assignments = self.fields.iter().map(|field| {
-            let name = &field.name;
+            let name = field.name;
+            let wrap_some = matches!(field.builder_attr.setter, SetterSettings { extend: Some(_), strip_option: true, .. });
             if let Some(ref default) = field.builder_attr.default {
                 if field.builder_attr.setter.skip {
                     quote!(let #name = #default;)
+                } else if wrap_some {
+                    quote!(let #name = #helper_trait_name::into_some_or_else(#name, || #default);)
                 } else {
                     quote!(let #name = #helper_trait_name::into_value(#name, || #default);)
                 }
+            } else if wrap_some {
+                quote!(let #name = ::core::option::Option::Some(#name.0);)
             } else {
                 quote!(let #name = #name.0;)
             }
@@ -688,7 +732,7 @@ impl<'a> StructInfo<'a> {
         } else {
             quote!()
         };
-        quote!(
+        Ok(quote!(
             #[allow(dead_code, non_camel_case_types, missing_docs)]
             impl #impl_generics #builder_name #modified_ty_generics #where_clause {
                 #doc
@@ -700,7 +744,7 @@ impl<'a> StructInfo<'a> {
                     }
                 }
             }
-        )
+        ))
     }
 }
 

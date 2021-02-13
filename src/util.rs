@@ -1,4 +1,5 @@
 use quote::ToTokens;
+use syn::Error;
 
 pub fn path_to_single_ident(path: &syn::Path) -> Option<&syn::Ident> {
     if path.leading_colon.is_some() {
@@ -72,9 +73,12 @@ pub fn make_punctuated_single<T, P: Default>(value: T) -> syn::punctuated::Punct
     punctuated
 }
 
-pub fn modify_types_generics_hack<F>(ty_generics: &syn::TypeGenerics, mut mutator: F) -> syn::AngleBracketedGenericArguments
+pub fn try_modify_types_generics_hack<F>(
+    ty_generics: &syn::TypeGenerics,
+    mut mutator: F,
+) -> Result<syn::AngleBracketedGenericArguments, Error>
 where
-    F: FnMut(&mut syn::punctuated::Punctuated<syn::GenericArgument, syn::token::Comma>),
+    F: FnMut(&mut syn::punctuated::Punctuated<syn::GenericArgument, syn::token::Comma>) -> Result<(), Error>,
 {
     let mut abga: syn::AngleBracketedGenericArguments = syn::parse(ty_generics.clone().into_token_stream().into())
         .unwrap_or_else(|_| syn::AngleBracketedGenericArguments {
@@ -83,8 +87,8 @@ where
             args: Default::default(),
             gt_token: Default::default(),
         });
-    mutator(&mut abga.args);
-    abga
+    mutator(&mut abga.args)?;
+    Ok(abga)
 }
 
 pub fn strip_raw_ident_prefix(mut name: String) -> String {

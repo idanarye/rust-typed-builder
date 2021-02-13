@@ -93,3 +93,45 @@ fn generic_inference() {
     let _ = B::builder().s_item('a').t(vec![false]).build();
     let _ = B::builder().s_item("b").t_item(1).build();
 }
+
+#[test]
+fn strip_option() {
+    #[derive(TypedBuilder)]
+    struct A {
+        #[builder(default, setter(strip_option, extend))]
+        v: Option<Vec<u8>>,
+    }
+
+    assert_eq!(A::builder().build().v, None);
+    assert_eq!(A::builder().v_item(2).build().v, Some(vec![2]));
+    assert_eq!(A::builder().v(vec![3, 4]).build().v, Some(vec![3, 4]));
+    assert_eq!(A::builder().v_item(5).v_item(6).build().v, Some(vec![5, 6]));
+    assert_eq!(A::builder().v(vec![7, 8]).v_item(9).build().v, Some(vec![7, 8, 9]));
+    assert_eq!(A::builder().v_item(0).v(vec![1, 2]).build().v, Some(vec![0, 1, 2]));
+    assert_eq!(A::builder().v(vec![3, 4]).v(vec![5, 6]).build().v, Some(vec![3, 4, 5, 6]));
+}
+
+#[test]
+fn strip_option_generic_inference() {
+    #[derive(TypedBuilder)]
+    struct A<T> {
+        #[builder(default, setter(strip_option, extend))]
+        v: Option<Vec<T>>,
+    }
+
+    #[derive(TypedBuilder)]
+    struct B<S, T> {
+        #[builder(default, setter(strip_option, extend))]
+        s: Option<Vec<S>>,
+        #[builder(default, setter(strip_option, extend))]
+        t: Option<Vec<T>>,
+    }
+
+    let A { v: _v } = A::builder().v(vec![true]).build();
+    let _ = A::builder().v_item(0).build();
+
+    let B { s: _s, t: _t } = B::builder().s(vec![true]).t(vec![false]).build();
+    let _ = B::builder().s(vec![0]).t_item(1).build();
+    let _ = B::builder().s_item('a').t(vec![false]).build();
+    let _ = B::builder().s_item("b").t_item(1).build();
+}
