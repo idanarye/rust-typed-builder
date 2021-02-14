@@ -1,5 +1,6 @@
 use proc_macro2::{Span, TokenStream};
 use quote::{quote, quote_spanned, ToTokens};
+use std::fmt::Write;
 use syn::{parse::Error, spanned::Spanned};
 
 use crate::field_info::{Configured, ExtendField, FieldBuilderAttr, FieldInfo, SetterSettings};
@@ -287,7 +288,7 @@ impl<'a> StructInfo<'a> {
             keyword_span,
             from_first,
             from_iter,
-            item_name,
+            item_name: _,
         }) = &field.builder_attr.setter.extend
         {
             // Changing the builder field type entirely here (instead of just the argument) means there
@@ -299,12 +300,7 @@ impl<'a> StructInfo<'a> {
                 field_type
             };
 
-            let item_name = item_name.clone().unwrap_or_else(|| {
-                syn::Ident::new(
-                    (field.name.to_string() + "_item").trim_start().trim_start_matches("r#"),
-                    field.name.span(),
-                )
-            });
+            let item_name = syn::Ident::new(&field.item_name(), field.name.span());
 
             let descructuring = descructuring.collect::<Vec<_>>();
             let reconstructing = reconstructing.collect::<Vec<_>>();
@@ -609,7 +605,10 @@ impl<'a> StructInfo<'a> {
             ),
             proc_macro2::Span::call_site(),
         );
-        let early_build_error_message = format!("Missing required field {}", field_name);
+        let mut early_build_error_message = format!("Missing required field {}", field_name);
+        if field.builder_attr.setter.extend.is_some() {
+            write!(&mut early_build_error_message, " (single item setter: {})", field.item_name()).unwrap();
+        }
 
         Ok(quote! {
             #[doc(hidden)]

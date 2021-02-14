@@ -36,6 +36,20 @@ impl<'a> FieldInfo<'a> {
         syn::GenericParam::Type(self.generic_ident.clone().into())
     }
 
+    pub fn item_name(&self) -> String {
+        self.builder_attr
+            .setter
+            .extend
+            .as_ref()
+            .expect("Tried to retrieve item_name() on FieldInfo without extend.")
+            .item_name
+            .as_ref()
+            .map_or_else(
+                || self.name.to_string().trim_start().trim_start_matches("r#").to_string() + "_item",
+                |item_name| item_name.to_string(),
+            )
+    }
+
     pub fn type_ident(&self) -> syn::Type {
         ident_to_type(self.generic_ident.clone())
     }
