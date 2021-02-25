@@ -36,17 +36,6 @@ fn test_lifetime_bounded() {
     assert!(Foo::builder().x(&1).y(&2).build() == Foo { x: &1, y: &2 });
 }
 
-#[cfg(nightly)]
-#[test]
-fn test_const_generics() {
-    #[derive(PartialEq, TypedBuilder)]
-    struct Foo<'a, T, const N: usize> {
-        x: [&'a T; N],
-    }
-
-    assert!(Foo::builder().x([&1, &2]).build() == Foo { x: [&1, &2] });
-}
-
 #[test]
 fn test_mutable_borrows() {
     #[derive(PartialEq, TypedBuilder)]
@@ -75,6 +64,18 @@ fn test_generics() {
     }
 
     assert!(Foo::builder().x(1).y(2).build() == Foo { x: 1, y: 2 });
+}
+
+#[ignore = "min_const_generics is not in stable yet"]
+#[test]
+fn test_const_generics() {
+    #[derive(PartialEq, TypedBuilder)]
+    struct Foo<'a, T, const N: usize> {
+        x: i32,
+        y: [&'a T; N],
+    }
+
+    assert!(Foo::builder().x(1).y([&2]).build() == Foo { x: 1, y: [&2] });
 }
 
 #[test]
