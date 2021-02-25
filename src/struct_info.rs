@@ -433,6 +433,11 @@ impl<'a> StructInfo<'a> {
         } = *self;
 
         let generics = self.modify_generics(|g| {
+            let index_after_lifetime_in_generics = g
+                .params
+                .iter()
+                .filter(|arg| matches!(arg, syn::GenericParam::Lifetime(_)))
+                .count();
             for field in self.included_fields() {
                 if field.builder_attr.default.is_some() {
                     let trait_ref = syn::TraitBound {
@@ -452,7 +457,7 @@ impl<'a> StructInfo<'a> {
                     };
                     let mut generic_param: syn::TypeParam = field.generic_ident.clone().into();
                     generic_param.bounds.push(trait_ref.into());
-                    g.params.push(generic_param.into());
+                    g.params.insert(index_after_lifetime_in_generics, generic_param.into());
                 }
             }
         });
