@@ -67,22 +67,18 @@ impl<'a> StructInfo<'a> {
         let generics_with_empty = modify_types_generics_hack(&ty_generics, |args| {
             args.insert(0, syn::GenericArgument::Type(empties_tuple.clone().into()));
         });
-        let phantom_generics = self.generics.params.iter().map(|param| {
-            let t = match param {
-                syn::GenericParam::Lifetime(lifetime) => {
-                    let lifetime = &lifetime.lifetime;
-                    quote!(&#lifetime ())
-                }
-                syn::GenericParam::Type(ty) => {
-                    let ty = &ty.ident;
-                    quote!(#ty)
-                }
-                syn::GenericParam::Const(cnst) => {
-                    let cnst = &cnst.ident;
-                    quote!(#cnst)
-                }
-            };
-            quote!(core::marker::PhantomData<#t>)
+        let phantom_generics = self.generics.params.iter().map(|param| match param {
+            syn::GenericParam::Lifetime(lifetime) => {
+                let lifetime = &lifetime.lifetime;
+                quote!(core::marker::PhantomData<&#lifetime ()>)
+            }
+            syn::GenericParam::Type(ty) => {
+                let ty = &ty.ident;
+                quote!(core::marker::PhantomData<#ty>)
+            }
+            syn::GenericParam::Const(_cnst) => {
+                quote!()
+            }
         });
         let builder_method_doc = match self.builder_attr.builder_method_doc {
             Some(ref doc) => quote!(#doc),
@@ -231,12 +227,17 @@ impl<'a> StructInfo<'a> {
         let mut target_generics_tuple = empty_type_tuple();
         let mut ty_generics_tuple = empty_type_tuple();
         let generics = self.modify_generics(|g| {
+            let index_after_lifetime_in_generics = g
+                .params
+                .iter()
+                .filter(|arg| matches!(arg, syn::GenericParam::Lifetime(_)))
+                .count();
             for f in self.included_fields() {
                 if f.ordinal == field.ordinal {
                     ty_generics_tuple.elems.push_value(empty_type());
                     target_generics_tuple.elems.push_value(f.tuplized_type_ty_param());
                 } else {
-                    g.params.push(f.generic_ty_param());
+                    g.params.insert(index_after_lifetime_in_generics, f.generic_ty_param());
                     let generic_argument: syn::Type = f.type_ident();
                     ty_generics_tuple.elems.push_value(generic_argument.clone());
                     target_generics_tuple.elems.push_value(generic_argument);
@@ -246,7 +247,6 @@ impl<'a> StructInfo<'a> {
             }
         });
         let mut target_generics = ty_generics.clone();
-
         let index_after_lifetime_in_generics = target_generics
             .iter()
             .filter(|arg| matches!(arg, syn::GenericArgument::Lifetime(_)))
@@ -353,6 +353,11 @@ impl<'a> StructInfo<'a> {
             .collect();
         let mut builder_generics_tuple = empty_type_tuple();
         let generics = self.modify_generics(|g| {
+            let index_after_lifetime_in_generics = g
+                .params
+                .iter()
+                .filter(|arg| matches!(arg, syn::GenericParam::Lifetime(_)))
+                .count();
             for f in self.included_fields() {
                 if f.builder_attr.default.is_some() {
                     // `f` is not mandatory - it does not have it's own fake `build` method, so `field` will need
@@ -362,7 +367,7 @@ impl<'a> StructInfo<'a> {
                         "`required_field_impl` called for optional field {}",
                         field.name
                     );
-                    g.params.push(f.generic_ty_param());
+                    g.params.insert(index_after_lifetime_in_generics, f.generic_ty_param());
                     builder_generics_tuple.elems.push_value(f.type_ident());
                 } else if f.ordinal < field.ordinal {
                     // Only add a `build` method that warns about missing `field` if `f` is set. If `f` is not set,
@@ -374,7 +379,7 @@ impl<'a> StructInfo<'a> {
                     // `f` appears later in the argument list after `field`, so if they are both missing we will
                     // show a warning for `field` and not for `f` - which means this warning should appear whether
                     // or not `f` is set.
-                    g.params.push(f.generic_ty_param());
+                    g.params.insert(index_after_lifetime_in_generics, f.generic_ty_param());
                     builder_generics_tuple.elems.push_value(f.type_ident());
                 }
 
