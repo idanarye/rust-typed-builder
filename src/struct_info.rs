@@ -137,11 +137,11 @@ impl<'a> StructInfo<'a> {
         Ok(quote! {
             impl #impl_generics #name #ty_generics #where_clause {
                 #[doc = #builder_method_doc]
-                #[allow(dead_code)]
+                #[allow(dead_code, clippy::default_trait_access)]
                 #vis fn builder() -> #builder_name #generics_with_empty {
                     #builder_name {
                         fields: #empties_tuple,
-                        phantom: core::default::Default::default(),
+                        phantom: ::core::default::Default::default(),
                     }
                 }
             }
@@ -155,10 +155,11 @@ impl<'a> StructInfo<'a> {
             }
 
             impl #b_generics_impl Clone for #builder_name #b_generics_ty #b_generics_where {
+                #[allow(clippy::default_trait_access)]
                 fn clone(&self) -> Self {
                     Self {
                         fields: self.fields.clone(),
-                        phantom: Default::default(),
+                        phantom: ::core::default::Default::default(),
                     }
                 }
             }
@@ -519,6 +520,7 @@ impl<'a> StructInfo<'a> {
             #[allow(dead_code, non_camel_case_types, missing_docs)]
             impl #impl_generics #builder_name #modified_ty_generics #where_clause {
                 #doc
+                #[allow(clippy::default_trait_access)]
                 pub fn build(self) -> #name #ty_generics {
                     let ( #(#descructuring,)* ) = self.fields;
                     #( #assignments )*
