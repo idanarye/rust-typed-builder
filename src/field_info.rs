@@ -118,7 +118,7 @@ impl FieldBuilderAttr {
                     return Err(Error::new_spanned(attr.tokens.clone(), "Expected (<...>)"));
                 }
             }
-            // Stash its span for later (we don’t yet know if it’ll be an error)
+            // Stash its span for later (we don't yet know if it'll be an error)
             if self.setter.skip && skip_tokens.is_none() {
                 skip_tokens = Some(attr.tokens.clone());
             }

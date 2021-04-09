@@ -239,7 +239,7 @@ fn test_docs() {
         #[builder(
                 default = x,
                 setter(
-                    doc = "Set `z`. If you don’t specify a value it’ll default to the value specified for `x`.",
+                    doc = "Set `z`. If you don't specify a value it'll default to the value specified for `x`.",
                 ),
             )]
         #[allow(dead_code)]
