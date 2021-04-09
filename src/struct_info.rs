@@ -141,7 +141,7 @@ impl<'a> StructInfo<'a> {
                 #vis fn builder() -> #builder_name #generics_with_empty {
                     #builder_name {
                         fields: #empties_tuple,
-                        _phantom: core::default::Default::default(),
+                        phantom: core::default::Default::default(),
                     }
                 }
             }
@@ -151,14 +151,14 @@ impl<'a> StructInfo<'a> {
             #[allow(dead_code, non_camel_case_types, non_snake_case)]
             #vis struct #builder_name #b_generics {
                 fields: #all_fields_param,
-                _phantom: (#( #phantom_generics ),*),
+                phantom: (#( #phantom_generics ),*),
             }
 
             impl #b_generics_impl Clone for #builder_name #b_generics_ty #b_generics_where {
                 fn clone(&self) -> Self {
                     Self {
                         fields: self.fields.clone(),
-                        _phantom: Default::default(),
+                        phantom: Default::default(),
                     }
                 }
             }
@@ -305,7 +305,7 @@ impl<'a> StructInfo<'a> {
                     let ( #(#descructuring,)* ) = self.fields;
                     #builder_name {
                         fields: ( #(#reconstructing,)* ),
-                        _phantom: self._phantom,
+                        phantom: self.phantom,
                     }
                 }
             }
