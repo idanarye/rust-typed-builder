@@ -75,7 +75,7 @@ fn test_into() {
         x: i32,
     }
 
-    assert!(Foo::builder().x(1u8).build() == Foo { x: 1 });
+    assert!(Foo::builder().x(1_u8).build() == Foo { x: 1 });
 }
 
 #[test]
@@ -86,7 +86,7 @@ fn test_strip_option_with_into() {
         x: Option<i32>,
     }
 
-    assert!(Foo::builder().x(1u8).build() == Foo { x: Some(1) });
+    assert!(Foo::builder().x(1_u8).build() == Foo { x: Some(1) });
 }
 
 #[test]
@@ -97,7 +97,7 @@ fn test_into_with_strip_option() {
         x: Option<i32>,
     }
 
-    assert!(Foo::builder().x(1u8).build() == Foo { x: Some(1) });
+    assert!(Foo::builder().x(1_u8).build() == Foo { x: Some(1) });
 }
 
 #[test]
@@ -222,7 +222,7 @@ fn test_skip() {
         z: i32,
     }
 
-    assert!(Foo::builder().y(1u8).build() == Foo { x: 0, y: 1, z: 2 });
+    assert!(Foo::builder().y(1_u8).build() == Foo { x: 0, y: 1, z: 2 });
 }
 
 #[test]
@@ -310,6 +310,7 @@ fn test_builder_type_stability_with_other_generics() {
 }
 
 #[test]
+#[allow(clippy::items_after_statements)]
 fn test_builder_type_with_default_on_generic_type() {
     #[derive(PartialEq, TypedBuilder)]
     struct Types<X, Y = ()> {
@@ -473,6 +474,7 @@ fn test_clone_builder() {
 }
 
 #[test]
+#[allow(clippy::items_after_statements)]
 fn test_clone_builder_with_generics() {
     #[derive(PartialEq, Default)]
     struct Uncloneable;
