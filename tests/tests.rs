@@ -1,3 +1,4 @@
+#![warn(clippy::pedantic)]
 #![allow(clippy::blacklisted_name, clippy::type_complexity)]
 
 use typed_builder::TypedBuilder;
