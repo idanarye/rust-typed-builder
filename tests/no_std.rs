@@ -1,3 +1,4 @@
+#![warn(clippy::pedantic)]
 #![no_std]
 
 use typed_builder::TypedBuilder;
@@ -44,7 +45,7 @@ fn test_into() {
         x: i32,
     }
 
-    assert!(Foo::builder().x(1u8).build() == Foo { x: 1 });
+    assert!(Foo::builder().x(1_u8).build() == Foo { x: 1 });
 }
 
 #[test]

@@ -118,7 +118,7 @@ impl FieldBuilderAttr {
                     return Err(Error::new_spanned(attr.tokens.clone(), "Expected (<...>)"));
                 }
             }
-            // Stash its span for later (we don’t yet know if it’ll be an error)
+            // Stash its span for later (we don't yet know if it'll be an error)
             if self.setter.skip && skip_tokens.is_none() {
                 skip_tokens = Some(attr.tokens.clone());
             }
@@ -166,7 +166,7 @@ impl FieldBuilderAttr {
                 let name = path_to_single_string(&path.path).ok_or_else(|| Error::new_spanned(&path, "Expected identifier"))?;
                 match name.as_str() {
                     "default" => {
-                        self.default = Some(syn::parse(quote!(Default::default()).into()).unwrap());
+                        self.default = Some(syn::parse(quote!(::core::default::Default::default()).into()).unwrap());
                         Ok(())
                     }
                     _ => Err(Error::new_spanned(&path, format!("Unknown parameter {:?}", name))),

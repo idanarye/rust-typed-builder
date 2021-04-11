@@ -79,16 +79,16 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## 0.4.0 - 2019-12-13
 ### Added
-- `#![no_std]` is now supported out of the box. (You don’t need to opt into any
+- `#![no_std]` is now supported out of the box. (You don't need to opt into any
   features, it just works.)
 - [**BREAKING**] a `default_code` expression can now refer to the values of
   earlier fields by name (This is extremely unlikely to break your code, but
   could in theory due to shadowing)
 - `#[builder(skip)]` on fields, to not provide a method to set that field.
 - Control of documentation:
-  - `#[builder(doc = "…")]` on fields, to document the field’s method on the
+  - `#[builder(doc = "…")]` on fields, to document the field's method on the
     builder. Unlike `#[doc]`, you can currently only have one value rather than
-    one attribute per line; but that’s not a big deal since you don’t get to
+    one attribute per line; but that's not a big deal since you don't get to
     use the `///` sugar anyway. Just use a multiline string.
   - `#[builder(doc, builder_method_doc = "…", builder_type_doc = "…",
     build_method_doc = "…")]` on structs:

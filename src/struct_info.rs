@@ -137,11 +137,11 @@ impl<'a> StructInfo<'a> {
         Ok(quote! {
             impl #impl_generics #name #ty_generics #where_clause {
                 #[doc = #builder_method_doc]
-                #[allow(dead_code)]
+                #[allow(dead_code, clippy::default_trait_access)]
                 #vis fn builder() -> #builder_name #generics_with_empty {
                     #builder_name {
                         fields: #empties_tuple,
-                        _phantom: core::default::Default::default(),
+                        phantom: ::core::default::Default::default(),
                     }
                 }
             }
@@ -151,14 +151,15 @@ impl<'a> StructInfo<'a> {
             #[allow(dead_code, non_camel_case_types, non_snake_case)]
             #vis struct #builder_name #b_generics {
                 fields: #all_fields_param,
-                _phantom: (#( #phantom_generics ),*),
+                phantom: (#( #phantom_generics ),*),
             }
 
             impl #b_generics_impl Clone for #builder_name #b_generics_ty #b_generics_where {
+                #[allow(clippy::default_trait_access)]
                 fn clone(&self) -> Self {
                     Self {
                         fields: self.fields.clone(),
-                        _phantom: Default::default(),
+                        phantom: ::core::default::Default::default(),
                     }
                 }
             }
@@ -305,7 +306,7 @@ impl<'a> StructInfo<'a> {
                     let ( #(#descructuring,)* ) = self.fields;
                     #builder_name {
                         fields: ( #(#reconstructing,)* ),
-                        _phantom: self._phantom,
+                        phantom: self.phantom,
                     }
                 }
             }
@@ -486,7 +487,7 @@ impl<'a> StructInfo<'a> {
         let helper_trait_name = &self.conversion_helper_trait_name;
         // The default of a field can refer to earlier-defined fields, which we handle by
         // writing out a bunch of `let` statements first, which can each refer to earlier ones.
-        // This means that field ordering may actually be significant, which isn’t ideal. We could
+        // This means that field ordering may actually be significant, which isn't ideal. We could
         // relax that restriction by calculating a DAG of field default dependencies and
         // reordering based on that, but for now this much simpler thing is a reasonable approach.
         let assignments = self.fields.iter().map(|field| {
@@ -506,7 +507,7 @@ impl<'a> StructInfo<'a> {
             match self.builder_attr.build_method_doc {
                 Some(ref doc) => quote!(#[doc = #doc]),
                 None => {
-                    // I’d prefer “a” or “an” to “its”, but determining which is grammatically
+                    // I'd prefer “a” or “an” to “its”, but determining which is grammatically
                     // correct is roughly impossible.
                     let doc = format!("Finalise the builder and create its [`{}`] instance", name);
                     quote!(#[doc = #doc])
@@ -519,6 +520,7 @@ impl<'a> StructInfo<'a> {
             #[allow(dead_code, non_camel_case_types, missing_docs)]
             impl #impl_generics #builder_name #modified_ty_generics #where_clause {
                 #doc
+                #[allow(clippy::default_trait_access)]
                 pub fn build(self) -> #name #ty_generics {
                     let ( #(#descructuring,)* ) = self.fields;
                     #( #assignments )*
