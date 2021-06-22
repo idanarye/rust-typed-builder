@@ -69,7 +69,7 @@ mod util;
 ///
 /// - `doc`: enable documentation of the builder type. By default, the builder type is given
 ///   `#[doc(hidden)]`, so that the `builder()` method will show `FooBuilder` as its return type,
-///   but it won’t be a link. If you turn this on, the builder type and its `build` method will get
+///   but it won't be a link. If you turn this on, the builder type and its `build` method will get
 ///   sane defaults. The field methods on the builder will be undocumented by default.
 ///
 /// - `builder_method_doc = "…"` replaces the default documentation that will be generated for the
@@ -119,7 +119,7 @@ mod util;
 ///
 /// - `setter(...)`: settings for the field setters. The following values are permitted inside:
 ///
-///   - `doc = "…"`: sets the documentation for the field’s setter on the builder type. This will be
+///   - `doc = "…"`: sets the documentation for the field's setter on the builder type. This will be
 ///     of no value unless you enable docs for the builder type with `#[builder(doc)]` or similar on
 ///     the type.
 ///
@@ -179,12 +179,12 @@ fn impl_my_derive(ast: &syn::DeriveInput) -> Result<TokenStream, Error> {
     Ok(data)
 }
 
-// It’d be nice for the compilation tests to live in tests/ with the rest, but short of pulling in
+// It'd be nice for the compilation tests to live in tests/ with the rest, but short of pulling in
 // some other test runner for that purpose (e.g. compiletest_rs), rustdoc compile_fail in this
 // crate is all we can use.
 
 #[doc(hidden)]
-/// When a property is skipped, you can’t set it:
+/// When a property is skipped, you can't set it:
 /// (“method `y` not found for this”)
 ///
 /// ```compile_fail
