@@ -268,7 +268,7 @@ impl<'a> StructInfo<'a> {
 
         // NOTE: both auto_into and strip_option affect `arg_type` and `arg_expr`, but the order of
         // nesting is different so we have to do this little dance.
-        let arg_type = if field.builder_attr.setter.strip_option {
+        let arg_type = if field.builder_attr.setter.strip_option && field.builder_attr.setter.transform.is_none() {
             let internal_type = field
                 .type_from_inside_option()
                 .ok_or_else(|| Error::new_spanned(&field_type, "can't `strip_option` - field is not `Option<...>`"))?;
@@ -281,10 +281,15 @@ impl<'a> StructInfo<'a> {
         } else {
             (quote!(#arg_type), quote!(#field_name))
         };
-        let arg_expr = if field.builder_attr.setter.strip_option {
-            quote!(Some(#arg_expr))
+
+        let (param_list, arg_expr) = if let Some(transform) = &field.builder_attr.setter.transform {
+            let params = transform.params.iter().map(|(pat, ty)| quote!(#pat: #ty));
+            let body = &transform.body;
+            (quote!(#(#params),*), quote!({ #body }))
+        } else if field.builder_attr.setter.strip_option {
+            (quote!(#field_name: #arg_type), quote!(Some(#arg_expr)))
         } else {
-            arg_expr
+            (quote!(#field_name: #arg_type), arg_expr)
         };
 
         let repeated_fields_error_type_name = syn::Ident::new(
@@ -301,7 +306,7 @@ impl<'a> StructInfo<'a> {
             #[allow(dead_code, non_camel_case_types, missing_docs)]
             impl #impl_generics #builder_name < #( #ty_generics ),* > #where_clause {
                 #doc
-                pub fn #field_name (self, #field_name: #arg_type) -> #builder_name < #( #target_generics ),* > {
+                pub fn #field_name (self, #param_list) -> #builder_name < #( #target_generics ),* > {
                     let #field_name = (#arg_expr,);
                     let ( #(#descructuring,)* ) = self.fields;
                     #builder_name {

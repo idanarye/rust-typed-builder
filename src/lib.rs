@@ -85,6 +85,7 @@ mod util;
 ///   fields and sets default options for fields of the type. If specific field need to revert some
 ///   options to the default defaults they can prepend `!` to the option they need to revert, and
 ///   it would ignore the field defaults for that option in that field.
+///
 ///    ```
 ///    use typed_builder::TypedBuilder;
 ///
@@ -101,7 +102,14 @@ mod util;
 ///        // Defaults to Some(13), option-stripping is performed:
 ///        #[builder(default = Some(13))]
 ///        z: Option<i32>,
+///
+///        // Accepts params `(x: f32, y: f32)`
+///        #[builder(setter(transform = |x: f32, y: f32| Point { x, y }))]
+///        w: Point,
 ///    }
+///
+///    #[derive(Default)]
+///    struct Point { x: f32, y: f32 }
 ///    ```
 ///
 /// On each **field**, the following values are permitted:
@@ -134,6 +142,10 @@ mod util;
 ///     `Some(...)`, relieving the caller from having to do this. Note that with this setting on
 ///     one cannot set the field to `None` with the setter - so the only way to get it to be `None`
 ///     is by using `#[builder(default)]` and not calling the field's setter.
+///
+///   - `transform = |params: Types, ...| expr`: this makes the setter accept `params: Types, ...`
+///     instead of the field type itself. The parameters are transformed into the field type using
+///     the expression `expr`.
 #[proc_macro_derive(TypedBuilder, attributes(builder))]
 pub fn derive_typed_builder(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     let input = parse_macro_input!(input as DeriveInput);

@@ -90,6 +90,7 @@ pub struct SetterSettings {
     pub skip: bool,
     pub auto_into: bool,
     pub strip_option: bool,
+    pub transform: Option<Transform>,
 }
 
 impl FieldBuilderAttr {
@@ -231,6 +232,11 @@ impl SetterSettings {
                         self.doc = Some(*assign.right);
                         Ok(())
                     }
+                    "transform" => {
+                        self.transform = Some(parse_transform_closure(&assign.right)?);
+                        self.strip_option = false;
+                        Ok(())
+                    }
                     _ => Err(Error::new_spanned(&assign, format!("Unknown parameter {:?}", name))),
                 }
             }
@@ -296,4 +302,42 @@ impl SetterSettings {
             _ => Err(Error::new_spanned(expr, "Expected (<...>=<...>)")),
         }
     }
+}
+
+#[derive(Debug, Clone)]
+pub struct Transform {
+    pub params: Vec<(syn::Pat, syn::Type)>,
+    pub body: syn::Expr,
+}
+
+fn parse_transform_closure(expr: &syn::Expr) -> Result<Transform, Error> {
+    let closure = match expr {
+        syn::Expr::Closure(closure) => closure,
+        _ => return Err(Error::new_spanned(expr, "Expected closure")),
+    };
+    if let Some(kw) = &closure.asyncness {
+        return Err(Error::new(kw.span, "Transform closure cannot be async"));
+    }
+    if let Some(kw) = &closure.capture {
+        return Err(Error::new(kw.span, "Transform closure cannot capture variables"));
+    }
+
+    let inputs = &closure.inputs;
+    let mut params = Vec::new();
+    for input in inputs {
+        let param = match input {
+            syn::Pat::Type(pat_type) => {
+                (syn::Pat::clone(&pat_type.pat), syn::Type::clone(&pat_type.ty))
+            }
+            _ => return Err(Error::new_spanned(input, "Transform closure must explicitly declare types")),
+        };
+        params.push(param);
+    }
+
+    let body = &closure.body;
+
+    Ok(Transform {
+        params,
+        body: syn::Expr::clone(body),
+    })
 }
