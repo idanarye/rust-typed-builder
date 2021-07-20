@@ -143,9 +143,10 @@ mod util;
 ///     one cannot set the field to `None` with the setter - so the only way to get it to be `None`
 ///     is by using `#[builder(default)]` and not calling the field's setter.
 ///
-///   - `transform = |params: Types, ...| expr`: this makes the setter accept `params: Types, ...`
-///     instead of the field type itself. The parameters are transformed into the field type using
-///     the expression `expr`.
+///   - `transform = |param1: Type1, param2: Type2 ...| expr`: this makes the setter accept
+///     `param1: Type1, param2: Type2 ...` instead of the field type itself. The parameters are
+///     transformed into the field type using the expression `expr`. The transormation is performed
+///     when the setter is called.
 #[proc_macro_derive(TypedBuilder, attributes(builder))]
 pub fn derive_typed_builder(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     let input = parse_macro_input!(input as DeriveInput);
