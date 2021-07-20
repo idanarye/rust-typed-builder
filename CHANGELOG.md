@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ## 0.9.0 - 2021-01-31
 ### Added
 - Builder type implements `Clone` when all set fields support clone.
+- `#[builder(setter(transform = ...))]` attribute for running a transform on a
+  setter's argument to convert them to the field's type.
 
 ### Fixed
 - Fix code generation for raw identifiers.
