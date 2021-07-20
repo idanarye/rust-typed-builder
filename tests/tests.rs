@@ -546,11 +546,8 @@ fn test_field_setter_transform() {
 
     assert!(
         Foo::builder().point(1, 2).build()
-        == Foo {
-            point: Point {
-                x: 1,
-                y: 2,
+            == Foo {
+                point: Point { x: 1, y: 2 }
             }
-        }
     );
 }

@@ -326,9 +326,7 @@ fn parse_transform_closure(expr: &syn::Expr) -> Result<Transform, Error> {
     let mut params = Vec::new();
     for input in inputs {
         let param = match input {
-            syn::Pat::Type(pat_type) => {
-                (syn::Pat::clone(&pat_type.pat), syn::Type::clone(&pat_type.ty))
-            }
+            syn::Pat::Type(pat_type) => (syn::Pat::clone(&pat_type.pat), syn::Type::clone(&pat_type.ty)),
             _ => return Err(Error::new_spanned(input, "Transform closure must explicitly declare types")),
         };
         params.push(param);
