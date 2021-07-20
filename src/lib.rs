@@ -104,7 +104,7 @@ mod util;
 ///        z: Option<i32>,
 ///
 ///        // Accepts params `(x: f32, y: f32)`
-///        #[builder(setter(transform = |x: f32, y: f32| Point { x, y }))]
+///        #[builder(setter(!strip_option, transform = |x: f32, y: f32| Point { x, y }))]
 ///        w: Point,
 ///    }
 ///

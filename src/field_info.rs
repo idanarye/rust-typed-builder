@@ -1,4 +1,4 @@
-use proc_macro2::TokenStream;
+use proc_macro2::{Span, TokenStream};
 use quote::quote;
 use syn::parse::Error;
 use syn::spanned::Spanned;
@@ -20,10 +20,7 @@ impl<'a> FieldInfo<'a> {
             Ok(FieldInfo {
                 ordinal,
                 name: &name,
-                generic_ident: syn::Ident::new(
-                    &format!("__{}", strip_raw_ident_prefix(name.to_string())),
-                    proc_macro2::Span::call_site(),
-                ),
+                generic_ident: syn::Ident::new(&format!("__{}", strip_raw_ident_prefix(name.to_string())), Span::call_site()),
                 ty: &field.ty,
                 builder_attr: field_defaults.with(&field.attrs)?,
             })
@@ -87,15 +84,14 @@ pub struct FieldBuilderAttr {
 #[derive(Debug, Default, Clone)]
 pub struct SetterSettings {
     pub doc: Option<syn::Expr>,
-    pub skip: bool,
-    pub auto_into: bool,
-    pub strip_option: bool,
+    pub skip: Option<Span>,
+    pub auto_into: Option<Span>,
+    pub strip_option: Option<Span>,
     pub transform: Option<Transform>,
 }
 
 impl FieldBuilderAttr {
     pub fn with(mut self, attrs: &[syn::Attribute]) -> Result<Self, Error> {
-        let mut skip_tokens = None;
         for attr in attrs {
             if path_to_single_string(&attr.path).as_deref() != Some("builder") {
                 continue;
@@ -119,18 +115,9 @@ impl FieldBuilderAttr {
                     return Err(Error::new_spanned(attr.tokens.clone(), "Expected (<...>)"));
                 }
             }
-            // Stash its span for later (we don't yet know if it'll be an error)
-            if self.setter.skip && skip_tokens.is_none() {
-                skip_tokens = Some(attr.tokens.clone());
-            }
         }
 
-        if self.setter.skip && self.default.is_none() {
-            return Err(Error::new_spanned(
-                skip_tokens.unwrap(),
-                "#[builder(skip)] must be accompanied by default or default_code",
-            ));
-        }
+        self.inter_fields_conflicts()?;
 
         Ok(self)
     }
@@ -219,6 +206,22 @@ impl FieldBuilderAttr {
             _ => Err(Error::new_spanned(expr, "Expected (<...>=<...>)")),
         }
     }
+
+    fn inter_fields_conflicts(&self) -> Result<(), Error> {
+        if let (Some(skip), None) = (&self.setter.skip, &self.default) {
+            return Err(Error::new(
+                *skip,
+                "#[builder(skip)] must be accompanied by default or default_code",
+            ));
+        }
+
+        if let (Some(strip_option), Some(transform)) = (&self.setter.strip_option, &self.setter.transform) {
+            let mut error = Error::new(transform.span, "transform conflicts with strip_option");
+            error.combine(Error::new(*strip_option, "strip_option set here"));
+            return Err(error);
+        }
+        Ok(())
+    }
 }
 
 impl SetterSettings {
@@ -233,8 +236,10 @@ impl SetterSettings {
                         Ok(())
                     }
                     "transform" => {
-                        self.transform = Some(parse_transform_closure(&assign.right)?);
-                        self.strip_option = false;
+                        // if self.strip_option.is_some() {
+                        // return Err(Error::new(assign.span(), "Illegal setting - transform conflicts with strip_option"));
+                        // }
+                        self.transform = Some(parse_transform_closure(assign.left.span(), &assign.right)?);
                         Ok(())
                     }
                     _ => Err(Error::new_spanned(&assign, format!("Unknown parameter {:?}", name))),
@@ -243,14 +248,15 @@ impl SetterSettings {
             syn::Expr::Path(path) => {
                 let name = path_to_single_string(&path.path).ok_or_else(|| Error::new_spanned(&path, "Expected identifier"))?;
                 macro_rules! handle_fields {
-                    ( $( $flag:expr, $field:ident, $already:expr; )* ) => {
+                    ( $( $flag:expr, $field:ident, $already:expr, $checks:expr; )* ) => {
                         match name.as_str() {
                             $(
                                 $flag => {
-                                    if self.$field {
+                                    if self.$field.is_some() {
                                         Err(Error::new(path.span(), concat!("Illegal setting - field is already ", $already)))
                                     } else {
-                                        self.$field = true;
+                                        $checks;
+                                        self.$field = Some(path.span());
                                         Ok(())
                                     }
                                 }
@@ -263,9 +269,15 @@ impl SetterSettings {
                     }
                 }
                 handle_fields!(
-                    "skip", skip, "skipped";
-                    "into", auto_into, "calling into() on the argument";
-                    "strip_option", strip_option, "putting the argument in Some(...)";
+                    "skip", skip, "skipped", {};
+                    "into", auto_into, "calling into() on the argument", {};
+                    "strip_option", strip_option, "putting the argument in Some(...)", {
+                        // if self.transform.is_some() {
+                            // let mut error = Error::new(path.span(), "Illegal setting - strip_option conflicts with transform");
+                            // error.combine(Error::new(self.transform.as_ref().unwrap().body.span(), "yup"));
+                            // return Err(error);
+                        // }
+                    };
                 )
             }
             syn::Expr::Unary(syn::ExprUnary {
@@ -282,15 +294,15 @@ impl SetterSettings {
                             Ok(())
                         }
                         "skip" => {
-                            self.skip = false;
+                            self.skip = None;
                             Ok(())
                         }
                         "auto_into" => {
-                            self.auto_into = false;
+                            self.auto_into = None;
                             Ok(())
                         }
                         "strip_option" => {
-                            self.strip_option = false;
+                            self.strip_option = None;
                             Ok(())
                         }
                         _ => Err(Error::new_spanned(path, "Unknown setting".to_owned())),
@@ -308,9 +320,10 @@ impl SetterSettings {
 pub struct Transform {
     pub params: Vec<(syn::Pat, syn::Type)>,
     pub body: syn::Expr,
+    span: Span,
 }
 
-fn parse_transform_closure(expr: &syn::Expr) -> Result<Transform, Error> {
+fn parse_transform_closure(span: Span, expr: &syn::Expr) -> Result<Transform, Error> {
     let closure = match expr {
         syn::Expr::Closure(closure) => closure,
         _ => return Err(Error::new_spanned(expr, "Expected closure")),
@@ -319,23 +332,23 @@ fn parse_transform_closure(expr: &syn::Expr) -> Result<Transform, Error> {
         return Err(Error::new(kw.span, "Transform closure cannot be async"));
     }
     if let Some(kw) = &closure.capture {
-        return Err(Error::new(kw.span, "Transform closure cannot capture variables"));
+        return Err(Error::new(kw.span, "Transform closure cannot be move"));
     }
 
-    let inputs = &closure.inputs;
-    let mut params = Vec::new();
-    for input in inputs {
-        let param = match input {
-            syn::Pat::Type(pat_type) => (syn::Pat::clone(&pat_type.pat), syn::Type::clone(&pat_type.ty)),
-            _ => return Err(Error::new_spanned(input, "Transform closure must explicitly declare types")),
-        };
-        params.push(param);
-    }
+    let params = closure
+        .inputs
+        .iter()
+        .map(|input| match input {
+            syn::Pat::Type(pat_type) => Ok((syn::Pat::clone(&pat_type.pat), syn::Type::clone(&pat_type.ty))),
+            _ => Err(Error::new_spanned(input, "Transform closure must explicitly declare types")),
+        })
+        .collect::<Result<Vec<_>, _>>()?;
 
     let body = &closure.body;
 
     Ok(Transform {
         params,
         body: syn::Expr::clone(body),
+        span,
     })
 }

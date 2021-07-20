@@ -23,7 +23,7 @@ pub struct StructInfo<'a> {
 
 impl<'a> StructInfo<'a> {
     pub fn included_fields(&self) -> impl Iterator<Item = &FieldInfo<'a>> {
-        self.fields.iter().filter(|f| !f.builder_attr.setter.skip)
+        self.fields.iter().filter(|f| f.builder_attr.setter.skip.is_none())
     }
 
     pub fn new(ast: &'a syn::DeriveInput, fields: impl Iterator<Item = &'a syn::Field>) -> Result<StructInfo<'a>, Error> {
@@ -268,7 +268,7 @@ impl<'a> StructInfo<'a> {
 
         // NOTE: both auto_into and strip_option affect `arg_type` and `arg_expr`, but the order of
         // nesting is different so we have to do this little dance.
-        let arg_type = if field.builder_attr.setter.strip_option && field.builder_attr.setter.transform.is_none() {
+        let arg_type = if field.builder_attr.setter.strip_option.is_some() && field.builder_attr.setter.transform.is_none() {
             let internal_type = field
                 .type_from_inside_option()
                 .ok_or_else(|| Error::new_spanned(&field_type, "can't `strip_option` - field is not `Option<...>`"))?;
@@ -276,7 +276,7 @@ impl<'a> StructInfo<'a> {
         } else {
             field_type
         };
-        let (arg_type, arg_expr) = if field.builder_attr.setter.auto_into {
+        let (arg_type, arg_expr) = if field.builder_attr.setter.auto_into.is_some() {
             (quote!(impl core::convert::Into<#arg_type>), quote!(#field_name.into()))
         } else {
             (quote!(#arg_type), quote!(#field_name))
@@ -286,7 +286,7 @@ impl<'a> StructInfo<'a> {
             let params = transform.params.iter().map(|(pat, ty)| quote!(#pat: #ty));
             let body = &transform.body;
             (quote!(#(#params),*), quote!({ #body }))
-        } else if field.builder_attr.setter.strip_option {
+        } else if field.builder_attr.setter.strip_option.is_some() {
             (quote!(#field_name: #arg_type), quote!(Some(#arg_expr)))
         } else {
             (quote!(#field_name: #arg_type), arg_expr)
@@ -498,7 +498,7 @@ impl<'a> StructInfo<'a> {
         let assignments = self.fields.iter().map(|field| {
             let name = &field.name;
             if let Some(ref default) = field.builder_attr.default {
-                if field.builder_attr.setter.skip {
+                if field.builder_attr.setter.skip.is_some() {
                     quote!(let #name = #default;)
                 } else {
                     quote!(let #name = #helper_trait_name::into_value(#name, || #default);)
