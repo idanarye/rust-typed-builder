@@ -1,5 +1,4 @@
 #![warn(clippy::pedantic)]
-#![allow(clippy::blacklisted_name, clippy::type_complexity)]
 
 use typed_builder::TypedBuilder;
 
@@ -528,5 +527,30 @@ fn test_builder_on_struct_with_keywords() {
                 r#enum: Some(()),
                 r#union: "two".to_owned(),
             }
+    );
+}
+
+#[test]
+fn test_field_setter_transform() {
+    #[derive(PartialEq)]
+    struct Point {
+        x: i32,
+        y: i32,
+    }
+
+    #[derive(PartialEq, TypedBuilder)]
+    struct Foo {
+        #[builder(setter(transform = |x: i32, y: i32| Point { x, y }))]
+        point: Point,
+    }
+
+    assert!(
+        Foo::builder().point(1, 2).build()
+        == Foo {
+            point: Point {
+                x: 1,
+                y: 2,
+            }
+        }
     );
 }
