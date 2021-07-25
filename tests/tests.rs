@@ -253,6 +253,7 @@ fn test_builder_name() {
     #[derive(TypedBuilder)]
     struct Foo {}
 
+    let _: FooBuilder = Foo::builder();
     let _: FooBuilder<_> = Foo::builder();
 }
 
