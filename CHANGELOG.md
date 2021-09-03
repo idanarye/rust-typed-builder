@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Fixed
 - Add `extern crate proc_macro;` to solve some weird problem (https://github.com/idanarye/rust-typed-builder/issues/57)
+- Use unambiguous `::` prefixed absolute paths in generated code.
 
 ## 0.9.0 - 2021-01-31
 ### Added

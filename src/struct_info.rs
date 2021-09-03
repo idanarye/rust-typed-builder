@@ -70,11 +70,11 @@ impl<'a> StructInfo<'a> {
         let phantom_generics = self.generics.params.iter().map(|param| match param {
             syn::GenericParam::Lifetime(lifetime) => {
                 let lifetime = &lifetime.lifetime;
-                quote!(core::marker::PhantomData<&#lifetime ()>)
+                quote!(::core::marker::PhantomData<&#lifetime ()>)
             }
             syn::GenericParam::Type(ty) => {
                 let ty = &ty.ident;
-                quote!(core::marker::PhantomData<#ty>)
+                quote!(::core::marker::PhantomData<#ty>)
             }
             syn::GenericParam::Const(_cnst) => {
                 quote!()
@@ -277,7 +277,7 @@ impl<'a> StructInfo<'a> {
             field_type
         };
         let (arg_type, arg_expr) = if field.builder_attr.setter.auto_into.is_some() {
-            (quote!(impl core::convert::Into<#arg_type>), quote!(#field_name.into()))
+            (quote!(impl ::core::convert::Into<#arg_type>), quote!(#field_name.into()))
         } else {
             (quote!(#arg_type), quote!(#field_name))
         };
