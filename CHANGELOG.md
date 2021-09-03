@@ -6,6 +6,9 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+### Fixed
+- Add `extern crate proc_macro;` to solve some weird problem (https://github.com/idanarye/rust-typed-builder/issues/57)
+
 ## 0.9.0 - 2021-01-31
 ### Added
 - Builder type implements `Clone` when all set fields support clone.

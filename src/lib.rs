@@ -1,3 +1,5 @@
+extern crate proc_macro; // Needed even though it's the 2018 edition. See https://github.com/idanarye/rust-typed-builder/issues/57.
+
 use proc_macro2::TokenStream;
 
 use syn::parse::Error;
