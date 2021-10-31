@@ -147,7 +147,7 @@ mod util;
 ///
 ///   - `transform = |param1: Type1, param2: Type2 ...| expr`: this makes the setter accept
 ///     `param1: Type1, param2: Type2 ...` instead of the field type itself. The parameters are
-///     transformed into the field type using the expression `expr`. The transormation is performed
+///     transformed into the field type using the expression `expr`. The transformation is performed
 ///     when the setter is called.
 #[proc_macro_derive(TypedBuilder, attributes(builder))]
 pub fn derive_typed_builder(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
