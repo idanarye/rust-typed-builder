@@ -23,7 +23,8 @@ impl<'a> FieldInfo<'a> {
                 generic_ident: syn::Ident::new(&format!("__{}", strip_raw_ident_prefix(name.to_string())), Span::call_site()),
                 ty: &field.ty,
                 builder_attr: field_defaults.with(&field.attrs)?,
-            }.post_process()
+            }
+            .post_process()
         } else {
             Err(Error::new(field.span(), "Nameless field in struct"))
         }
@@ -77,7 +78,10 @@ impl<'a> FieldInfo<'a> {
     fn post_process(mut self) -> Result<Self, Error> {
         if let Some(ref strip_bool_span) = self.builder_attr.setter.strip_bool {
             if let Some(default_span) = self.builder_attr.default.as_ref().map(|d| d.span()) {
-                let mut error = Error::new(*strip_bool_span, "cannot set both strip_bool and default - default is assumed to be false");
+                let mut error = Error::new(
+                    *strip_bool_span,
+                    "cannot set both strip_bool and default - default is assumed to be false",
+                );
                 error.combine(Error::new(default_span, "default set here"));
                 return Err(error);
             }
@@ -239,14 +243,21 @@ impl FieldBuilderAttr {
             ("strip_option", self.setter.strip_option.as_ref()),
             ("strip_bool", self.setter.strip_bool.as_ref()),
         ];
-        let mut conflicting_transformations = conflicting_transformations.iter().filter_map(|(caption, span)| {
-            span.map(|span| (caption, span))
-        }).collect::<Vec<_>>();
+        let mut conflicting_transformations = conflicting_transformations
+            .iter()
+            .filter_map(|(caption, span)| span.map(|span| (caption, span)))
+            .collect::<Vec<_>>();
 
         if 1 < conflicting_transformations.len() {
             let (first_caption, first_span) = conflicting_transformations.pop().unwrap();
-            let conflicting_captions = conflicting_transformations.iter().map(|(caption, _)| **caption).collect::<Vec<_>>();
-            let mut error = Error::new(*first_span, format_args!("{} conflicts with {}", first_caption, conflicting_captions.join(", ")));
+            let conflicting_captions = conflicting_transformations
+                .iter()
+                .map(|(caption, _)| **caption)
+                .collect::<Vec<_>>();
+            let mut error = Error::new(
+                *first_span,
+                format_args!("{} conflicts with {}", first_caption, conflicting_captions.join(", ")),
+            );
             for (caption, span) in conflicting_transformations {
                 error.combine(Error::new(*span, format_args!("{} set here", caption)));
             }
