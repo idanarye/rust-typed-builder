@@ -145,6 +145,9 @@ mod util;
 ///     one cannot set the field to `None` with the setter - so the only way to get it to be `None`
 ///     is by using `#[builder(default)]` and not calling the field's setter.
 ///
+///   - `strip_bool`: for `bool` fields only, this makes the setter receive no arguments and simply
+///     set the field's value to `true`. When used, the `default` is automatically set to `false`.
+///
 ///   - `transform = |param1: Type1, param2: Type2 ...| expr`: this makes the setter accept
 ///     `param1: Type1, param2: Type2 ...` instead of the field type itself. The parameters are
 ///     transformed into the field type using the expression `expr`. The transformation is performed

@@ -17,13 +17,13 @@ pub struct FieldInfo<'a> {
 impl<'a> FieldInfo<'a> {
     pub fn new(ordinal: usize, field: &syn::Field, field_defaults: FieldBuilderAttr) -> Result<FieldInfo, Error> {
         if let Some(ref name) = field.ident {
-            Ok(FieldInfo {
+            FieldInfo {
                 ordinal,
                 name: &name,
                 generic_ident: syn::Ident::new(&format!("__{}", strip_raw_ident_prefix(name.to_string())), Span::call_site()),
                 ty: &field.ty,
                 builder_attr: field_defaults.with(&field.attrs)?,
-            })
+            }.post_process()
         } else {
             Err(Error::new(field.span(), "Nameless field in struct"))
         }
@@ -73,6 +73,24 @@ impl<'a> FieldInfo<'a> {
             None
         }
     }
+
+    fn post_process(mut self) -> Result<Self, Error> {
+        if let Some(ref strip_bool_span) = self.builder_attr.setter.strip_bool {
+            if let Some(default_span) = self.builder_attr.default.as_ref().map(|d| d.span()) {
+                let mut error = Error::new(*strip_bool_span, "cannot set both strip_bool and default - default is assumed to be false");
+                error.combine(Error::new(default_span, "default set here"));
+                return Err(error);
+            }
+            self.builder_attr.default = Some(syn::Expr::Lit(syn::ExprLit {
+                attrs: Default::default(),
+                lit: syn::Lit::Bool(syn::LitBool {
+                    value: false,
+                    span: *strip_bool_span,
+                }),
+            }));
+        }
+        Ok(self)
+    }
 }
 
 #[derive(Debug, Default, Clone)]
@@ -87,6 +105,7 @@ pub struct SetterSettings {
     pub skip: Option<Span>,
     pub auto_into: Option<Span>,
     pub strip_option: Option<Span>,
+    pub strip_bool: Option<Span>,
     pub transform: Option<Transform>,
 }
 
@@ -215,9 +234,22 @@ impl FieldBuilderAttr {
             ));
         }
 
-        if let (Some(strip_option), Some(transform)) = (&self.setter.strip_option, &self.setter.transform) {
-            let mut error = Error::new(transform.span, "transform conflicts with strip_option");
-            error.combine(Error::new(*strip_option, "strip_option set here"));
+        let conflicting_transformations = [
+            ("transform", self.setter.transform.as_ref().map(|t| &t.span)),
+            ("strip_option", self.setter.strip_option.as_ref()),
+            ("strip_bool", self.setter.strip_bool.as_ref()),
+        ];
+        let mut conflicting_transformations = conflicting_transformations.iter().filter_map(|(caption, span)| {
+            span.map(|span| (caption, span))
+        }).collect::<Vec<_>>();
+
+        if 1 < conflicting_transformations.len() {
+            let (first_caption, first_span) = conflicting_transformations.pop().unwrap();
+            let conflicting_captions = conflicting_transformations.iter().map(|(caption, _)| **caption).collect::<Vec<_>>();
+            let mut error = Error::new(*first_span, format_args!("{} conflicts with {}", first_caption, conflicting_captions.join(", ")));
+            for (caption, span) in conflicting_transformations {
+                error.combine(Error::new(*span, format_args!("{} set here", caption)));
+            }
             return Err(error);
         }
         Ok(())
@@ -236,9 +268,6 @@ impl SetterSettings {
                         Ok(())
                     }
                     "transform" => {
-                        // if self.strip_option.is_some() {
-                        // return Err(Error::new(assign.span(), "Illegal setting - transform conflicts with strip_option"));
-                        // }
                         self.transform = Some(parse_transform_closure(assign.left.span(), &assign.right)?);
                         Ok(())
                     }
@@ -271,13 +300,8 @@ impl SetterSettings {
                 handle_fields!(
                     "skip", skip, "skipped", {};
                     "into", auto_into, "calling into() on the argument", {};
-                    "strip_option", strip_option, "putting the argument in Some(...)", {
-                        // if self.transform.is_some() {
-                            // let mut error = Error::new(path.span(), "Illegal setting - strip_option conflicts with transform");
-                            // error.combine(Error::new(self.transform.as_ref().unwrap().body.span(), "yup"));
-                            // return Err(error);
-                        // }
-                    };
+                    "strip_option", strip_option, "putting the argument in Some(...)", {};
+                    "strip_bool", strip_bool, "zero arguments setter, sets the field to true", {};
                 )
             }
             syn::Expr::Unary(syn::ExprUnary {
@@ -303,6 +327,10 @@ impl SetterSettings {
                         }
                         "strip_option" => {
                             self.strip_option = None;
+                            Ok(())
+                        }
+                        "strip_bool" => {
+                            self.strip_bool = None;
                             Ok(())
                         }
                         _ => Err(Error::new_spanned(path, "Unknown setting".to_owned())),

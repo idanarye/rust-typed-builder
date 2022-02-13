@@ -100,6 +100,18 @@ fn test_into_with_strip_option() {
 }
 
 #[test]
+fn test_strip_bool() {
+    #[derive(PartialEq, TypedBuilder)]
+    struct Foo {
+        #[builder(setter(into, strip_bool))]
+        x: bool,
+    }
+
+    assert!(Foo::builder().x().build() == Foo { x: true });
+    assert!(Foo::builder().build() == Foo { x: false });
+}
+
+#[test]
 fn test_default() {
     #[derive(PartialEq, TypedBuilder)]
     struct Foo {

@@ -282,7 +282,9 @@ impl<'a> StructInfo<'a> {
             (quote!(#arg_type), quote!(#field_name))
         };
 
-        let (param_list, arg_expr) = if let Some(transform) = &field.builder_attr.setter.transform {
+        let (param_list, arg_expr) = if field.builder_attr.setter.strip_bool.is_some() {
+            (quote!(), quote!(true))
+        } else if let Some(transform) = &field.builder_attr.setter.transform {
             let params = transform.params.iter().map(|(pat, ty)| quote!(#pat: #ty));
             let body = &transform.body;
             (quote!(#(#params),*), quote!({ #body }))
