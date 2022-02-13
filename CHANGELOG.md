@@ -6,6 +6,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+## 0.10.0 - 2022-02-13
 ### Added
 - `#[builder(setter(strip_option))]` for making zero arguments setters for `bool` fields that just
   set them to `true` (the `default` automatically becomes `false`)
