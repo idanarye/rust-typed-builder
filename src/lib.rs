@@ -165,9 +165,9 @@ fn impl_my_derive(ast: &syn::DeriveInput) -> Result<TokenStream, Error> {
     let data = match &ast.data {
         syn::Data::Struct(data) => match &data.fields {
             syn::Fields::Named(fields) => {
-                let struct_info = struct_info::StructInfo::new(&ast, fields.named.iter())?;
+                let struct_info = struct_info::StructInfo::new(ast, fields.named.iter())?;
                 let builder_creation = struct_info.builder_creation_impl()?;
-                let conversion_helper = struct_info.conversion_helper_impl()?;
+                let conversion_helper = struct_info.conversion_helper_impl();
                 let fields = struct_info
                     .included_fields()
                     .map(|f| struct_info.field_impl(f))
@@ -177,7 +177,7 @@ fn impl_my_derive(ast: &syn::DeriveInput) -> Result<TokenStream, Error> {
                     .included_fields()
                     .filter(|f| f.builder_attr.default.is_none())
                     .map(|f| struct_info.required_field_impl(f))
-                    .collect::<Result<Vec<_>, _>>()?;
+                    .collect::<Vec<_>>();
                 let build_method = struct_info.build_method_impl();
 
                 quote! {

@@ -19,7 +19,7 @@ impl<'a> FieldInfo<'a> {
         if let Some(ref name) = field.ident {
             FieldInfo {
                 ordinal,
-                name: &name,
+                name,
                 generic_ident: syn::Ident::new(&format!("__{}", strip_raw_ident_prefix(name.to_string())), Span::call_site()),
                 ty: &field.ty,
                 builder_attr: field_defaults.with(&field.attrs)?,
@@ -53,9 +53,8 @@ impl<'a> FieldInfo<'a> {
         let path = if let syn::Type::Path(type_path) = self.ty {
             if type_path.qself.is_some() {
                 return None;
-            } else {
-                &type_path.path
             }
+            &type_path.path
         } else {
             return None;
         };
@@ -77,7 +76,7 @@ impl<'a> FieldInfo<'a> {
 
     fn post_process(mut self) -> Result<Self, Error> {
         if let Some(ref strip_bool_span) = self.builder_attr.setter.strip_bool {
-            if let Some(default_span) = self.builder_attr.default.as_ref().map(|d| d.span()) {
+            if let Some(default_span) = self.builder_attr.default.as_ref().map(Spanned::span) {
                 let mut error = Error::new(
                     *strip_bool_span,
                     "cannot set both strip_bool and default - default is assumed to be false",
@@ -130,7 +129,7 @@ impl FieldBuilderAttr {
                     self.apply_meta(*body.expr)?;
                 }
                 syn::Expr::Tuple(body) => {
-                    for expr in body.elems.into_iter() {
+                    for expr in body.elems {
                         self.apply_meta(expr)?;
                     }
                 }
