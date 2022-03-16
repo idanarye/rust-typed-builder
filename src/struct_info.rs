@@ -80,47 +80,45 @@ impl<'a> StructInfo<'a> {
                 quote!()
             }
         });
-        let builder_method_doc = match self.builder_attr.builder_method_doc {
-            Some(ref doc) => quote!(#doc),
-            None => {
-                let doc = format!(
-                    "
+        let builder_method_doc = if let Some(ref doc) = self.builder_attr.builder_method_doc {
+            quote!(#doc)
+        } else {
+            let doc = format!(
+                "
                     Create a builder for building `{name}`.
                     On the builder, call {setters} to set the values of the fields.
                     Finally, call `.build()` to create the instance of `{name}`.
                     ",
-                    name = self.name,
-                    setters = {
-                        let mut result = String::new();
-                        let mut is_first = true;
-                        for field in self.included_fields() {
-                            use std::fmt::Write;
-                            if is_first {
-                                is_first = false;
-                            } else {
-                                write!(&mut result, ", ").unwrap();
-                            }
-                            write!(&mut result, "`.{}(...)`", field.name).unwrap();
-                            if field.builder_attr.default.is_some() {
-                                write!(&mut result, "(optional)").unwrap();
-                            }
+                name = self.name,
+                setters = {
+                    let mut result = String::new();
+                    let mut is_first = true;
+                    for field in self.included_fields() {
+                        use std::fmt::Write;
+                        if is_first {
+                            is_first = false;
+                        } else {
+                            write!(&mut result, ", ").unwrap();
                         }
-                        result
+                        write!(&mut result, "`.{}(...)`", field.name).unwrap();
+                        if field.builder_attr.default.is_some() {
+                            write!(&mut result, "(optional)").unwrap();
+                        }
                     }
-                );
-                quote!(#doc)
-            }
+                    result
+                }
+            );
+            quote!(#doc)
         };
         let builder_type_doc = if self.builder_attr.doc {
-            match self.builder_attr.builder_type_doc {
-                Some(ref doc) => quote!(#[doc = #doc]),
-                None => {
-                    let doc = format!(
-                        "Builder for [`{name}`] instances.\n\nSee [`{name}::builder()`] for more info.",
-                        name = name
-                    );
-                    quote!(#[doc = #doc])
-                }
+            if let Some(ref doc) = self.builder_attr.builder_type_doc {
+                quote!(#[doc = #doc])
+            } else {
+                let doc = format!(
+                    "Builder for [`{name}`] instances.\n\nSee [`{name}::builder()`] for more info.",
+                    name = name
+                );
+                quote!(#[doc = #doc])
             }
         } else {
             quote!(#[doc(hidden)])
@@ -168,9 +166,9 @@ impl<'a> StructInfo<'a> {
 
     // TODO: once the proc-macro crate limitation is lifted, make this an util trait of this
     // crate.
-    pub fn conversion_helper_impl(&self) -> Result<TokenStream, Error> {
+    pub fn conversion_helper_impl(&self) -> TokenStream {
         let trait_name = &self.conversion_helper_trait_name;
-        Ok(quote! {
+        quote! {
             #[doc(hidden)]
             #[allow(dead_code, non_camel_case_types, non_snake_case)]
             pub trait #trait_name<T> {
@@ -188,7 +186,7 @@ impl<'a> StructInfo<'a> {
                     self.0
                 }
             }
-        })
+        }
     }
 
     pub fn field_impl(&self, field: &FieldInfo) -> Result<TokenStream, Error> {
@@ -206,7 +204,7 @@ impl<'a> StructInfo<'a> {
 
         let &FieldInfo {
             name: ref field_name,
-            ty: ref field_type,
+            ty: field_type,
             ..
         } = field;
         let mut ty_generics: Vec<syn::GenericArgument> = self
@@ -333,7 +331,7 @@ impl<'a> StructInfo<'a> {
         })
     }
 
-    pub fn required_field_impl(&self, field: &FieldInfo) -> Result<TokenStream, Error> {
+    pub fn required_field_impl(&self, field: &FieldInfo) -> TokenStream {
         let StructInfo {
             ref name,
             ref builder_name,
@@ -416,7 +414,7 @@ impl<'a> StructInfo<'a> {
         );
         let early_build_error_message = format!("Missing required field {}", field_name);
 
-        Ok(quote! {
+        quote! {
             #[doc(hidden)]
             #[allow(dead_code, non_camel_case_types, non_snake_case)]
             pub enum #early_build_error_type_name {}
@@ -430,7 +428,7 @@ impl<'a> StructInfo<'a> {
                     panic!();
                 }
             }
-        })
+        }
     }
 
     pub fn build_method_impl(&self) -> TokenStream {
@@ -511,14 +509,13 @@ impl<'a> StructInfo<'a> {
         });
         let field_names = self.fields.iter().map(|field| field.name);
         let doc = if self.builder_attr.doc {
-            match self.builder_attr.build_method_doc {
-                Some(ref doc) => quote!(#[doc = #doc]),
-                None => {
-                    // I'd prefer “a” or “an” to “its”, but determining which is grammatically
-                    // correct is roughly impossible.
-                    let doc = format!("Finalise the builder and create its [`{}`] instance", name);
-                    quote!(#[doc = #doc])
-                }
+            if let Some(ref doc) = self.builder_attr.build_method_doc {
+                quote!(#[doc = #doc])
+            } else {
+                // I'd prefer “a” or “an” to “its”, but determining which is grammatically
+                // correct is roughly impossible.
+                let doc = format!("Finalise the builder and create its [`{}`] instance", name);
+                quote!(#[doc = #doc])
             }
         } else {
             quote!()
@@ -560,8 +557,8 @@ pub struct TypeBuilderAttr {
 }
 
 impl TypeBuilderAttr {
-    pub fn new(attrs: &[syn::Attribute]) -> Result<TypeBuilderAttr, Error> {
-        let mut result = TypeBuilderAttr::default();
+    pub fn new(attrs: &[syn::Attribute]) -> Result<Self, Error> {
+        let mut result = Self::default();
         for attr in attrs {
             if path_to_single_string(&attr.path).as_deref() != Some("builder") {
                 continue;
@@ -577,7 +574,7 @@ impl TypeBuilderAttr {
                     result.apply_meta(*body.expr)?;
                 }
                 syn::Expr::Tuple(body) => {
-                    for expr in body.elems.into_iter() {
+                    for expr in body.elems {
                         result.apply_meta(expr)?;
                     }
                 }
