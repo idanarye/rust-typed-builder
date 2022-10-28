@@ -520,12 +520,17 @@ impl<'a> StructInfo<'a> {
         } else {
             quote!()
         };
+        let (access, build_method_name) = if self.builder_attr.private_build_method {
+            (quote!(pub(crate)), quote!(__build))
+        } else {
+            (quote!(pub), quote!(build))
+        };
         quote!(
             #[allow(dead_code, non_camel_case_types, missing_docs)]
             impl #impl_generics #builder_name #modified_ty_generics #where_clause {
                 #doc
                 #[allow(clippy::default_trait_access)]
-                pub fn build(self) -> #name #ty_generics {
+                #access fn #build_method_name(self) -> #name #ty_generics {
                     let ( #(#descructuring,)* ) = self.fields;
                     #( #assignments )*
                     #name {
@@ -541,6 +546,9 @@ impl<'a> StructInfo<'a> {
 pub struct TypeBuilderAttr {
     /// Whether to show docs for the `TypeBuilder` type (rather than hiding them).
     pub doc: bool,
+
+    /// Whether to generate a private `pub(crate) __build()` method instead of `pub build()` method
+    pub private_build_method: bool,
 
     /// Docs on the `Type::builder()` method.
     pub builder_method_doc: Option<syn::Expr>,
@@ -615,6 +623,10 @@ impl TypeBuilderAttr {
                 match name.as_str() {
                     "doc" => {
                         self.doc = true;
+                        Ok(())
+                    }
+                    "private_build_method" => {
+                        self.private_build_method = true;
                         Ok(())
                     }
                     _ => Err(Error::new_spanned(&path, format!("Unknown parameter {:?}", name))),
