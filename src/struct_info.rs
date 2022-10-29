@@ -592,7 +592,7 @@ pub struct TypeBuilderAttr {
     /// Whether to show docs for the `TypeBuilder` type (rather than hiding them).
     pub doc: bool,
 
-    /// Customize build method, ex. visitability, name
+    /// Customize build method, ex. visibility, name
     pub build_method: BuildMethodSettings,
 
     /// Docs on the `Type::builder()` method.
