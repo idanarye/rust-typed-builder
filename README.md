@@ -50,6 +50,7 @@ Foo::builder().x(1).y(2).y(3); // y is specified twice
 * Compile time verification that no field is set more than once.
 * Ability to annotate fields with `#[builder(default)]` to make them optional and specify a default value when the user does not set them.
 * Generates simple documentation for the `.builder()` method.
+* Customizable method name and visibility of the `.build()` method.
 
 ## Limitations
 

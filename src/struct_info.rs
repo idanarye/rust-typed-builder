@@ -520,12 +520,27 @@ impl<'a> StructInfo<'a> {
         } else {
             quote!()
         };
+
+        let build_method_name = self
+            .builder_attr
+            .build_method
+            .name
+            .as_ref()
+            .map(|name| quote!(#name))
+            .unwrap_or(quote!(build));
+        let visibility = self
+            .builder_attr
+            .build_method
+            .vis
+            .as_ref()
+            .map(|v| quote!(#v))
+            .unwrap_or(quote!(pub));
         quote!(
             #[allow(dead_code, non_camel_case_types, missing_docs)]
             impl #impl_generics #builder_name #modified_ty_generics #where_clause {
                 #doc
                 #[allow(clippy::default_trait_access)]
-                pub fn build(self) -> #name #ty_generics {
+                #visibility fn #build_method_name(self) -> #name #ty_generics {
                     let ( #(#descructuring,)* ) = self.fields;
                     #( #assignments )*
                     #name {
@@ -537,10 +552,48 @@ impl<'a> StructInfo<'a> {
     }
 }
 
+#[derive(Debug, Default, Clone)]
+pub struct BuildMethodSettings {
+    pub vis: Option<syn::Visibility>,
+    pub name: Option<syn::Expr>,
+}
+impl BuildMethodSettings {
+    fn apply_meta(&mut self, expr: syn::Expr) -> Result<(), Error> {
+        match expr {
+            syn::Expr::Assign(assign) => {
+                let name =
+                    expr_to_single_string(&assign.left).ok_or_else(|| Error::new_spanned(&assign.left, "Expected identifier"))?;
+                match name.as_str() {
+                    "vis" => {
+                        if let syn::Expr::Lit(expr_lit) = &*assign.right {
+                            if let syn::Lit::Str(ref s) = expr_lit.lit {
+                                self.vis = Some(syn::parse_str(&s.value()).expect("invalid visibility found"));
+                            }
+                        }
+                        if self.vis.is_none() {
+                            panic!("invalid visibility found")
+                        }
+                        Ok(())
+                    }
+                    "name" => {
+                        self.name = Some(*assign.right);
+                        Ok(())
+                    }
+                    _ => Err(Error::new_spanned(&assign, format!("Unknown parameter {:?}", name))),
+                }
+            }
+            _ => Err(Error::new_spanned(expr, "Expected (<...>=<...>)")),
+        }
+    }
+}
+
 #[derive(Debug, Default)]
 pub struct TypeBuilderAttr {
     /// Whether to show docs for the `TypeBuilder` type (rather than hiding them).
     pub doc: bool,
+
+    /// Customize build method, ex. visibility, name
+    pub build_method: BuildMethodSettings,
 
     /// Docs on the `Type::builder()` method.
     pub builder_method_doc: Option<syn::Expr>,
@@ -635,6 +688,12 @@ impl TypeBuilderAttr {
                     "field_defaults" => {
                         for arg in call.args {
                             self.field_defaults.apply_meta(arg)?;
+                        }
+                        Ok(())
+                    }
+                    "build_method" => {
+                        for arg in call.args {
+                            self.build_method.apply_meta(arg)?;
                         }
                         Ok(())
                     }

@@ -563,3 +563,14 @@ fn test_field_setter_transform() {
             }
     );
 }
+
+#[test]
+fn test_build_method() {
+    #[derive(PartialEq, TypedBuilder)]
+    #[builder(build_method(vis="", name=__build))]
+    struct Foo {
+        x: i32,
+    }
+
+    assert!(Foo::builder().x(1).__build() == Foo { x: 1 });
+}
