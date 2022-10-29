@@ -74,6 +74,10 @@ mod util;
 ///   but it won't be a link. If you turn this on, the builder type and its `build` method will get
 ///   sane defaults. The field methods on the builder will be undocumented by default.
 ///
+/// - `build_method(...)`: customize the final build method
+///   - `vis = "…"`: sets the visibility of the build method, default is `pub`
+///   - `name = …`: sets the fn name of the build method, default is `build`
+///
 /// - `builder_method_doc = "…"` replaces the default documentation that will be generated for the
 ///   `builder()` method of the type for which the builder is being generated.
 ///
