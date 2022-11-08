@@ -124,6 +124,13 @@ impl<'a> StructInfo<'a> {
             quote!(#[doc(hidden)])
         };
 
+        let mut b_decl_generics = b_generics.clone();
+        for param in &mut b_decl_generics.params {
+            if let syn::GenericParam::Type(ref mut param) = param {
+                param.default = Some(empties_tuple.clone().into());
+            }
+        }
+
         let (b_generics_impl, b_generics_ty, b_generics_where_extras_predicates) = b_generics.split_for_impl();
         let mut b_generics_where: syn::WhereClause = syn::parse2(quote! {
             where TypedBuilderFields: Clone
@@ -147,7 +154,7 @@ impl<'a> StructInfo<'a> {
             #[must_use]
             #builder_type_doc
             #[allow(dead_code, non_camel_case_types, non_snake_case)]
-            #vis struct #builder_name #b_generics {
+            #vis struct #builder_name #b_decl_generics {
                 fields: #all_fields_param,
                 phantom: (#( #phantom_generics ),*),
             }
