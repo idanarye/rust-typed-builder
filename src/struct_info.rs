@@ -1,11 +1,12 @@
-use proc_macro2::TokenStream;
-use quote::quote;
-use syn::parse::Error;
+use proc_macro2::{Span, TokenStream};
+use quote::{quote, quote_spanned, ToTokens};
+use std::fmt::Write;
+use syn::{parse::Error, spanned::Spanned};
 
-use crate::field_info::{FieldBuilderAttr, FieldInfo};
+use crate::field_info::{Configured, ExtendField, FieldBuilderAttr, FieldInfo, SetterSettings};
 use crate::util::{
-    empty_type, empty_type_tuple, expr_to_single_string, make_punctuated_single, modify_types_generics_hack,
-    path_to_single_string, strip_raw_ident_prefix, type_tuple,
+    empty_type, empty_type_tuple, expr_to_single_string, make_punctuated_single, path_to_single_string, strip_raw_ident_prefix,
+    try_modify_types_generics_hack, type_tuple,
 };
 
 #[derive(Debug)]
@@ -50,6 +51,15 @@ impl<'a> StructInfo<'a> {
         generics
     }
 
+    fn try_modify_generics<F: FnMut(&mut syn::Generics) -> Result<(), Error>>(
+        &self,
+        mut mutator: F,
+    ) -> Result<syn::Generics, Error> {
+        let mut generics = self.generics.clone();
+        mutator(&mut generics)?;
+        Ok(generics)
+    }
+
     pub fn builder_creation_impl(&self) -> Result<TokenStream, Error> {
         let StructInfo {
             ref vis,
@@ -64,9 +74,10 @@ impl<'a> StructInfo<'a> {
             g.params.insert(0, all_fields_param.clone());
         });
         let empties_tuple = type_tuple(self.included_fields().map(|_| empty_type()));
-        let generics_with_empty = modify_types_generics_hack(&ty_generics, |args| {
+        let generics_with_empty = try_modify_types_generics_hack(&ty_generics, |args| {
             args.insert(0, syn::GenericArgument::Type(empties_tuple.clone().into()));
-        });
+            Ok(())
+        })?;
         let phantom_generics = self.generics.params.iter().map(|param| match param {
             syn::GenericParam::Lifetime(lifetime) => {
                 let lifetime = &lifetime.lifetime;
@@ -173,10 +184,14 @@ impl<'a> StructInfo<'a> {
             #[allow(dead_code, non_camel_case_types, non_snake_case)]
             pub trait #trait_name<T> {
                 fn into_value<F: FnOnce() -> T>(self, default: F) -> T;
+                fn into_some_or_else<F: FnOnce() -> ::core::option::Option<T>>(self, default: F) -> ::core::option::Option<T>;
             }
 
             impl<T> #trait_name<T> for () {
                 fn into_value<F: FnOnce() -> T>(self, default: F) -> T {
+                    default()
+                }
+                fn into_some_or_else<F: FnOnce() -> ::core::option::Option<T>>(self, default: F) -> ::core::option::Option<T> {
                     default()
                 }
             }
@@ -184,6 +199,10 @@ impl<'a> StructInfo<'a> {
             impl<T> #trait_name<T> for (T,) {
                 fn into_value<F: FnOnce() -> T>(self, _: F) -> T {
                     self.0
+                }
+
+                fn into_some_or_else<F: FnOnce() -> ::core::option::Option<T>>(self, _: F) -> ::core::option::Option<T> {
+                    ::core::option::Option::Some(self.0)
                 }
             }
         }
@@ -225,7 +244,7 @@ impl<'a> StructInfo<'a> {
             .collect();
         let mut target_generics_tuple = empty_type_tuple();
         let mut ty_generics_tuple = empty_type_tuple();
-        let generics = self.modify_generics(|g| {
+        let generics = self.try_modify_generics(|g| {
             let index_after_lifetime_in_generics = g
                 .params
                 .iter()
@@ -234,7 +253,7 @@ impl<'a> StructInfo<'a> {
             for f in self.included_fields() {
                 if f.ordinal == field.ordinal {
                     ty_generics_tuple.elems.push_value(empty_type());
-                    target_generics_tuple.elems.push_value(f.tuplized_type_ty_param());
+                    target_generics_tuple.elems.push_value(f.tuplized_type_ty_param()?);
                 } else {
                     g.params.insert(index_after_lifetime_in_generics, f.generic_ty_param());
                     let generic_argument: syn::Type = f.type_ident();
@@ -244,7 +263,8 @@ impl<'a> StructInfo<'a> {
                 ty_generics_tuple.elems.push_punct(Default::default());
                 target_generics_tuple.elems.push_punct(Default::default());
             }
-        });
+            Ok(())
+        })?;
         let mut target_generics = ty_generics.clone();
         let index_after_lifetime_in_generics = target_generics
             .iter()
@@ -264,74 +284,257 @@ impl<'a> StructInfo<'a> {
             None => quote!(),
         };
 
-        // NOTE: both auto_into and strip_option affect `arg_type` and `arg_expr`, but the order of
-        // nesting is different so we have to do this little dance.
-        let arg_type = if field.builder_attr.setter.strip_option.is_some() && field.builder_attr.setter.transform.is_none() {
-            let internal_type = field
-                .type_from_inside_option()
-                .ok_or_else(|| Error::new_spanned(&field_type, "can't `strip_option` - field is not `Option<...>`"))?;
-            internal_type
-        } else {
-            field_type
-        };
-        let (arg_type, arg_expr) = if field.builder_attr.setter.auto_into.is_some() {
-            (quote!(impl ::core::convert::Into<#arg_type>), quote!(#field_name.into()))
-        } else {
-            (quote!(#arg_type), quote!(#field_name))
-        };
+        if let Some(ExtendField {
+            keyword_span,
+            from_first,
+            from_iter,
+            item_name: _,
+        }) = &field.builder_attr.setter.extend
+        {
+            // Changing the builder field type entirely here (instead of just the argument) means there
+            // won't be a need to unwrap an `Option` in every repeat field setter call.
+            let field_type = if field.builder_attr.setter.strip_option.is_some() {
+                let internal_type = field.type_from_inside_option()?;
+                internal_type
+            } else {
+                field_type
+            };
 
-        let (param_list, arg_expr) = if field.builder_attr.setter.strip_bool.is_some() {
-            (quote!(), quote!(true))
-        } else if let Some(transform) = &field.builder_attr.setter.transform {
-            let params = transform.params.iter().map(|(pat, ty)| quote!(#pat: #ty));
-            let body = &transform.body;
-            (quote!(#(#params),*), quote!({ #body }))
-        } else if field.builder_attr.setter.strip_option.is_some() {
-            (quote!(#field_name: #arg_type), quote!(Some(#arg_expr)))
-        } else {
-            (quote!(#field_name: #arg_type), arg_expr)
-        };
+            let item_name = syn::Ident::new(&field.item_name(), field.name.span());
 
-        let repeated_fields_error_type_name = syn::Ident::new(
-            &format!(
-                "{}_Error_Repeated_field_{}",
-                builder_name,
-                strip_raw_ident_prefix(field_name.to_string())
-            ),
-            proc_macro2::Span::call_site(),
-        );
-        let repeated_fields_error_message = format!("Repeated field {}", field_name);
+            let descructuring = descructuring.collect::<Vec<_>>();
+            let reconstructing = reconstructing.collect::<Vec<_>>();
 
-        Ok(quote! {
-            #[allow(dead_code, non_camel_case_types, missing_docs)]
-            impl #impl_generics #builder_name < #( #ty_generics ),* > #where_clause {
-                #doc
-                pub fn #field_name (self, #param_list) -> #builder_name < #( #target_generics ),* > {
-                    let #field_name = (#arg_expr,);
-                    let ( #(#descructuring,)* ) = self.fields;
-                    #builder_name {
-                        fields: ( #(#reconstructing,)* ),
-                        phantom: self.phantom,
+            let from_first = from_first
+                .clone()
+                .into_configured(|span| {
+                    syn::parse2(quote_spanned! {span.resolved_at(Span::mixed_site())=>
+                        |first| ::core::iter::once(first).collect()
+                    })
+                    .expect("extend from_first collect")
+                })
+                .map({
+                    |Configured { keyword_span, value }| {
+                    quote_spanned! {keyword_span.resolved_at(Span::mixed_site())=>
+                        #doc
+                        pub fn #item_name(self, #item_name: <#field_type as ::core::iter::IntoIterator>::Item) -> #builder_name<#(#target_generics),*> {
+                            let from_item = #value;
+                            let _: &dyn FnOnce(<#field_type as ::core::iter::IntoIterator>::Item) -> #field_type = &from_item;
+                            let #field_name: (#field_type,) = ((from_item)(#item_name),);
+                            let ( #(#descructuring,)* ) = self.fields;
+                            #builder_name {
+                                fields: ( #(#reconstructing,)* ),
+                                phantom: self.phantom,
+                            }
+                        }
+                    }
+                }});
+            let from_iter = from_iter.clone()
+            .into_configured(|span| {
+                syn::parse2(quote_spanned!(span.resolved_at(Span::mixed_site())=> |iter| iter.collect()))
+                    .expect("extend from_iter collect")
+            }).map(|Configured { keyword_span, value }| {
+                // A plain closure like `|iter| iter.collect()` would require a generic type annotation on the parameter type,
+                // which unfortunately isn't possible. This means the closure is repackaged as nested function.
+                let syn::ExprClosure {
+                    attrs,
+                    asyncness,
+                    movability,
+                    capture: _, // No locals are in scope here, so this doesn't matter.
+                    or1_token,
+                    inputs,
+                    or2_token,
+                    output,
+                    body,
+                } = value;
+
+                // A few error messages can be made much more direct on the way:
+
+                if let Some(asyncness) = asyncness {
+                    return Err(Error::new_spanned(asyncness, "Expected synchronous closure (Remove `async`)"))
+                }
+
+                if let Some(movability) = movability {
+                    return Err(Error::new_spanned(movability, "Expected movable closure (Remove `static`)"))
+                }
+
+                let input = match inputs.len() {
+                    0 => return Err(Error::new_spanned(quote!(#or1_token #or2_token), "Expected one argument")),
+                    1 => inputs.into_iter().next().unwrap(),
+                    _ => return Err(Error::new_spanned(inputs, "Expected only one argument")),
+                };
+
+                if let syn::Pat::Type(syn::PatType { colon_token, ty, .. }) = input {
+                    return Err(Error::new_spanned(quote!(#colon_token #ty), "Did not expect argument type, since it is set explicitly by the macro"))
+                }
+
+                // This is a bit roundabout. In short:
+                // Iff the closure has an explicit return type, and this return type mismatches the builder field type,
+                // then the "mismatched types" error is located on that explicit closure type rather than on `from_iter`.
+                let body = match output {
+                    syn::ReturnType::Default => {
+                        // Transforming this like below would bread the `unused_braces` warning on the closure body.
+                        body.into_token_stream()
+                    }
+                    syn::ReturnType::Type(arrow, ty) => {
+                        let colon = syn::Token![:](arrow.span());
+                        quote_spanned!{ty.span()=>
+                            let output#colon #ty = #body;
+                            output
+                        }
+                    }
+                };
+
+                let generics = self.modify_generics(|g| {
+                    g.params.push(syn::parse2(quote_spanned!{keyword_span.resolved_at(Span::mixed_site())=>
+                        __x: ::core::iter::Iterator<Item = <#field_type as ::core::iter::IntoIterator>::Item>
+                    }).expect("extend from_iter __x"))
+                });
+                let where_clause = generics.where_clause.as_ref();
+                let generics_for_function_generics = self.modify_generics(|g| {
+                    g.params.push(syn::GenericParam::Type(syn::TypeParam {
+                        attrs: vec![],
+                        ident: syn::Ident::new("_", keyword_span.resolved_at(Span::mixed_site())),
+                        colon_token: None,
+                        bounds: syn::punctuated::Punctuated::default(),
+                        eq_token: None,
+                        default: None,
+                    }))
+                });
+                let (_, type_generics, _) = generics_for_function_generics.split_for_impl();
+                let type_generics = type_generics.into_token_stream();
+                let function_generics = if type_generics.is_empty() {
+                    type_generics
+                } else {
+                    quote_spanned!(keyword_span.resolved_at(Span::mixed_site())=> ::#type_generics)
+                };
+
+                Ok(quote_spanned! {keyword_span.resolved_at(Span::mixed_site())=>
+                    #doc
+                    pub fn #field_name(self, #field_name: impl ::core::iter::IntoIterator<Item = <#field_type as ::core::iter::IntoIterator>::Item>) -> #builder_name<#(#target_generics),*> {
+                        #(#attrs)*
+                        #asyncness fn from_iter#generics(#input: __x) -> #field_type #where_clause {
+                            #body
+                        }
+
+                        let #field_name: (#field_type,) = (from_iter#function_generics(#field_name.into_iter()),);
+                        let ( #(#descructuring,)* ) = self.fields;
+                        #builder_name {
+                            fields: ( #(#reconstructing,)* ),
+                            phantom: self.phantom,
+                        }
+                    }
+                })
+            })
+            .transpose()?;
+
+            Ok(quote_spanned! {keyword_span.resolved_at(Span::mixed_site())=>
+                #[allow(non_camel_case_types, missing_docs)]
+                impl #impl_generics #builder_name<#(#ty_generics),*> #where_clause {
+                    #from_first
+                    #from_iter
+                }
+
+                impl #impl_generics #builder_name<#(#target_generics),*> #where_clause {
+                    #doc
+                    pub fn #item_name<Item>(self, #item_name: Item) -> #builder_name<#(#target_generics),*>
+                    where
+                        #field_type: ::core::iter::Extend<Item>,
+                    {
+                        let ( #(#reconstructing,)* ) = self.fields;
+                        let mut #field_name = #field_name;
+                        ::core::iter::Extend::extend(&mut #field_name.0, ::core::iter::once(#item_name));
+                        #builder_name {
+                            fields: ( #(#reconstructing,)* ),
+                            phantom: self.phantom,
+                        }
+                    }
+
+                    #doc
+                    pub fn #field_name<Iter, Item>(self, #field_name: Iter) -> #builder_name<#(#target_generics),*>
+                    where
+                        Iter: ::core::iter::IntoIterator<Item = Item>,
+                        #field_type: ::core::iter::Extend<Item>,
+                    {
+                        let items = #field_name;
+                        let ( #(#reconstructing,)* ) = self.fields;
+                        let mut #field_name = #field_name;
+                        ::core::iter::Extend::extend(&mut #field_name.0, items);
+                        #builder_name {
+                            fields: ( #(#reconstructing,)* ),
+                            phantom: self.phantom,
+                        }
                     }
                 }
-            }
-            #[doc(hidden)]
-            #[allow(dead_code, non_camel_case_types, non_snake_case)]
-            pub enum #repeated_fields_error_type_name {}
-            #[doc(hidden)]
-            #[allow(dead_code, non_camel_case_types, missing_docs)]
-            impl #impl_generics #builder_name < #( #target_generics ),* > #where_clause {
-                #[deprecated(
-                    note = #repeated_fields_error_message
-                )]
-                pub fn #field_name (self, _: #repeated_fields_error_type_name) -> #builder_name < #( #target_generics ),* > {
-                    self
+            })
+        } else {
+            //Not `extend`.
+
+            // NOTE: both auto_into and strip_option affect `arg_type` and `arg_expr`, but the order of
+            // nesting is different so we have to do this little dance.
+            let arg_type = if field.builder_attr.setter.strip_option.is_some() && field.builder_attr.setter.transform.is_none() {
+                field.type_from_inside_option()?
+            } else {
+                field_type
+            };
+            let (arg_type, arg_expr) = if field.builder_attr.setter.auto_into.is_some() {
+                (quote!(impl ::core::convert::Into<#arg_type>), quote!(#field_name.into()))
+            } else {
+                (quote!(#arg_type), quote!(#field_name))
+            };
+            let (field, arg_expr) = if field.builder_attr.setter.strip_bool.is_some() {
+                (quote!(#field_name), quote!(true))
+            } else if let Some(transform) = &field.builder_attr.setter.transform {
+                let params = transform.params.iter().map(|(pat, ty)| quote!(#pat: #ty));
+                let body = &transform.body;
+                (quote!(#(#params),*), quote!({ #body }))
+            } else if field.builder_attr.setter.strip_option.is_some() {
+                (quote!(#field_name: (#arg_type,)), quote!(Some(#arg_expr)))
+            } else {
+                (quote!(#field_name: (#arg_type,)), arg_expr)
+            };
+
+            let repeated_fields_error_type_name = syn::Ident::new(
+                &format!(
+                    "{}_Error_Repeated_field_{}",
+                    builder_name,
+                    strip_raw_ident_prefix(field_name.to_string())
+                ),
+                proc_macro2::Span::call_site(),
+            );
+            let repeated_fields_error_message = format!("Repeated field {}", field_name);
+
+            Ok(quote! {
+                #[allow(dead_code, non_camel_case_types, missing_docs)]
+                impl #impl_generics #builder_name < #( #ty_generics ),* > #where_clause {
+                    #doc
+                    pub fn #field_name (self, #field_name: #arg_type) -> #builder_name < #( #target_generics ),* > {
+                        let #field = (#arg_expr,);
+                        let ( #(#descructuring,)* ) = self.fields;
+                        #builder_name {
+                            fields: ( #(#reconstructing,)* ),
+                            phantom: self.phantom,
+                        }
+                    }
                 }
-            }
-        })
+                #[doc(hidden)]
+                #[allow(dead_code, non_camel_case_types, non_snake_case)]
+                pub enum #repeated_fields_error_type_name {}
+                #[doc(hidden)]
+                #[allow(dead_code, non_camel_case_types, missing_docs)]
+                impl #impl_generics #builder_name < #( #target_generics ),* > #where_clause {
+                    #[deprecated(
+                        note = #repeated_fields_error_message
+                    )]
+                    pub fn #field_name (self, _: #repeated_fields_error_type_name) -> #builder_name < #( #target_generics ),* > {
+                        self
+                    }
+                }
+            })
+        }
     }
 
-    pub fn required_field_impl(&self, field: &FieldInfo) -> TokenStream {
+    pub fn required_field_impl(&self, field: &FieldInfo) -> Result<TokenStream, Error> {
         let StructInfo {
             ref name,
             ref builder_name,
@@ -358,7 +561,7 @@ impl<'a> StructInfo<'a> {
             })
             .collect();
         let mut builder_generics_tuple = empty_type_tuple();
-        let generics = self.modify_generics(|g| {
+        let generics = self.try_modify_generics(|g| {
             let index_after_lifetime_in_generics = g
                 .params
                 .iter()
@@ -378,7 +581,7 @@ impl<'a> StructInfo<'a> {
                 } else if f.ordinal < field.ordinal {
                     // Only add a `build` method that warns about missing `field` if `f` is set. If `f` is not set,
                     // `f`'s `build` method will warn, since it appears earlier in the argument list.
-                    builder_generics_tuple.elems.push_value(f.tuplized_type_ty_param());
+                    builder_generics_tuple.elems.push_value(f.tuplized_type_ty_param()?);
                 } else if f.ordinal == field.ordinal {
                     builder_generics_tuple.elems.push_value(empty_type());
                 } else {
@@ -391,7 +594,8 @@ impl<'a> StructInfo<'a> {
 
                 builder_generics_tuple.elems.push_punct(Default::default());
             }
-        });
+            Ok(())
+        })?;
 
         let index_after_lifetime_in_generics = builder_generics
             .iter()
@@ -412,9 +616,12 @@ impl<'a> StructInfo<'a> {
             ),
             proc_macro2::Span::call_site(),
         );
-        let early_build_error_message = format!("Missing required field {}", field_name);
+        let mut early_build_error_message = format!("Missing required field {}", field_name);
+        if field.builder_attr.setter.extend.is_some() {
+            write!(&mut early_build_error_message, " (single item setter: {})", field.item_name()).unwrap();
+        }
 
-        quote! {
+        Ok(quote! {
             #[doc(hidden)]
             #[allow(dead_code, non_camel_case_types, non_snake_case)]
             pub enum #early_build_error_type_name {}
@@ -428,23 +635,32 @@ impl<'a> StructInfo<'a> {
                     panic!();
                 }
             }
-        }
+        })
     }
 
-    pub fn build_method_impl(&self) -> TokenStream {
+    pub fn build_method_impl(&self) -> Result<TokenStream, Error> {
         let StructInfo {
             ref name,
             ref builder_name,
             ..
         } = *self;
 
-        let generics = self.modify_generics(|g| {
+        let generics = self.try_modify_generics(|g| {
             let index_after_lifetime_in_generics = g
                 .params
                 .iter()
                 .filter(|arg| matches!(arg, syn::GenericParam::Lifetime(_)))
                 .count();
             for field in self.included_fields() {
+                let strip_option_extends = matches!(
+                    field.builder_attr.setter,
+                    SetterSettings {
+                        extend: Some(_),
+                        strip_option: Some(_),
+                        ..
+                    }
+                );
+
                 if field.builder_attr.default.is_some() {
                     let trait_ref = syn::TraitBound {
                         paren_token: None,
@@ -455,7 +671,11 @@ impl<'a> StructInfo<'a> {
                             arguments: syn::PathArguments::AngleBracketed(syn::AngleBracketedGenericArguments {
                                 colon2_token: None,
                                 lt_token: Default::default(),
-                                args: make_punctuated_single(syn::GenericArgument::Type(field.ty.clone())),
+                                args: make_punctuated_single(syn::GenericArgument::Type(if strip_option_extends {
+                                    field.type_from_inside_option()?.clone()
+                                } else {
+                                    field.ty.clone()
+                                })),
                                 gt_token: Default::default(),
                             }),
                         }
@@ -466,26 +686,33 @@ impl<'a> StructInfo<'a> {
                     g.params.insert(index_after_lifetime_in_generics, generic_param.into());
                 }
             }
-        });
+            Ok(())
+        })?;
         let (impl_generics, _, _) = generics.split_for_impl();
 
         let (_, ty_generics, where_clause) = self.generics.split_for_impl();
 
-        let modified_ty_generics = modify_types_generics_hack(&ty_generics, |args| {
+        let modified_ty_generics = try_modify_types_generics_hack(&ty_generics, |args| {
             args.insert(
                 0,
                 syn::GenericArgument::Type(
-                    type_tuple(self.included_fields().map(|field| {
-                        if field.builder_attr.default.is_some() {
-                            field.type_ident()
-                        } else {
-                            field.tuplized_type_ty_param()
-                        }
-                    }))
+                    type_tuple(
+                        self.included_fields()
+                            .map(|field| {
+                                if field.builder_attr.default.is_some() {
+                                    Ok(field.type_ident())
+                                } else {
+                                    field.tuplized_type_ty_param()
+                                }
+                            })
+                            .collect::<Result<Vec<_>, _>>()?
+                            .into_iter(),
+                    )
                     .into(),
                 ),
             );
-        });
+            Ok(())
+        })?;
 
         let descructuring = self.included_fields().map(|f| f.name);
 
@@ -496,13 +723,25 @@ impl<'a> StructInfo<'a> {
         // relax that restriction by calculating a DAG of field default dependencies and
         // reordering based on that, but for now this much simpler thing is a reasonable approach.
         let assignments = self.fields.iter().map(|field| {
-            let name = &field.name;
+            let name = field.name;
+            let wrap_some = matches!(
+                field.builder_attr.setter,
+                SetterSettings {
+                    extend: Some(_),
+                    strip_option: Some(_),
+                    ..
+                }
+            );
             if let Some(ref default) = field.builder_attr.default {
                 if field.builder_attr.setter.skip.is_some() {
                     quote!(let #name = #default;)
+                } else if wrap_some {
+                    quote!(let #name = #helper_trait_name::into_some_or_else(#name, || #default);)
                 } else {
                     quote!(let #name = #helper_trait_name::into_value(#name, || #default);)
                 }
+            } else if wrap_some {
+                quote!(let #name = ::core::option::Option::Some(#name.0);)
             } else {
                 quote!(let #name = #name.0;)
             }
@@ -535,7 +774,7 @@ impl<'a> StructInfo<'a> {
             .as_ref()
             .map(|v| quote!(#v))
             .unwrap_or(quote!(pub));
-        quote!(
+        Ok(quote!(
             #[allow(dead_code, non_camel_case_types, missing_docs)]
             impl #impl_generics #builder_name #modified_ty_generics #where_clause {
                 #doc
@@ -548,7 +787,7 @@ impl<'a> StructInfo<'a> {
                     }
                 }
             }
-        )
+        ))
     }
 }
 
