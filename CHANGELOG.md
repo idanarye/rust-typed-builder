@@ -6,9 +6,26 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+## 0.11.0 - 2022-10-29
+### Added
+- `#[builder(build_method(vis="pub", name=build))]` for customizing visibility and fn name of the final build method
+  (the default visibility is `pub`, and default build name is `build`)
+
+## 0.10.0 - 2022-02-13
+### Added
+- `#[builder(setter(strip_bool))]` for making zero arguments setters for `bool` fields that just
+  set them to `true` (the `default` automatically becomes `false`)
+
+## 0.9.1 - 2021-09-04
+### Fixed
+- Add `extern crate proc_macro;` to solve some weird problem (https://github.com/idanarye/rust-typed-builder/issues/57)
+- Use unambiguous `::` prefixed absolute paths in generated code.
+
 ## 0.9.0 - 2021-01-31
 ### Added
 - Builder type implements `Clone` when all set fields support clone.
+- `#[builder(setter(transform = ...))]` attribute for running a transform on a
+  setter's argument to convert them to the field's type.
 
 ### Fixed
 - Fix code generation for raw identifiers.

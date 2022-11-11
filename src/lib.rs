@@ -1,3 +1,5 @@
+extern crate proc_macro; // Needed even though it's the 2018 edition. See https://github.com/idanarye/rust-typed-builder/issues/57.
+
 use proc_macro2::TokenStream;
 
 use syn::parse::Error;
@@ -29,7 +31,7 @@ mod util;
 ///     // Mandatory Field:
 ///     x: i32,
 ///
-///     // #[default] without parameter - use the type's default
+///     // #[builder(default)] without parameter - use the type's default
 ///     // #[builder(setter(strip_option))] - wrap the setter argument with `Some(...)`
 ///     #[builder(default, setter(strip_option))]
 ///     y: Option<i32>,
@@ -72,6 +74,10 @@ mod util;
 ///   but it won't be a link. If you turn this on, the builder type and its `build` method will get
 ///   sane defaults. The field methods on the builder will be undocumented by default.
 ///
+/// - `build_method(...)`: customize the final build method
+///   - `vis = "…"`: sets the visibility of the build method, default is `pub`
+///   - `name = …`: sets the fn name of the build method, default is `build`
+///
 /// - `builder_method_doc = "…"` replaces the default documentation that will be generated for the
 ///   `builder()` method of the type for which the builder is being generated.
 ///
@@ -85,6 +91,7 @@ mod util;
 ///   fields and sets default options for fields of the type. If specific field need to revert some
 ///   options to the default defaults they can prepend `!` to the option they need to revert, and
 ///   it would ignore the field defaults for that option in that field.
+///
 ///    ```
 ///    use typed_builder::TypedBuilder;
 ///
@@ -101,7 +108,14 @@ mod util;
 ///        // Defaults to Some(13), option-stripping is performed:
 ///        #[builder(default = Some(13))]
 ///        z: Option<i32>,
+///
+///        // Accepts params `(x: f32, y: f32)`
+///        #[builder(setter(!strip_option, transform = |x: f32, y: f32| Point { x, y }))]
+///        w: Point,
 ///    }
+///
+///    #[derive(Default)]
+///    struct Point { x: f32, y: f32 }
 ///    ```
 ///
 /// On each **field**, the following values are permitted:
@@ -134,6 +148,14 @@ mod util;
 ///     `Some(...)`, relieving the caller from having to do this. Note that with this setting on
 ///     one cannot set the field to `None` with the setter - so the only way to get it to be `None`
 ///     is by using `#[builder(default)]` and not calling the field's setter.
+///
+///   - `strip_bool`: for `bool` fields only, this makes the setter receive no arguments and simply
+///     set the field's value to `true`. When used, the `default` is automatically set to `false`.
+///
+///   - `transform = |param1: Type1, param2: Type2 ...| expr`: this makes the setter accept
+///     `param1: Type1, param2: Type2 ...` instead of the field type itself. The parameters are
+///     transformed into the field type using the expression `expr`. The transformation is performed
+///     when the setter is called.
 #[proc_macro_derive(TypedBuilder, attributes(builder))]
 pub fn derive_typed_builder(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     let input = parse_macro_input!(input as DeriveInput);
@@ -147,9 +169,9 @@ fn impl_my_derive(ast: &syn::DeriveInput) -> Result<TokenStream, Error> {
     let data = match &ast.data {
         syn::Data::Struct(data) => match &data.fields {
             syn::Fields::Named(fields) => {
-                let struct_info = struct_info::StructInfo::new(&ast, fields.named.iter())?;
+                let struct_info = struct_info::StructInfo::new(ast, fields.named.iter())?;
                 let builder_creation = struct_info.builder_creation_impl()?;
-                let conversion_helper = struct_info.conversion_helper_impl()?;
+                let conversion_helper = struct_info.conversion_helper_impl();
                 let fields = struct_info
                     .included_fields()
                     .map(|f| struct_info.field_impl(f))

@@ -1,5 +1,4 @@
 #![warn(clippy::pedantic)]
-#![allow(clippy::blacklisted_name, clippy::type_complexity)]
 
 use typed_builder::TypedBuilder;
 
@@ -98,6 +97,18 @@ fn test_into_with_strip_option() {
     }
 
     assert!(Foo::builder().x(1_u8).build() == Foo { x: Some(1) });
+}
+
+#[test]
+fn test_strip_bool() {
+    #[derive(PartialEq, TypedBuilder)]
+    struct Foo {
+        #[builder(setter(into, strip_bool))]
+        x: bool,
+    }
+
+    assert!(Foo::builder().x().build() == Foo { x: true });
+    assert!(Foo::builder().build() == Foo { x: false });
 }
 
 #[test]
@@ -529,4 +540,37 @@ fn test_builder_on_struct_with_keywords() {
                 r#union: "two".to_owned(),
             }
     );
+}
+
+#[test]
+fn test_field_setter_transform() {
+    #[derive(PartialEq)]
+    struct Point {
+        x: i32,
+        y: i32,
+    }
+
+    #[derive(PartialEq, TypedBuilder)]
+    struct Foo {
+        #[builder(setter(transform = |x: i32, y: i32| Point { x, y }))]
+        point: Point,
+    }
+
+    assert!(
+        Foo::builder().point(1, 2).build()
+            == Foo {
+                point: Point { x: 1, y: 2 }
+            }
+    );
+}
+
+#[test]
+fn test_build_method() {
+    #[derive(PartialEq, TypedBuilder)]
+    #[builder(build_method(vis="", name=__build))]
+    struct Foo {
+        x: i32,
+    }
+
+    assert!(Foo::builder().x(1).__build() == Foo { x: 1 });
 }
