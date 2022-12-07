@@ -1,5 +1,6 @@
 use either::Either::*;
 use proc_macro2::TokenStream;
+use proc_macro_crate::{crate_name, FoundCrate};
 use quote::{format_ident, quote};
 use regex::Regex;
 use std::iter::FromIterator;
@@ -688,6 +689,15 @@ impl<'a> StructInfo<'a> {
 
         let descructuring = self.included_fields().map(|f| f.name);
 
+        let found_crate = crate_name("typed-builder").expect("typed-builder is present in `Cargo.toml`");
+        let crate_name = match found_crate {
+            FoundCrate::Itself => quote!(typed_builder),
+            FoundCrate::Name(name) => {
+                let ident = syn::Ident::new(&name, proc_macro2::Span::call_site());
+                quote!(#ident)
+            }
+        };
+
         // The default of a field can refer to earlier-defined fields, which we handle by
         // writing out a bunch of `let` statements first, which can each refer to earlier ones.
         // This means that field ordering may actually be significant, which isn't ideal. We could
@@ -699,9 +709,9 @@ impl<'a> StructInfo<'a> {
                 if field.builder_attr.setter.skip.is_some() {
                     quote!(let #name = #default;)
                 } else if !field.used_default_generic_idents.is_empty() {
-                    quote!(let #name = typed_builder::BuilderOptional::into_value(#name, || None);)
+                    quote!(let #name = #crate_name::BuilderOptional::into_value(#name, || None);)
                 } else {
-                    quote!(let #name = typed_builder::BuilderOptional::into_value(#name, || Some(#default));)
+                    quote!(let #name = #crate_name::BuilderOptional::into_value(#name, || Some(#default));)
                 }
             } else {
                 quote!(let #name = #name.0;)
