@@ -7,8 +7,8 @@ use syn::punctuated::Punctuated;
 
 use crate::field_info::{FieldBuilderAttr, FieldInfo};
 use crate::util::{
-    empty_type_tuple, expr_to_single_string, expr_tuple, GenericDefault, make_punctuated_single, modify_types_generics_hack,
-    path_to_single_string, strip_raw_ident_prefix, type_tuple,
+    empty_type_tuple, expr_to_single_string, expr_tuple, make_punctuated_single, modify_types_generics_hack,
+    path_to_single_string, strip_raw_ident_prefix, type_tuple, GenericDefault,
 };
 
 #[derive(Debug)]
@@ -42,7 +42,8 @@ impl<'a> StructInfo<'a> {
         let builder_name = strip_raw_ident_prefix(format!("{}Builder", ast.ident));
 
         let mut generics_without_defaults = ast.generics.clone();
-        generics_without_defaults.params = generics_without_defaults.params
+        generics_without_defaults.params = generics_without_defaults
+            .params
             .into_iter()
             .map(|param| match param {
                 syn::GenericParam::Type(type_param) => syn::GenericParam::Type(syn::TypeParam {
@@ -66,7 +67,9 @@ impl<'a> StructInfo<'a> {
             })
             .collect();
 
-        let ty_generics_with_defaults: Punctuated<_, syn::token::Comma> = ast.generics.params
+        let ty_generics_with_defaults: Punctuated<_, syn::token::Comma> = ast
+            .generics
+            .params
             .clone()
             .into_iter()
             .map::<Result<syn::GenericArgument, _>, _>(|param| match param {
@@ -75,55 +78,78 @@ impl<'a> StructInfo<'a> {
                     None => {
                         let ident = type_param.ident;
                         syn::parse(proc_macro::TokenStream::from(quote!(#ident)))
-                    },
+                    }
                 },
-                syn::GenericParam::Lifetime(syn::LifetimeDef { lifetime, .. }) => syn::parse(proc_macro::TokenStream::from(quote!(#lifetime))),
+                syn::GenericParam::Lifetime(syn::LifetimeDef { lifetime, .. }) => {
+                    syn::parse(proc_macro::TokenStream::from(quote!(#lifetime)))
+                }
                 syn::GenericParam::Const(const_param) => match const_param.default {
                     Some(default) => syn::parse(proc_macro::TokenStream::from(quote!(#default))),
                     None => {
                         let ident = const_param.ident;
                         syn::parse(proc_macro::TokenStream::from(quote!(#ident)))
-                    },
+                    }
                 },
             })
             .collect::<Result<_, _>>()?;
 
         let mut no_default_generics = ast.generics.clone();
         let mut generic_defaults = Vec::<GenericDefault>::default();
-        no_default_generics.params = no_default_generics.params
+        no_default_generics.params = no_default_generics
+            .params
             .into_iter()
             .filter_map(|param| match param {
                 syn::GenericParam::Type(type_param) => match type_param.default.clone() {
                     Some(default) => {
                         let ident = &type_param.ident;
-                        let regular_expression = Regex::new(format!(r#"\b{}\b"#, quote!(#ident)).trim()).expect(&format!("unable to replace generic parameter `{}`, not a matchable regex pattern", format!("{}", quote!(#type_param))));
-                        generic_defaults.push((Left(type_param), regular_expression, Some(format!("{}", quote!(#default)).trim().to_string())));
+                        let regular_expression = Regex::new(format!(r#"\b{}\b"#, quote!(#ident)).trim()).expect(&format!(
+                            "unable to replace generic parameter `{}`, not a matchable regex pattern",
+                            format!("{}", quote!(#type_param))
+                        ));
+                        generic_defaults.push((
+                            Left(type_param),
+                            regular_expression,
+                            Some(format!("{}", quote!(#default)).trim().to_string()),
+                        ));
                         None
-                    },
+                    }
                     None => {
                         generic_defaults.push((
                             Left(type_param.clone()),
-                            Regex::new(format!(r#"\b{}\b"#, quote!(#type_param)).trim()).expect(&format!("unable to replace generic parameter `{}`, not a matchable regex pattern", format!("{}", quote!(#type_param)))),
+                            Regex::new(format!(r#"\b{}\b"#, quote!(#type_param)).trim()).expect(&format!(
+                                "unable to replace generic parameter `{}`, not a matchable regex pattern",
+                                format!("{}", quote!(#type_param))
+                            )),
                             None,
                         ));
                         Some(syn::GenericParam::Type(type_param))
-                    },
+                    }
                 },
                 syn::GenericParam::Const(const_param) => match const_param.default.clone() {
                     Some(default) => {
                         let ident = &const_param.ident;
-                        let regular_expression = Regex::new(format!(r#"\b{}\b"#, quote!(#ident)).trim()).expect(&format!("unable to replace generic parameter `{}`, not a matchable regex pattern", format!("{}", quote!(#const_param))));
-                        generic_defaults.push((Right(const_param), regular_expression, Some(format!("{}", quote!(#default)).trim().to_string())));
+                        let regular_expression = Regex::new(format!(r#"\b{}\b"#, quote!(#ident)).trim()).expect(&format!(
+                            "unable to replace generic parameter `{}`, not a matchable regex pattern",
+                            format!("{}", quote!(#const_param))
+                        ));
+                        generic_defaults.push((
+                            Right(const_param),
+                            regular_expression,
+                            Some(format!("{}", quote!(#default)).trim().to_string()),
+                        ));
                         None
-                    },
+                    }
                     None => {
                         generic_defaults.push((
                             Right(const_param.clone()),
-                            Regex::new(format!(r#"\b{}\b"#, quote!(#const_param)).trim()).expect(&format!("unable to replace generic parameter `{}`, not a matchable regex pattern", format!("{}", quote!(#const_param)))),
+                            Regex::new(format!(r#"\b{}\b"#, quote!(#const_param)).trim()).expect(&format!(
+                                "unable to replace generic parameter `{}`, not a matchable regex pattern",
+                                format!("{}", quote!(#const_param))
+                            )),
                             None,
                         ));
                         Some(syn::GenericParam::Const(const_param))
-                    },
+                    }
                 },
                 param => Some(param),
             })
@@ -154,19 +180,25 @@ impl<'a> StructInfo<'a> {
         generics
     }
 
-    fn modify_generics_alter_if_used_default_generic<F: FnMut(&mut syn::Generics)>(&self, mut mutator: F, field: &FieldInfo) -> syn::Generics {
+    fn modify_generics_alter_if_used_default_generic<F: FnMut(&mut syn::Generics)>(
+        &self,
+        mut mutator: F,
+        field: &FieldInfo,
+    ) -> syn::Generics {
         let mut generics = self.generics.clone();
-        generics.params
-            .iter_mut()
-            .for_each(|param| match param {
-                syn::GenericParam::Type(ref mut type_param) => if type_param.default.is_some() && field.used_default_generic_idents.contains(&type_param.ident) {
+        generics.params.iter_mut().for_each(|param| match param {
+            syn::GenericParam::Type(ref mut type_param) => {
+                if type_param.default.is_some() && field.used_default_generic_idents.contains(&type_param.ident) {
                     type_param.ident = format_ident_target_generic_default(&type_param.ident);
-                },
-                syn::GenericParam::Const(ref mut const_param) => if const_param.default.is_some() && field.used_default_generic_idents.contains(&const_param.ident) {
+                }
+            }
+            syn::GenericParam::Const(ref mut const_param) => {
+                if const_param.default.is_some() && field.used_default_generic_idents.contains(&const_param.ident) {
                     const_param.ident = format_ident_target_generic_default(&const_param.ident);
-                },
-                _ => {},
-            });
+                }
+            }
+            _ => {}
+        });
         mutator(&mut generics);
         generics
     }
@@ -178,7 +210,8 @@ impl<'a> StructInfo<'a> {
     }
 
     fn ty_generics_with_defaults_except_field(&self, field: &FieldInfo) -> Result<Vec<syn::GenericArgument>, Error> {
-        self.generics.params
+        self.generics
+            .params
             .clone()
             .into_iter()
             .map::<Result<syn::GenericArgument, _>, _>(|param| match param {
@@ -186,22 +219,24 @@ impl<'a> StructInfo<'a> {
                     true => {
                         let ident = format_ident_target_generic_default(&type_param.ident);
                         syn::parse(proc_macro::TokenStream::from(quote!(#ident)))
-                    },
+                    }
                     false => {
                         let ident = &type_param.ident;
                         syn::parse(proc_macro::TokenStream::from(quote!(#ident)))
-                    },
+                    }
                 },
-                syn::GenericParam::Lifetime(syn::LifetimeDef { lifetime, .. }) => syn::parse(proc_macro::TokenStream::from(quote!(#lifetime))),
+                syn::GenericParam::Lifetime(syn::LifetimeDef { lifetime, .. }) => {
+                    syn::parse(proc_macro::TokenStream::from(quote!(#lifetime)))
+                }
                 syn::GenericParam::Const(const_param) => match field.used_default_generic_idents.contains(&const_param.ident) {
                     true => {
                         let ident = format_ident_target_generic_default(&const_param.ident);
                         syn::parse(proc_macro::TokenStream::from(quote!(#ident)))
-                    },
+                    }
                     false => {
                         let ident = &const_param.ident;
                         syn::parse(proc_macro::TokenStream::from(quote!(#ident)))
-                    },
+                    }
                 },
             })
             .collect::<Result<_, _>>()
@@ -354,7 +389,6 @@ impl<'a> StructInfo<'a> {
         }
     }
 
-
     pub fn field_impl(&self, field: &FieldInfo) -> Result<TokenStream, Error> {
         let StructInfo { ref builder_name, .. } = *self;
 
@@ -471,13 +505,13 @@ impl<'a> StructInfo<'a> {
                             type_param.eq_token = None;
                             type_param.default = None;
                             generic_params.push(quote!(#type_param));
-                        },
+                        }
                         Right(const_param) => {
                             let mut const_param = const_param.clone();
                             const_param.eq_token = None;
                             const_param.default = None;
                             generic_params.push(quote!(#const_param));
-                        },
+                        }
                     }
                 }
             }

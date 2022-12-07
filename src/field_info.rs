@@ -5,7 +5,9 @@ use std::collections::HashSet;
 use syn::parse::Error;
 use syn::spanned::Spanned;
 
-use crate::util::{empty_type, expr_to_single_string, GenericDefault, ident_to_type, path_to_single_string, strip_raw_ident_prefix};
+use crate::util::{
+    empty_type, expr_to_single_string, ident_to_type, path_to_single_string, strip_raw_ident_prefix, GenericDefault,
+};
 
 #[derive(Debug)]
 pub struct FieldInfo<'a> {
@@ -19,7 +21,12 @@ pub struct FieldInfo<'a> {
 }
 
 impl<'a> FieldInfo<'a> {
-    pub fn new(ordinal: usize, field: &'a syn::Field, field_defaults: FieldBuilderAttr, generic_defaults: &[GenericDefault]) -> Result<Self, Error> {
+    pub fn new(
+        ordinal: usize,
+        field: &'a syn::Field,
+        field_defaults: FieldBuilderAttr,
+        generic_defaults: &[GenericDefault],
+    ) -> Result<Self, Error> {
         if let Some(ref name) = field.ident {
             let mut field_info = FieldInfo {
                 ordinal,
@@ -46,7 +53,7 @@ impl<'a> FieldInfo<'a> {
                                 Left(type_param) => field_info.used_default_generic_idents.insert(type_param.ident.clone()),
                                 Right(const_param) => field_info.used_default_generic_idents.insert(const_param.ident.clone()),
                             };
-                        },
+                        }
                         None => {
                             ty_includes_params_without_defaults = true;
                             break;
@@ -69,7 +76,6 @@ impl<'a> FieldInfo<'a> {
             }
 
             Ok(field_info)
-
         } else {
             Err(Error::new(field.span(), "Nameless field in struct"))
         }
