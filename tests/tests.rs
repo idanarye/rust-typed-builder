@@ -347,13 +347,13 @@ fn test_builder_type_with_default_on_generic_type() {
         m: M,
     }
 
-    impl<'a, X, Y: Default, M, X_, Y_, M_> FooBuilder<'a, (X_, Y_, (usize,), M_), X, Y, usize, M> {
+    impl<'a, X, Y: Default, M, X_, Y_, M_> FooBuilder<'a, (X_, Y_, (), M_), X, Y, usize, M> {
         fn z_default(self) -> FooBuilder<'a, (X_, Y_, (usize,), M_), X, Y, usize, M> {
             self.z(usize::default())
         }
     }
 
-    impl<'a, X, Y: Default, Z: Default, X_, Y_, Z_> FooBuilder<'a, (X_, Y_, Z_, ((),)), X, Y, Z, ()> {
+    impl<'a, X, Y: Default, Z: Default, X_, Y_, Z_> FooBuilder<'a, (X_, Y_, Z_, ()), X, Y, Z, ()> {
         fn m_default(self) -> FooBuilder<'a, (X_, Y_, Z_, ((),)), X, Y, Z, ()> {
             self.m(())
         }
@@ -582,7 +582,7 @@ fn test_struct_generic_defaults() {
         #[builder(default, setter(into))]
         pub class: Option<&'a str>,
         pub label: &'a str,
-        #[builder(setter(strip_option))]
+        #[builder(default = Some(Box::new(|x: usize| x + 1)), setter(strip_option))]
         pub on_input: Option<OnInput>,
     }
 

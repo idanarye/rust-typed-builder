@@ -61,17 +61,13 @@ impl<'a> FieldInfo<'a> {
                 }
             }
             if !ty_includes_params_without_defaults && ty_includes_params_with_defaults {
-                use std::str::FromStr;
-                let expr_str = format!("(<{ty_str} as Default>::default(),)");
-                let ty_str = format!("({ty_str},)");
-                field_info.default_ty = Some((
-                    syn::parse(TokenStream::from_str(&ty_str)?.into())?,
-                    if let Some(default_expr) = field_info.builder_attr.default.clone() {
-                        syn::parse(quote! { (#default_expr,) }.into())?
-                    } else {
-                        syn::parse(TokenStream::from_str(&expr_str)?.into())?
-                    },
-                ));
+                if let Some(default_expr) = field_info.builder_attr.default.as_ref() {
+                    use std::str::FromStr;
+                    field_info.default_ty = Some((
+                        syn::parse(TokenStream::from_str(&format!("({ty_str},)"))?.into())?,
+                        syn::parse(quote! { (#default_expr,) }.into())?,
+                    ));
+                }
             }
 
             Ok(field_info)
