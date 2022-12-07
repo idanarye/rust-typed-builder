@@ -600,4 +600,15 @@ fn test_struct_generic_defaults() {
     }
 
     assert_eq!(Foo::builder().build().x, 12);
+
+    #[allow(dead_code)]
+    #[derive(TypedBuilder)]
+    struct Bar<T, U = usize, V = usize> {
+        t: T,
+        #[builder(default = 12)]
+        u: U,
+        v: (T, U, V),
+    }
+
+    assert_eq!(Bar::builder().t("test").v(("t", 0, 3.14f64)).build().v.0, "t");
 }

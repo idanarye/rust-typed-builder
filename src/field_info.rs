@@ -56,7 +56,6 @@ impl<'a> FieldInfo<'a> {
                         }
                         None => {
                             ty_includes_params_without_defaults = true;
-                            break;
                         }
                     }
                 }
