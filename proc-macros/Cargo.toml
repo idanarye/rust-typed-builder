@@ -1,5 +1,5 @@
 [package]
-name = "typed-builder"
+name = "typed-builder-proc-macros"
 description = "Compile-time type-checked builder derive"
 version = "0.11.0"
 authors = ["IdanArye <idanarye@gmail.com>", "Chris Morgan <me@chrismorgan.info>"]
@@ -11,8 +11,16 @@ readme = "README.md"
 keywords = ["builder"]
 categories = ["rust-patterns"]
 
+[lib]
+proc-macro = true
+
 [dependencies]
-typed-builder-proc-macros.path = "proc-macros"
+either = "1.8.0"
+prettyplease = { version = "*", optional = true }
+proc-macro2 = "1"
+quote = "1"
+regex = "1.7.0"
+syn = { version = "1", features = ["full", "extra-traits"] }
 
 [features]
-debug = ["typed-builder-proc-macros/debug"]
+debug = ["dep:prettyplease"]

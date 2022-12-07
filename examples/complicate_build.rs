@@ -1,5 +1,5 @@
 mod scope {
-    use typed_builder::TypedBuilder;
+    use typed_builder::{BuilderOptional, TypedBuilder};
 
     #[derive(PartialEq, TypedBuilder)]
     #[builder(build_method(vis="", name=__build))]
@@ -25,7 +25,7 @@ mod scope {
     // We can use `cargo expand` to show code expanded by `TypedBuilder`,
     // copy the generated `__build` method, and modify the content of the build method.
     #[allow(non_camel_case_types)]
-    impl<__z: FooBuilder_Optional<i32>, __y: FooBuilder_Optional<Option<i32>>> FooBuilder<((i32,), __y, __z)> {
+    impl<__z: BuilderOptional<i32>, __y: BuilderOptional<Option<i32>>> FooBuilder<((i32,), __y, __z)> {
         pub fn build(self) -> Bar {
             let foo = self.__build();
             Bar {

@@ -1,9 +1,11 @@
+use either::Either::*;
 use proc_macro2::{Span, TokenStream};
 use quote::quote;
+use std::collections::HashSet;
 use syn::parse::Error;
 use syn::spanned::Spanned;
 
-use crate::util::{empty_type, expr_to_single_string, ident_to_type, path_to_single_string, strip_raw_ident_prefix, TypeGenericDefaults};
+use crate::util::{empty_type, expr_to_single_string, GenericDefault, ident_to_type, path_to_single_string, strip_raw_ident_prefix};
 
 #[derive(Debug)]
 pub struct FieldInfo<'a> {
@@ -13,10 +15,11 @@ pub struct FieldInfo<'a> {
     pub ty: &'a syn::Type,
     pub builder_attr: FieldBuilderAttr,
     pub default_ty: Option<(syn::Type, syn::Expr)>,
+    pub used_default_generic_idents: HashSet<syn::Ident>,
 }
 
 impl<'a> FieldInfo<'a> {
-    pub fn new(ordinal: usize, field: &'a syn::Field, field_defaults: FieldBuilderAttr, type_generic_defaults: &TypeGenericDefaults) -> Result<Self, Error> {
+    pub fn new(ordinal: usize, field: &'a syn::Field, field_defaults: FieldBuilderAttr, generic_defaults: &[GenericDefault]) -> Result<Self, Error> {
         if let Some(ref name) = field.ident {
             let mut field_info = FieldInfo {
                 ordinal,
@@ -25,37 +28,44 @@ impl<'a> FieldInfo<'a> {
                 ty: &field.ty,
                 builder_attr: field_defaults.with(&field.attrs)?,
                 default_ty: None,
+                used_default_generic_idents: HashSet::default(),
             }
             .post_process()?;
 
-            if field_info.builder_attr.default.is_none() {
-                let mut ty_includes_params_without_defaults = false;
-                let mut ty_includes_params_with_defaults = false;
-                let ty = &field.ty;
-                let mut ty_str = format!("{}", quote! { #ty });
-                for (type_param, default_type) in type_generic_defaults.iter() {
-                    if type_param.is_match(&ty_str) {
-                        match default_type.as_ref() {
-                            Some(default_type) => {
-                                ty_includes_params_with_defaults = true;
-                                ty_str = type_param.replace(&ty_str, default_type).into();
-                            },
-                            None => {
-                                ty_includes_params_without_defaults = true;
-                                break;
-                            }
+            let mut ty_includes_params_without_defaults = false;
+            let mut ty_includes_params_with_defaults = false;
+            let ty = &field.ty;
+            let mut ty_str = format!("{}", quote! { #ty });
+            for (generic_param, regular_expression, default_type) in generic_defaults.iter() {
+                if regular_expression.is_match(&ty_str) {
+                    match default_type.as_ref() {
+                        Some(default_type) => {
+                            ty_includes_params_with_defaults = true;
+                            ty_str = regular_expression.replace(&ty_str, default_type).into();
+                            match generic_param {
+                                Left(type_param) => field_info.used_default_generic_idents.insert(type_param.ident.clone()),
+                                Right(const_param) => field_info.used_default_generic_idents.insert(const_param.ident.clone()),
+                            };
+                        },
+                        None => {
+                            ty_includes_params_without_defaults = true;
+                            break;
                         }
                     }
                 }
-                if !ty_includes_params_without_defaults && ty_includes_params_with_defaults {
-                    use std::str::FromStr;
-                    let expr_str = format!("(<{ty_str} as Default>::default(),)");
-                    let ty_str = format!("({ty_str},)");
-                    field_info.default_ty = Some((
-                        syn::parse(TokenStream::from_str(&ty_str)?.into())?,
-                        syn::parse(TokenStream::from_str(&expr_str)?.into())?,
-                    ));
-                }
+            }
+            if !ty_includes_params_without_defaults && ty_includes_params_with_defaults {
+                use std::str::FromStr;
+                let expr_str = format!("(<{ty_str} as Default>::default(),)");
+                let ty_str = format!("({ty_str},)");
+                field_info.default_ty = Some((
+                    syn::parse(TokenStream::from_str(&ty_str)?.into())?,
+                    if let Some(default_expr) = field_info.builder_attr.default.clone() {
+                        syn::parse(quote! { (#default_expr,) }.into())?
+                    } else {
+                        syn::parse(TokenStream::from_str(&expr_str)?.into())?
+                    },
+                ));
             }
 
             Ok(field_info)

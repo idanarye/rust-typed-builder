@@ -1,10 +1,13 @@
+use either::Either;
 use proc_macro2::TokenStream;
 use quote::{quote, ToTokens};
 use regex::Regex;
 
-// keys are regex patterns of format /\btype_param\b/
-// values are options of the default type provided, formatted and trimmed as a String
-pub type TypeGenericDefaults = Vec<(Regex, Option<String>)>;
+// tuple of:
+// - TypeParam or ConstParam
+// - regex pattern of format /\b$ident\b/ where $ident is the ident of the first tuple item
+// - default type if provided, formatted and trimmed as a String
+pub type GenericDefault = (Either<syn::TypeParam, syn::ConstParam>, Regex, Option<String>);
 
 pub fn path_to_single_string(path: &syn::Path) -> Option<String> {
     if path.leading_colon.is_some() {
