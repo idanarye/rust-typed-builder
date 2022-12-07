@@ -1,9 +1,7 @@
 use either::Either::*;
 use proc_macro2::TokenStream;
-use proc_macro_crate::{crate_name, FoundCrate};
 use quote::{format_ident, quote};
 use regex::Regex;
-use std::iter::FromIterator;
 use syn::parse::Error;
 use syn::punctuated::Punctuated;
 
@@ -30,6 +28,7 @@ pub struct StructInfo<'a> {
 
     pub builder_attr: TypeBuilderAttr,
     pub builder_name: syn::Ident,
+    pub conversion_helper_trait_name: syn::Ident,
     pub core: syn::Ident,
 }
 
@@ -139,6 +138,7 @@ impl<'a> StructInfo<'a> {
                 .map(|(i, f)| FieldInfo::new(i, f, builder_attr.field_defaults.clone(), &generic_defaults))
                 .collect::<Result<_, _>>()?,
             builder_name: syn::Ident::new(&builder_name, proc_macro2::Span::call_site()),
+            conversion_helper_trait_name: syn::Ident::new(&format!("{}_Optional", builder_name), proc_macro2::Span::call_site()),
             core: syn::Ident::new(&format!("{}_core", builder_name), proc_macro2::Span::call_site()),
             builder_attr,
             generics_without_defaults,
@@ -328,6 +328,32 @@ impl<'a> StructInfo<'a> {
             }
         })
     }
+
+    // TODO: once the proc-macro crate limitation is lifted, make this an util trait of this
+    // crate.
+    pub fn conversion_helper_impl(&self) -> TokenStream {
+        let trait_name = &self.conversion_helper_trait_name;
+        quote! {
+            #[doc(hidden)]
+            #[allow(dead_code, non_camel_case_types, non_snake_case)]
+            pub trait #trait_name<T> {
+                fn into_value<F: FnOnce() -> Option<T>>(self, default: F) -> T;
+            }
+
+            impl<T> #trait_name<T> for () {
+                fn into_value<F: FnOnce() -> Option<T>>(self, default: F) -> T {
+                    default().unwrap()
+                }
+            }
+
+            impl<T> #trait_name<T> for (T,) {
+                fn into_value<F: FnOnce() -> Option<T>>(self, _: F) -> T {
+                    self.0
+                }
+            }
+        }
+    }
+
 
     pub fn field_impl(&self, field: &FieldInfo) -> Result<TokenStream, Error> {
         let StructInfo { ref builder_name, .. } = *self;
@@ -642,24 +668,16 @@ impl<'a> StructInfo<'a> {
                         paren_token: None,
                         lifetimes: None,
                         modifier: syn::TraitBoundModifier::None,
-                        path: syn::Path {
-                            leading_colon: None,
-                            segments: Punctuated::from_iter(vec![
-                                syn::PathSegment {
-                                    ident: format_ident!("typed_builder"),
-                                    arguments: syn::PathArguments::None,
-                                },
-                                syn::PathSegment {
-                                    ident: format_ident!("BuilderOptional"),
-                                    arguments: syn::PathArguments::AngleBracketed(syn::AngleBracketedGenericArguments {
-                                        colon2_token: None,
-                                        lt_token: Default::default(),
-                                        args: make_punctuated_single(syn::GenericArgument::Type(field.ty.clone())),
-                                        gt_token: Default::default(),
-                                    }),
-                                },
-                            ].into_iter()),
-                        },
+                        path: syn::PathSegment {
+                            ident: self.conversion_helper_trait_name.clone(),
+                            arguments: syn::PathArguments::AngleBracketed(syn::AngleBracketedGenericArguments {
+                                colon2_token: None,
+                                lt_token: Default::default(),
+                                args: make_punctuated_single(syn::GenericArgument::Type(field.ty.clone())),
+                                gt_token: Default::default(),
+                            }),
+                        }
+                        .into(),
                     };
                     let mut generic_param: syn::TypeParam = field.generic_ident.clone().into();
                     generic_param.bounds.push(trait_ref.into());
@@ -689,15 +707,7 @@ impl<'a> StructInfo<'a> {
 
         let descructuring = self.included_fields().map(|f| f.name);
 
-        let found_crate = crate_name("typed-builder").expect("typed-builder is present in `Cargo.toml`");
-        let crate_name = match found_crate {
-            FoundCrate::Itself => quote!(typed_builder),
-            FoundCrate::Name(name) => {
-                let ident = syn::Ident::new(&name, proc_macro2::Span::call_site());
-                quote!(#ident)
-            }
-        };
-
+        let helper_trait_name = &self.conversion_helper_trait_name;
         // The default of a field can refer to earlier-defined fields, which we handle by
         // writing out a bunch of `let` statements first, which can each refer to earlier ones.
         // This means that field ordering may actually be significant, which isn't ideal. We could
@@ -709,9 +719,9 @@ impl<'a> StructInfo<'a> {
                 if field.builder_attr.setter.skip.is_some() {
                     quote!(let #name = #default;)
                 } else if !field.used_default_generic_idents.is_empty() {
-                    quote!(let #name = #crate_name::BuilderOptional::into_value(#name, || None);)
+                    quote!(let #name = #helper_trait_name::into_value(#name, || None);)
                 } else {
-                    quote!(let #name = #crate_name::BuilderOptional::into_value(#name, || Some(#default));)
+                    quote!(let #name = #helper_trait_name::into_value(#name, || Some(#default));)
                 }
             } else {
                 quote!(let #name = #name.0;)
