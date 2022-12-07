@@ -159,13 +159,10 @@ mod util;
 #[proc_macro_derive(TypedBuilder, attributes(builder))]
 pub fn derive_typed_builder(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     let input = parse_macro_input!(input as DeriveInput);
-    let tokens: proc_macro::TokenStream = match impl_my_derive(&input) {
+    match impl_my_derive(&input) {
         Ok(output) => output.into(),
         Err(error) => error.to_compile_error().into(),
-    };
-    #[cfg(feature = "debug")]
-    println!("{}", prettyplease::unparse(&syn::parse_file(&format!("{tokens}")).unwrap()));
-    tokens
+    }
 }
 
 fn impl_my_derive(ast: &syn::DeriveInput) -> Result<TokenStream, Error> {
