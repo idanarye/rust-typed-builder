@@ -1,4 +1,13 @@
-use quote::ToTokens;
+use either::Either;
+use proc_macro2::TokenStream;
+use quote::{quote, ToTokens};
+use regex::Regex;
+
+// tuple of:
+// - TypeParam or ConstParam
+// - regex pattern of format /\b$ident\b/ where $ident is the ident of the first tuple item
+// - default type if provided, formatted and trimmed as a String
+pub type GenericDefault = (Either<syn::TypeParam, syn::ConstParam>, Regex, Option<String>);
 
 pub fn path_to_single_string(path: &syn::Path) -> Option<String> {
     if path.leading_colon.is_some() {
@@ -53,6 +62,10 @@ pub fn type_tuple(elems: impl Iterator<Item = syn::Type>) -> syn::TypeTuple {
         result.elems.push_punct(Default::default());
     }
     result
+}
+
+pub fn expr_tuple(elems: impl Iterator<Item = syn::Expr>) -> TokenStream {
+    quote! { (#(#elems,)*) }
 }
 
 pub fn empty_type_tuple() -> syn::TypeTuple {

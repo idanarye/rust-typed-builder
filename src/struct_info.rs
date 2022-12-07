@@ -1,11 +1,14 @@
+use either::Either::*;
 use proc_macro2::TokenStream;
-use quote::quote;
+use quote::{format_ident, quote};
+use regex::Regex;
 use syn::parse::Error;
+use syn::punctuated::Punctuated;
 
 use crate::field_info::{FieldBuilderAttr, FieldInfo};
 use crate::util::{
-    empty_type, empty_type_tuple, expr_to_single_string, make_punctuated_single, modify_types_generics_hack,
-    path_to_single_string, strip_raw_ident_prefix, type_tuple,
+    empty_type_tuple, expr_to_single_string, expr_tuple, make_punctuated_single, modify_types_generics_hack,
+    path_to_single_string, strip_raw_ident_prefix, type_tuple, GenericDefault,
 };
 
 #[derive(Debug)]
@@ -14,6 +17,14 @@ pub struct StructInfo<'a> {
     pub name: &'a syn::Ident,
     pub generics: &'a syn::Generics,
     pub fields: Vec<FieldInfo<'a>>,
+    // all generics, just with default types removed
+    pub generics_without_defaults: syn::Generics,
+    /// equivalent of a TyGenerics struct where TypeParams are replaced by their defaults if provided
+    pub ty_generics_with_defaults: Punctuated<syn::GenericArgument, syn::token::Comma>,
+    /// only generics which had no defaults specified
+    pub no_default_generics: syn::Generics,
+    /// map of word matching regex patterns for TypeParam idents to their corresponding default type
+    pub generic_defaults: Vec<GenericDefault>,
 
     pub builder_attr: TypeBuilderAttr,
     pub builder_name: syn::Ident,
@@ -29,18 +40,137 @@ impl<'a> StructInfo<'a> {
     pub fn new(ast: &'a syn::DeriveInput, fields: impl Iterator<Item = &'a syn::Field>) -> Result<StructInfo<'a>, Error> {
         let builder_attr = TypeBuilderAttr::new(&ast.attrs)?;
         let builder_name = strip_raw_ident_prefix(format!("{}Builder", ast.ident));
+
+        let mut generics_without_defaults = ast.generics.clone();
+        generics_without_defaults.params = generics_without_defaults
+            .params
+            .into_iter()
+            .map(|param| match param {
+                syn::GenericParam::Type(type_param) => syn::GenericParam::Type(syn::TypeParam {
+                    attrs: type_param.attrs,
+                    ident: type_param.ident,
+                    colon_token: type_param.colon_token,
+                    bounds: type_param.bounds,
+                    eq_token: None,
+                    default: None,
+                }),
+                syn::GenericParam::Const(const_param) => syn::GenericParam::Const(syn::ConstParam {
+                    attrs: const_param.attrs,
+                    const_token: const_param.const_token,
+                    ident: const_param.ident,
+                    colon_token: const_param.colon_token,
+                    ty: const_param.ty,
+                    eq_token: None,
+                    default: None,
+                }),
+                param => param,
+            })
+            .collect();
+
+        let ty_generics_with_defaults: Punctuated<_, syn::token::Comma> = ast
+            .generics
+            .params
+            .clone()
+            .into_iter()
+            .map::<Result<syn::GenericArgument, _>, _>(|param| match param {
+                syn::GenericParam::Type(type_param) => match type_param.default {
+                    Some(default) => syn::parse(proc_macro::TokenStream::from(quote!(#default))),
+                    None => {
+                        let ident = type_param.ident;
+                        syn::parse(proc_macro::TokenStream::from(quote!(#ident)))
+                    }
+                },
+                syn::GenericParam::Lifetime(syn::LifetimeDef { lifetime, .. }) => {
+                    syn::parse(proc_macro::TokenStream::from(quote!(#lifetime)))
+                }
+                syn::GenericParam::Const(const_param) => match const_param.default {
+                    Some(default) => syn::parse(proc_macro::TokenStream::from(quote!(#default))),
+                    None => {
+                        let ident = const_param.ident;
+                        syn::parse(proc_macro::TokenStream::from(quote!(#ident)))
+                    }
+                },
+            })
+            .collect::<Result<_, _>>()?;
+
+        let mut no_default_generics = ast.generics.clone();
+        let mut generic_defaults = Vec::<GenericDefault>::default();
+        no_default_generics.params = no_default_generics
+            .params
+            .into_iter()
+            .filter_map(|param| match param {
+                syn::GenericParam::Type(type_param) => match type_param.default.clone() {
+                    Some(default) => {
+                        let ident = &type_param.ident;
+                        let regular_expression = Regex::new(format!(r#"\b{}\b"#, quote!(#ident)).trim()).expect(&format!(
+                            "unable to replace generic parameter `{}`, not a matchable regex pattern",
+                            format!("{}", quote!(#type_param))
+                        ));
+                        generic_defaults.push((
+                            Left(type_param),
+                            regular_expression,
+                            Some(format!("{}", quote!(#default)).trim().to_string()),
+                        ));
+                        None
+                    }
+                    None => {
+                        generic_defaults.push((
+                            Left(type_param.clone()),
+                            Regex::new(format!(r#"\b{}\b"#, quote!(#type_param)).trim()).expect(&format!(
+                                "unable to replace generic parameter `{}`, not a matchable regex pattern",
+                                format!("{}", quote!(#type_param))
+                            )),
+                            None,
+                        ));
+                        Some(syn::GenericParam::Type(type_param))
+                    }
+                },
+                syn::GenericParam::Const(const_param) => match const_param.default.clone() {
+                    Some(default) => {
+                        let ident = &const_param.ident;
+                        let regular_expression = Regex::new(format!(r#"\b{}\b"#, quote!(#ident)).trim()).expect(&format!(
+                            "unable to replace generic parameter `{}`, not a matchable regex pattern",
+                            format!("{}", quote!(#const_param))
+                        ));
+                        generic_defaults.push((
+                            Right(const_param),
+                            regular_expression,
+                            Some(format!("{}", quote!(#default)).trim().to_string()),
+                        ));
+                        None
+                    }
+                    None => {
+                        generic_defaults.push((
+                            Right(const_param.clone()),
+                            Regex::new(format!(r#"\b{}\b"#, quote!(#const_param)).trim()).expect(&format!(
+                                "unable to replace generic parameter `{}`, not a matchable regex pattern",
+                                format!("{}", quote!(#const_param))
+                            )),
+                            None,
+                        ));
+                        Some(syn::GenericParam::Const(const_param))
+                    }
+                },
+                param => Some(param),
+            })
+            .collect();
+
         Ok(StructInfo {
             vis: &ast.vis,
             name: &ast.ident,
             generics: &ast.generics,
             fields: fields
                 .enumerate()
-                .map(|(i, f)| FieldInfo::new(i, f, builder_attr.field_defaults.clone()))
+                .map(|(i, f)| FieldInfo::new(i, f, builder_attr.field_defaults.clone(), &generic_defaults))
                 .collect::<Result<_, _>>()?,
-            builder_attr,
             builder_name: syn::Ident::new(&builder_name, proc_macro2::Span::call_site()),
             conversion_helper_trait_name: syn::Ident::new(&format!("{}_Optional", builder_name), proc_macro2::Span::call_site()),
             core: syn::Ident::new(&format!("{}_core", builder_name), proc_macro2::Span::call_site()),
+            builder_attr,
+            generics_without_defaults,
+            ty_generics_with_defaults,
+            no_default_generics,
+            generic_defaults,
         })
     }
 
@@ -50,6 +180,68 @@ impl<'a> StructInfo<'a> {
         generics
     }
 
+    fn modify_generics_alter_if_used_default_generic<F: FnMut(&mut syn::Generics)>(
+        &self,
+        mut mutator: F,
+        field: &FieldInfo,
+    ) -> syn::Generics {
+        let mut generics = self.generics.clone();
+        generics.params.iter_mut().for_each(|param| match param {
+            syn::GenericParam::Type(ref mut type_param) => {
+                if type_param.default.is_some() && field.used_default_generic_idents.contains(&type_param.ident) {
+                    type_param.ident = format_ident_target_generic_default(&type_param.ident);
+                }
+            }
+            syn::GenericParam::Const(ref mut const_param) => {
+                if const_param.default.is_some() && field.used_default_generic_idents.contains(&const_param.ident) {
+                    const_param.ident = format_ident_target_generic_default(&const_param.ident);
+                }
+            }
+            _ => {}
+        });
+        mutator(&mut generics);
+        generics
+    }
+
+    fn modify_generics_with_no_defaults<F: FnMut(&mut syn::Generics)>(&self, mut mutator: F) -> syn::Generics {
+        let mut generics = self.generics_without_defaults.clone();
+        mutator(&mut generics);
+        generics
+    }
+
+    fn ty_generics_with_defaults_except_field(&self, field: &FieldInfo) -> Result<Vec<syn::GenericArgument>, Error> {
+        self.generics
+            .params
+            .clone()
+            .into_iter()
+            .map::<Result<syn::GenericArgument, _>, _>(|param| match param {
+                syn::GenericParam::Type(type_param) => match field.used_default_generic_idents.contains(&type_param.ident) {
+                    true => {
+                        let ident = format_ident_target_generic_default(&type_param.ident);
+                        syn::parse(proc_macro::TokenStream::from(quote!(#ident)))
+                    }
+                    false => {
+                        let ident = &type_param.ident;
+                        syn::parse(proc_macro::TokenStream::from(quote!(#ident)))
+                    }
+                },
+                syn::GenericParam::Lifetime(syn::LifetimeDef { lifetime, .. }) => {
+                    syn::parse(proc_macro::TokenStream::from(quote!(#lifetime)))
+                }
+                syn::GenericParam::Const(const_param) => match field.used_default_generic_idents.contains(&const_param.ident) {
+                    true => {
+                        let ident = format_ident_target_generic_default(&const_param.ident);
+                        syn::parse(proc_macro::TokenStream::from(quote!(#ident)))
+                    }
+                    false => {
+                        let ident = &const_param.ident;
+                        syn::parse(proc_macro::TokenStream::from(quote!(#ident)))
+                    }
+                },
+            })
+            .collect::<Result<_, _>>()
+    }
+
     pub fn builder_creation_impl(&self) -> Result<TokenStream, Error> {
         let StructInfo {
             ref vis,
@@ -57,16 +249,24 @@ impl<'a> StructInfo<'a> {
             ref builder_name,
             ..
         } = *self;
-        let (impl_generics, ty_generics, where_clause) = self.generics.split_for_impl();
+        let (impl_generics, ty_generics, where_clause) = self.no_default_generics.split_for_impl();
         let all_fields_param =
             syn::GenericParam::Type(syn::Ident::new("TypedBuilderFields", proc_macro2::Span::call_site()).into());
-        let b_generics = self.modify_generics(|g| {
+        let b_generics = self.modify_generics_with_no_defaults(|g| {
             g.params.insert(0, all_fields_param.clone());
         });
-        let empties_tuple = type_tuple(self.included_fields().map(|_| empty_type()));
-        let generics_with_empty = modify_types_generics_hack(&ty_generics, |args| {
-            args.insert(0, syn::GenericArgument::Type(empties_tuple.clone().into()));
-        });
+        let expr_empties_tuple = expr_tuple(self.included_fields().map(|f| f.default_expr()));
+        let ty_empties_tuple = type_tuple(self.included_fields().map(|f| f.default_type()));
+
+        let mut ty_generics_with_defaults = self.ty_generics_with_defaults.clone();
+        ty_generics_with_defaults.insert(0, syn::GenericArgument::Type(ty_empties_tuple.clone().into()));
+
+        let generics_with_empty = syn::AngleBracketedGenericArguments {
+            colon2_token: None,
+            lt_token: Default::default(),
+            args: ty_generics_with_defaults,
+            gt_token: Default::default(),
+        };
         let phantom_generics = self.generics.params.iter().map(|param| match param {
             syn::GenericParam::Lifetime(lifetime) => {
                 let lifetime = &lifetime.lifetime;
@@ -138,7 +338,7 @@ impl<'a> StructInfo<'a> {
                 #[allow(dead_code, clippy::default_trait_access)]
                 #vis fn builder() -> #builder_name #generics_with_empty {
                     #builder_name {
-                        fields: #empties_tuple,
+                        fields: #expr_empties_tuple,
                         phantom: ::core::default::Default::default(),
                     }
                 }
@@ -172,17 +372,17 @@ impl<'a> StructInfo<'a> {
             #[doc(hidden)]
             #[allow(dead_code, non_camel_case_types, non_snake_case)]
             pub trait #trait_name<T> {
-                fn into_value<F: FnOnce() -> T>(self, default: F) -> T;
+                fn into_value<F: FnOnce() -> Option<T>>(self, default: F) -> T;
             }
 
             impl<T> #trait_name<T> for () {
-                fn into_value<F: FnOnce() -> T>(self, default: F) -> T {
-                    default()
+                fn into_value<F: FnOnce() -> Option<T>>(self, default: F) -> T {
+                    default().unwrap()
                 }
             }
 
             impl<T> #trait_name<T> for (T,) {
-                fn into_value<F: FnOnce() -> T>(self, _: F) -> T {
+                fn into_value<F: FnOnce() -> Option<T>>(self, _: F) -> T {
                     self.0
                 }
             }
@@ -207,7 +407,8 @@ impl<'a> StructInfo<'a> {
             ty: field_type,
             ..
         } = field;
-        let mut ty_generics: Vec<syn::GenericArgument> = self
+
+        let mut target_generics: Vec<syn::GenericArgument> = self
             .generics
             .params
             .iter()
@@ -223,9 +424,17 @@ impl<'a> StructInfo<'a> {
                 }
             })
             .collect();
+
+        let mut ty_generics: Vec<syn::GenericArgument> = if !field.used_default_generic_idents.is_empty() {
+            self.ty_generics_with_defaults_except_field(field)?
+        } else {
+            target_generics.clone()
+        };
+
         let mut target_generics_tuple = empty_type_tuple();
         let mut ty_generics_tuple = empty_type_tuple();
-        let generics = self.modify_generics(|g| {
+
+        let modify_generics_callback = |g: &mut syn::Generics| {
             let index_after_lifetime_in_generics = g
                 .params
                 .iter()
@@ -233,7 +442,7 @@ impl<'a> StructInfo<'a> {
                 .count();
             for f in self.included_fields() {
                 if f.ordinal == field.ordinal {
-                    ty_generics_tuple.elems.push_value(empty_type());
+                    ty_generics_tuple.elems.push_value(f.default_type());
                     target_generics_tuple.elems.push_value(f.tuplized_type_ty_param());
                 } else {
                     g.params.insert(index_after_lifetime_in_generics, f.generic_ty_param());
@@ -244,8 +453,13 @@ impl<'a> StructInfo<'a> {
                 ty_generics_tuple.elems.push_punct(Default::default());
                 target_generics_tuple.elems.push_punct(Default::default());
             }
-        });
-        let mut target_generics = ty_generics.clone();
+        };
+        let generics = if !field.used_default_generic_idents.is_empty() {
+            self.modify_generics_alter_if_used_default_generic(modify_generics_callback, field)
+        } else {
+            self.modify_generics(modify_generics_callback)
+        };
+
         let index_after_lifetime_in_generics = target_generics
             .iter()
             .filter(|arg| matches!(arg, syn::GenericArgument::Lifetime(_)))
@@ -280,6 +494,34 @@ impl<'a> StructInfo<'a> {
             (quote!(#arg_type), quote!(#field_name))
         };
 
+        let fn_generics = {
+            let ty_str = format!("{arg_type}");
+            let mut generic_params = vec![];
+            for (generic_param, regular_expression, default_type) in self.generic_defaults.iter() {
+                if default_type.is_some() && regular_expression.is_match(&ty_str) {
+                    match generic_param {
+                        Left(type_param) => {
+                            let mut type_param = type_param.clone();
+                            type_param.eq_token = None;
+                            type_param.default = None;
+                            generic_params.push(quote!(#type_param));
+                        }
+                        Right(const_param) => {
+                            let mut const_param = const_param.clone();
+                            const_param.eq_token = None;
+                            const_param.default = None;
+                            generic_params.push(quote!(#const_param));
+                        }
+                    }
+                }
+            }
+            if generic_params.is_empty() {
+                quote!()
+            } else {
+                quote!(<#(#generic_params),*>)
+            }
+        };
+
         let (param_list, arg_expr) = if field.builder_attr.setter.strip_bool.is_some() {
             (quote!(), quote!(true))
         } else if let Some(transform) = &field.builder_attr.setter.transform {
@@ -292,42 +534,52 @@ impl<'a> StructInfo<'a> {
             (quote!(#field_name: #arg_type), arg_expr)
         };
 
-        let repeated_fields_error_type_name = syn::Ident::new(
-            &format!(
-                "{}_Error_Repeated_field_{}",
-                builder_name,
-                strip_raw_ident_prefix(field_name.to_string())
-            ),
-            proc_macro2::Span::call_site(),
-        );
-        let repeated_fields_error_message = format!("Repeated field {}", field_name);
+        // repeated field impl cannot exist if field includes use of a default type because of overlapping impls
+        let repeated_field_impl = if field.used_default_generic_idents.is_empty() {
+            let repeated_fields_error_type_name = syn::Ident::new(
+                &format!(
+                    "{}_Error_Repeated_field_{}",
+                    builder_name,
+                    strip_raw_ident_prefix(field_name.to_string())
+                ),
+                proc_macro2::Span::call_site(),
+            );
+            let repeated_fields_error_message = format!("Repeated field {}", field_name);
+            quote! {
+                #[doc(hidden)]
+                #[allow(dead_code, non_camel_case_types, non_snake_case)]
+                pub enum #repeated_fields_error_type_name {}
+
+                #[doc(hidden)]
+                #[allow(dead_code, non_camel_case_types, missing_docs)]
+                impl #impl_generics #builder_name < #( #target_generics ),* > #where_clause {
+                    #[deprecated(
+                        note = #repeated_fields_error_message
+                    )]
+                    pub fn #field_name (self, _: #repeated_fields_error_type_name) -> #builder_name < #( #target_generics ),* > {
+                        self
+                    }
+                }
+            }
+        } else {
+            quote! {}
+        };
 
         Ok(quote! {
             #[allow(dead_code, non_camel_case_types, missing_docs)]
             impl #impl_generics #builder_name < #( #ty_generics ),* > #where_clause {
                 #doc
-                pub fn #field_name (self, #param_list) -> #builder_name < #( #target_generics ),* > {
+                pub fn #field_name #fn_generics (self, #param_list) -> #builder_name < #( #target_generics ),* > {
                     let #field_name = (#arg_expr,);
                     let ( #(#descructuring,)* ) = self.fields;
                     #builder_name {
                         fields: ( #(#reconstructing,)* ),
-                        phantom: self.phantom,
+                        phantom: ::core::default::Default::default(),
                     }
                 }
             }
-            #[doc(hidden)]
-            #[allow(dead_code, non_camel_case_types, non_snake_case)]
-            pub enum #repeated_fields_error_type_name {}
-            #[doc(hidden)]
-            #[allow(dead_code, non_camel_case_types, missing_docs)]
-            impl #impl_generics #builder_name < #( #target_generics ),* > #where_clause {
-                #[deprecated(
-                    note = #repeated_fields_error_message
-                )]
-                pub fn #field_name (self, _: #repeated_fields_error_type_name) -> #builder_name < #( #target_generics ),* > {
-                    self
-                }
-            }
+
+            #repeated_field_impl
         })
     }
 
@@ -380,7 +632,7 @@ impl<'a> StructInfo<'a> {
                     // `f`'s `build` method will warn, since it appears earlier in the argument list.
                     builder_generics_tuple.elems.push_value(f.tuplized_type_ty_param());
                 } else if f.ordinal == field.ordinal {
-                    builder_generics_tuple.elems.push_value(empty_type());
+                    builder_generics_tuple.elems.push_value(f.default_type());
                 } else {
                     // `f` appears later in the argument list after `field`, so if they are both missing we will
                     // show a warning for `field` and not for `f` - which means this warning should appear whether
@@ -500,8 +752,10 @@ impl<'a> StructInfo<'a> {
             if let Some(ref default) = field.builder_attr.default {
                 if field.builder_attr.setter.skip.is_some() {
                     quote!(let #name = #default;)
+                } else if !field.used_default_generic_idents.is_empty() {
+                    quote!(let #name = #helper_trait_name::into_value(#name, || None);)
                 } else {
-                    quote!(let #name = #helper_trait_name::into_value(#name, || #default);)
+                    quote!(let #name = #helper_trait_name::into_value(#name, || Some(#default));)
                 }
             } else {
                 quote!(let #name = #name.0;)
@@ -706,4 +960,8 @@ impl TypeBuilderAttr {
             _ => Err(Error::new_spanned(expr, "Expected (<...>=<...>)")),
         }
     }
+}
+
+fn format_ident_target_generic_default(ident: &syn::Ident) -> syn::Ident {
+    format_ident!("{ident}__")
 }

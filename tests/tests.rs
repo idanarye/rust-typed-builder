@@ -331,7 +331,7 @@ fn test_builder_type_with_default_on_generic_type() {
     assert!(Types::builder().x(()).y(()).build() == Types { x: (), y: () });
 
     #[derive(PartialEq, TypedBuilder)]
-    struct TypeAndLifetime<'a, X, Y: Default, Z = usize> {
+    struct TypeAndLifetime<'a, X, Y: Default, Z> {
         x: X,
         y: Y,
         z: &'a Z,
@@ -360,7 +360,7 @@ fn test_builder_type_with_default_on_generic_type() {
     }
 
     // compile test if rustc can infer type for `z` and `m`
-    Foo::<(), _, _, f64>::builder().x(()).y(&a).z_default().m(1.0).build();
+    Foo::<(), _, _, _>::builder().x(()).y(&a).z_default().m(1.0f64).build();
     Foo::<(), _, _, _>::builder().x(()).y(&a).z_default().m_default().build();
 
     assert!(
@@ -573,4 +573,42 @@ fn test_build_method() {
     }
 
     assert!(Foo::builder().x(1).__build() == Foo { x: 1 });
+}
+
+#[test]
+fn test_struct_generic_defaults() {
+    #[derive(TypedBuilder)]
+    pub struct Props<'a, OnInput: FnOnce(usize) -> usize = Box<dyn FnOnce(usize) -> usize>> {
+        #[builder(default, setter(into))]
+        pub class: Option<&'a str>,
+        pub label: &'a str,
+        #[builder(default = Some(Box::new(|x: usize| x + 1)), setter(strip_option))]
+        pub on_input: Option<OnInput>,
+    }
+
+    let _: PropsBuilder<((), (), (Option<Box<dyn FnOnce(usize) -> usize>>,)), Box<dyn FnOnce(usize) -> usize>> = Props::builder();
+
+    let props = Props::builder().label("label").on_input(|x: usize| x).build();
+    assert_eq!(props.class, None);
+    assert_eq!(props.label, "label");
+    assert_eq!((props.on_input.unwrap())(123), 123);
+
+    #[derive(TypedBuilder)]
+    struct Foo<T = usize> {
+        #[builder(default = 12)]
+        x: T,
+    }
+
+    assert_eq!(Foo::builder().build().x, 12);
+
+    #[allow(dead_code)]
+    #[derive(TypedBuilder)]
+    struct Bar<T, U = usize, V = usize> {
+        t: T,
+        #[builder(default = 12)]
+        u: U,
+        v: (T, U, V),
+    }
+
+    assert_eq!(Bar::builder().t("test").v(("t", 0, 3.14f64)).build().v.0, "t");
 }
