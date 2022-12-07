@@ -1,4 +1,10 @@
-use quote::ToTokens;
+use proc_macro2::TokenStream;
+use quote::{quote, ToTokens};
+use regex::Regex;
+
+// keys are regex patterns of format /\btype_param\b/
+// values are options of the default type provided, formatted and trimmed as a String
+pub type TypeGenericDefaults = Vec<(Regex, Option<String>)>;
 
 pub fn path_to_single_string(path: &syn::Path) -> Option<String> {
     if path.leading_colon.is_some() {
@@ -53,6 +59,10 @@ pub fn type_tuple(elems: impl Iterator<Item = syn::Type>) -> syn::TypeTuple {
         result.elems.push_punct(Default::default());
     }
     result
+}
+
+pub fn expr_tuple(elems: impl Iterator<Item = syn::Expr>) -> TokenStream {
+    quote! { (#(#elems,)*) }
 }
 
 pub fn empty_type_tuple() -> syn::TypeTuple {

@@ -3,7 +3,7 @@ use quote::quote;
 use syn::parse::Error;
 use syn::spanned::Spanned;
 
-use crate::util::{expr_to_single_string, ident_to_type, path_to_single_string, strip_raw_ident_prefix};
+use crate::util::{empty_type, expr_to_single_string, ident_to_type, path_to_single_string, strip_raw_ident_prefix, TypeGenericDefaults};
 
 #[derive(Debug)]
 pub struct FieldInfo<'a> {
@@ -12,19 +12,54 @@ pub struct FieldInfo<'a> {
     pub generic_ident: syn::Ident,
     pub ty: &'a syn::Type,
     pub builder_attr: FieldBuilderAttr,
+    pub default_ty: Option<(syn::Type, syn::Expr)>,
 }
 
 impl<'a> FieldInfo<'a> {
-    pub fn new(ordinal: usize, field: &syn::Field, field_defaults: FieldBuilderAttr) -> Result<FieldInfo, Error> {
+    pub fn new(ordinal: usize, field: &'a syn::Field, field_defaults: FieldBuilderAttr, type_generic_defaults: &TypeGenericDefaults) -> Result<Self, Error> {
         if let Some(ref name) = field.ident {
-            FieldInfo {
+            let mut field_info = FieldInfo {
                 ordinal,
                 name,
                 generic_ident: syn::Ident::new(&format!("__{}", strip_raw_ident_prefix(name.to_string())), Span::call_site()),
                 ty: &field.ty,
                 builder_attr: field_defaults.with(&field.attrs)?,
+                default_ty: None,
             }
-            .post_process()
+            .post_process()?;
+
+            if field_info.builder_attr.default.is_none() {
+                let mut ty_includes_params_without_defaults = false;
+                let mut ty_includes_params_with_defaults = false;
+                let ty = &field.ty;
+                let mut ty_str = format!("{}", quote! { #ty });
+                for (type_param, default_type) in type_generic_defaults.iter() {
+                    if type_param.is_match(&ty_str) {
+                        match default_type.as_ref() {
+                            Some(default_type) => {
+                                ty_includes_params_with_defaults = true;
+                                ty_str = type_param.replace(&ty_str, default_type).into();
+                            },
+                            None => {
+                                ty_includes_params_without_defaults = true;
+                                break;
+                            }
+                        }
+                    }
+                }
+                if !ty_includes_params_without_defaults && ty_includes_params_with_defaults {
+                    use std::str::FromStr;
+                    let expr_str = format!("(<{ty_str} as Default>::default(),)");
+                    let ty_str = format!("({ty_str},)");
+                    field_info.default_ty = Some((
+                        syn::parse(TokenStream::from_str(&ty_str)?.into())?,
+                        syn::parse(TokenStream::from_str(&expr_str)?.into())?,
+                    ));
+                }
+            }
+
+            Ok(field_info)
+
         } else {
             Err(Error::new(field.span(), "Nameless field in struct"))
         }
@@ -93,6 +128,22 @@ impl<'a> FieldInfo<'a> {
             }));
         }
         Ok(self)
+    }
+
+    pub fn default_type(&self) -> syn::Type {
+        if let Some((ty, _)) = self.default_ty.as_ref() {
+            ty.clone()
+        } else {
+            empty_type()
+        }
+    }
+
+    pub fn default_expr(&self) -> syn::Expr {
+        if let Some((_, expr)) = self.default_ty.as_ref() {
+            expr.clone()
+        } else {
+            syn::parse(quote!(()).into()).unwrap()
+        }
     }
 }
 
