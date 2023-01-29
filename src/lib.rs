@@ -74,18 +74,16 @@ mod util;
 ///   but it won't be a link. If you turn this on, the builder type and its `build` method will get
 ///   sane defaults. The field methods on the builder will be undocumented by default.
 ///
-/// - `build_method(...)`: customize the final build method
+/// - The following subsections:
+///   - `builder_method(...)`: customize the builder method that creates the builder type
+///   - `builder_type(...)`: customize the builder type
+///   - `build_method(...)`: customize the final build method
+///
+///   All have the same fields:
 ///   - `vis = "…"`: sets the visibility of the build method, default is `pub`
 ///   - `name = …`: sets the fn name of the build method, default is `build`
-///
-/// - `builder_method_doc = "…"` replaces the default documentation that will be generated for the
-///   `builder()` method of the type for which the builder is being generated.
-///
-/// - `builder_type_doc = "…"` replaces the default documentation that will be generated for the
-///   builder type. Setting this implies `doc`.
-///
-/// - `build_method_doc = "…"` replaces the default documentation that will be generated for the
-///   `build()` method of the builder type. Setting this implies `doc`.
+///   - `doc = "…"` replaces the default documentation that will be generated for the
+///     `build()` method of the builder type. Setting this implies `doc`.
 ///
 /// - `field_defaults(...)` is structured like the `#[builder(...)]` attribute you can put on the
 ///   fields and sets default options for fields of the type. If specific field need to revert some

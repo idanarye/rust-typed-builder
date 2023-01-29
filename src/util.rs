@@ -1,4 +1,4 @@
-use quote::ToTokens;
+use quote::{quote, ToTokens};
 
 pub fn path_to_single_string(path: &syn::Path) -> Option<String> {
     if path.leading_colon.is_some() {
@@ -17,7 +17,7 @@ pub fn path_to_single_string(path: &syn::Path) -> Option<String> {
 }
 
 pub fn expr_to_single_string(expr: &syn::Expr) -> Option<String> {
-    if let syn::Expr::Path(path) = &*expr {
+    if let syn::Expr::Path(path) = expr {
         path_to_single_string(&path.path)
     } else {
         None
@@ -88,4 +88,19 @@ pub fn strip_raw_ident_prefix(mut name: String) -> String {
         name.replace_range(0..2, "");
     }
     name
+}
+
+pub fn first_visibility(visibilities: &[Option<&syn::Visibility>]) -> proc_macro2::TokenStream {
+    let vis = visibilities
+        .iter()
+        .flatten()
+        .next()
+        .expect("need at least one visibility in the list");
+    quote!(#vis)
+}
+
+pub fn public_visibility() -> syn::Visibility {
+    syn::Visibility::Public(syn::VisPublic {
+        pub_token: Default::default(),
+    })
 }

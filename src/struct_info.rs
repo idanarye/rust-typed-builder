@@ -4,8 +4,8 @@ use syn::parse::Error;
 
 use crate::field_info::{FieldBuilderAttr, FieldInfo};
 use crate::util::{
-    empty_type, empty_type_tuple, expr_to_single_string, make_punctuated_single, modify_types_generics_hack,
-    path_to_single_string, strip_raw_ident_prefix, type_tuple,
+    empty_type, empty_type_tuple, expr_to_single_string, first_visibility, make_punctuated_single, modify_types_generics_hack,
+    path_to_single_string, public_visibility, strip_raw_ident_prefix, type_tuple,
 };
 
 #[derive(Debug)]
@@ -28,7 +28,11 @@ impl<'a> StructInfo<'a> {
 
     pub fn new(ast: &'a syn::DeriveInput, fields: impl Iterator<Item = &'a syn::Field>) -> Result<StructInfo<'a>, Error> {
         let builder_attr = TypeBuilderAttr::new(&ast.attrs)?;
-        let builder_name = strip_raw_ident_prefix(format!("{}Builder", ast.ident));
+        let builder_name = builder_attr
+            .builder_type
+            .get_name()
+            .map(|name| strip_raw_ident_prefix(name.to_string()))
+            .unwrap_or_else(|| strip_raw_ident_prefix(format!("{}Builder", ast.ident)));
         Ok(StructInfo {
             vis: &ast.vis,
             name: &ast.ident,
@@ -52,7 +56,7 @@ impl<'a> StructInfo<'a> {
 
     pub fn builder_creation_impl(&self) -> Result<TokenStream, Error> {
         let StructInfo {
-            ref vis,
+            vis,
             ref name,
             ref builder_name,
             ..
@@ -80,15 +84,20 @@ impl<'a> StructInfo<'a> {
                 quote!()
             }
         });
-        let builder_method_doc = if let Some(ref doc) = self.builder_attr.builder_method_doc {
-            quote!(#doc)
-        } else {
-            let doc = format!(
+
+        let builder_method_name = self.builder_attr.builder_method.get_name().unwrap_or_else(|| quote!(builder));
+        let builder_method_visibility = first_visibility(&[
+            self.builder_attr.builder_method.vis.as_ref(),
+            self.builder_attr.builder_type.vis.as_ref(),
+            Some(vis),
+        ]);
+        let builder_method_doc = self.builder_attr.builder_method.get_doc_or(|| {
+            format!(
                 "
-                    Create a builder for building `{name}`.
-                    On the builder, call {setters} to set the values of the fields.
-                    Finally, call `.build()` to create the instance of `{name}`.
-                    ",
+                Create a builder for building `{name}`.
+                On the builder, call {setters} to set the values of the fields.
+                Finally, call `.build()` to create the instance of `{name}`.
+                ",
                 name = self.name,
                 setters = {
                     let mut result = String::new();
@@ -107,19 +116,17 @@ impl<'a> StructInfo<'a> {
                     }
                     result
                 }
-            );
-            quote!(#doc)
-        };
+            )
+        });
+
+        let builder_type_visibility = first_visibility(&[self.builder_attr.builder_type.vis.as_ref(), Some(vis)]);
         let builder_type_doc = if self.builder_attr.doc {
-            if let Some(ref doc) = self.builder_attr.builder_type_doc {
-                quote!(#[doc = #doc])
-            } else {
-                let doc = format!(
+            self.builder_attr.builder_type.get_doc_or(|| {
+                format!(
                     "Builder for [`{name}`] instances.\n\nSee [`{name}::builder()`] for more info.",
                     name = name
-                );
-                quote!(#[doc = #doc])
-            }
+                )
+            })
         } else {
             quote!(#[doc(hidden)])
         };
@@ -134,9 +141,9 @@ impl<'a> StructInfo<'a> {
 
         Ok(quote! {
             impl #impl_generics #name #ty_generics #where_clause {
-                #[doc = #builder_method_doc]
+                #builder_method_doc
                 #[allow(dead_code, clippy::default_trait_access)]
-                #vis fn builder() -> #builder_name #generics_with_empty {
+                #builder_method_visibility fn #builder_method_name() -> #builder_name #generics_with_empty {
                     #builder_name {
                         fields: #empties_tuple,
                         phantom: ::core::default::Default::default(),
@@ -147,7 +154,7 @@ impl<'a> StructInfo<'a> {
             #[must_use]
             #builder_type_doc
             #[allow(dead_code, non_camel_case_types, non_snake_case)]
-            #vis struct #builder_name #b_generics {
+            #builder_type_visibility struct #builder_name #b_generics {
                 fields: #all_fields_param,
                 phantom: (#( #phantom_generics ),*),
             }
@@ -267,10 +274,9 @@ impl<'a> StructInfo<'a> {
         // NOTE: both auto_into and strip_option affect `arg_type` and `arg_expr`, but the order of
         // nesting is different so we have to do this little dance.
         let arg_type = if field.builder_attr.setter.strip_option.is_some() && field.builder_attr.setter.transform.is_none() {
-            let internal_type = field
+            field
                 .type_from_inside_option()
-                .ok_or_else(|| Error::new_spanned(&field_type, "can't `strip_option` - field is not `Option<...>`"))?;
-            internal_type
+                .ok_or_else(|| Error::new_spanned(field_type, "can't `strip_option` - field is not `Option<...>`"))?
         } else {
             field_type
         };
@@ -508,39 +514,23 @@ impl<'a> StructInfo<'a> {
             }
         });
         let field_names = self.fields.iter().map(|field| field.name);
-        let doc = if self.builder_attr.doc {
-            if let Some(ref doc) = self.builder_attr.build_method_doc {
-                quote!(#[doc = #doc])
-            } else {
-                // I'd prefer “a” or “an” to “its”, but determining which is grammatically
-                // correct is roughly impossible.
-                let doc = format!("Finalise the builder and create its [`{}`] instance", name);
-                quote!(#[doc = #doc])
-            }
+
+        let build_method_name = self.builder_attr.build_method.get_name().unwrap_or(quote!(build));
+        let build_method_visibility =
+            first_visibility(&[self.builder_attr.build_method.vis.as_ref(), Some(&public_visibility())]);
+        let build_method_doc = if self.builder_attr.doc {
+            self.builder_attr
+                .build_method
+                .get_doc_or(|| format!("Finalise the builder and create its [`{}`] instance", name))
         } else {
             quote!()
         };
-
-        let build_method_name = self
-            .builder_attr
-            .build_method
-            .name
-            .as_ref()
-            .map(|name| quote!(#name))
-            .unwrap_or(quote!(build));
-        let visibility = self
-            .builder_attr
-            .build_method
-            .vis
-            .as_ref()
-            .map(|v| quote!(#v))
-            .unwrap_or(quote!(pub));
         quote!(
             #[allow(dead_code, non_camel_case_types, missing_docs)]
             impl #impl_generics #builder_name #modified_ty_generics #where_clause {
-                #doc
+                #build_method_doc
                 #[allow(clippy::default_trait_access)]
-                #visibility fn #build_method_name(self) -> #name #ty_generics {
+                #build_method_visibility fn #build_method_name(self) -> #name #ty_generics {
                     let ( #(#descructuring,)* ) = self.fields;
                     #( #assignments )*
                     #name {
@@ -553,11 +543,12 @@ impl<'a> StructInfo<'a> {
 }
 
 #[derive(Debug, Default, Clone)]
-pub struct BuildMethodSettings {
+pub struct CommonDeclarationSettings {
     pub vis: Option<syn::Visibility>,
     pub name: Option<syn::Expr>,
+    pub doc: Option<syn::Expr>,
 }
-impl BuildMethodSettings {
+impl CommonDeclarationSettings {
     fn apply_meta(&mut self, expr: syn::Expr) -> Result<(), Error> {
         match expr {
             syn::Expr::Assign(assign) => {
@@ -579,10 +570,27 @@ impl BuildMethodSettings {
                         self.name = Some(*assign.right);
                         Ok(())
                     }
+                    "doc" => {
+                        self.doc = Some(*assign.right);
+                        Ok(())
+                    }
                     _ => Err(Error::new_spanned(&assign, format!("Unknown parameter {:?}", name))),
                 }
             }
             _ => Err(Error::new_spanned(expr, "Expected (<...>=<...>)")),
+        }
+    }
+
+    fn get_name(&self) -> Option<TokenStream> {
+        self.name.as_ref().map(|name| quote!(#name))
+    }
+
+    fn get_doc_or(&self, gen_doc: impl FnOnce() -> String) -> TokenStream {
+        if let Some(ref doc) = self.doc {
+            quote!(#[doc = #doc])
+        } else {
+            let doc = gen_doc();
+            quote!(#[doc = #doc])
         }
     }
 }
@@ -592,19 +600,14 @@ pub struct TypeBuilderAttr {
     /// Whether to show docs for the `TypeBuilder` type (rather than hiding them).
     pub doc: bool,
 
+    /// Customize builder method, ex. visibility, name
+    pub builder_method: CommonDeclarationSettings,
+
+    /// Customize builder type, ex. visibility, name
+    pub builder_type: CommonDeclarationSettings,
+
     /// Customize build method, ex. visibility, name
-    pub build_method: BuildMethodSettings,
-
-    /// Docs on the `Type::builder()` method.
-    pub builder_method_doc: Option<syn::Expr>,
-
-    /// Docs on the `TypeBuilder` type. Specifying this implies `doc`, but you can just specify
-    /// `doc` instead and a default value will be filled in here.
-    pub builder_type_doc: Option<syn::Expr>,
-
-    /// Docs on the `TypeBuilder.build()` method. Specifying this implies `doc`, but you can just
-    /// specify `doc` instead and a default value will be filled in here.
-    pub build_method_doc: Option<syn::Expr>,
+    pub build_method: CommonDeclarationSettings,
 
     pub field_defaults: FieldBuilderAttr,
 }
@@ -637,6 +640,10 @@ impl TypeBuilderAttr {
             }
         }
 
+        if result.builder_type.doc.is_some() || result.build_method.doc.is_some() {
+            result.doc = true;
+        }
+
         Ok(result)
     }
 
@@ -645,21 +652,19 @@ impl TypeBuilderAttr {
             syn::Expr::Assign(assign) => {
                 let name =
                     expr_to_single_string(&assign.left).ok_or_else(|| Error::new_spanned(&assign.left, "Expected identifier"))?;
+                let gen_structure_depracation_error = |put_under: &str, new_name: &str| {
+                    Error::new_spanned(
+                        &assign.left,
+                        format!(
+                            "`{} = \"...\"` is deprecated - use `{}({} = \"...\")` instead",
+                            name, put_under, new_name
+                        ),
+                    )
+                };
                 match name.as_str() {
-                    "builder_method_doc" => {
-                        self.builder_method_doc = Some(*assign.right);
-                        Ok(())
-                    }
-                    "builder_type_doc" => {
-                        self.builder_type_doc = Some(*assign.right);
-                        self.doc = true;
-                        Ok(())
-                    }
-                    "build_method_doc" => {
-                        self.build_method_doc = Some(*assign.right);
-                        self.doc = true;
-                        Ok(())
-                    }
+                    "builder_method_doc" => Err(gen_structure_depracation_error("builder_method", "doc")),
+                    "builder_type_doc" => Err(gen_structure_depracation_error("builder_type", "doc")),
+                    "build_method_doc" => Err(gen_structure_depracation_error("build_method", "doc")),
                     _ => Err(Error::new_spanned(&assign, format!("Unknown parameter {:?}", name))),
                 }
             }
@@ -688,6 +693,18 @@ impl TypeBuilderAttr {
                     "field_defaults" => {
                         for arg in call.args {
                             self.field_defaults.apply_meta(arg)?;
+                        }
+                        Ok(())
+                    }
+                    "builder_method" => {
+                        for arg in call.args {
+                            self.builder_method.apply_meta(arg)?;
+                        }
+                        Ok(())
+                    }
+                    "builder_type" => {
+                        for arg in call.args {
+                            self.builder_type.apply_meta(arg)?;
                         }
                         Ok(())
                     }

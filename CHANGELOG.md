@@ -6,6 +6,14 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+### Removed
+- [**BREAKING**] `builder_method_doc = "..."`, `builder_type_doc = "..."` and
+  `build_method_doc = "..."` are replaced with `builder_method(doc = "...")`,
+  `builder_type(doc = "...")` and `build_method(doc = "...")`.
+### Added
+- `build_method(...)` now has a `doc` field.
+- `builder_method(...)` and `builder_type(...)`, which are structured similarly to `build_method(...)`.
+
 ## 0.11.0 - 2022-10-29
 ### Added
 - `#[builder(build_method(vis="pub", name=build))]` for customizing visibility and fn name of the final build method

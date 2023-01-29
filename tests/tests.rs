@@ -240,9 +240,9 @@ fn test_skip() {
 fn test_docs() {
     #[derive(TypedBuilder)]
     #[builder(
-        builder_method_doc = "Point::builder() method docs",
-        builder_type_doc = "PointBuilder type docs",
-        build_method_doc = "PointBuilder.build() method docs"
+        builder_method(doc = "Point::builder() method docs"),
+        builder_type(doc = "PointBuilder type docs"),
+        build_method(doc = "PointBuilder.build() method docs")
     )]
     struct Point {
         #[allow(dead_code)]
@@ -573,4 +573,27 @@ fn test_build_method() {
     }
 
     assert!(Foo::builder().x(1).__build() == Foo { x: 1 });
+}
+
+#[test]
+fn test_builder_method() {
+    #[derive(PartialEq, TypedBuilder)]
+    #[builder(builder_method(vis="", name=__builder))]
+    struct Foo {
+        x: i32,
+    }
+
+    assert!(Foo::__builder().x(1).build() == Foo { x: 1 });
+}
+
+#[test]
+fn test_builder_type() {
+    #[derive(PartialEq, TypedBuilder)]
+    #[builder(builder_type(vis="", name=__FooBuilder))]
+    struct Foo {
+        x: i32,
+    }
+
+    let builder: __FooBuilder<_> = Foo::builder();
+    assert!(builder.x(1).build() == Foo { x: 1 });
 }
