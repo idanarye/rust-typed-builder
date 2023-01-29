@@ -6,6 +6,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+## 0.12.0 - 2023-01-29
 ### Removed
 - [**BREAKING**] `builder_method_doc = "..."`, `builder_type_doc = "..."` and
   `build_method_doc = "..."` are replaced with `builder_method(doc = "...")`,
