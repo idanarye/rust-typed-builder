@@ -395,6 +395,9 @@ impl<'a> StructInfo<'a> {
         );
         let early_build_error_message = format!("Missing required field {}", field_name);
 
+        let build_method_name = self.build_method_name();
+        let build_method_visibility = self.build_method_visibility();
+
         quote! {
             #[doc(hidden)]
             #[allow(dead_code, non_camel_case_types, non_snake_case)]
@@ -405,11 +408,19 @@ impl<'a> StructInfo<'a> {
                 #[deprecated(
                     note = #early_build_error_message
                 )]
-                pub fn build(self, _: #early_build_error_type_name) -> #name #ty_generics {
+                #build_method_visibility fn #build_method_name(self, _: #early_build_error_type_name) -> #name #ty_generics {
                     panic!();
                 }
             }
         }
+    }
+
+    fn build_method_name(&self) -> TokenStream {
+        self.builder_attr.build_method.get_name().unwrap_or(quote!(build))
+    }
+
+    fn build_method_visibility(&self) -> TokenStream {
+        first_visibility(&[self.builder_attr.build_method.vis.as_ref(), Some(&public_visibility())])
     }
 
     pub fn build_method_impl(&self) -> TokenStream {
@@ -484,9 +495,8 @@ impl<'a> StructInfo<'a> {
         });
         let field_names = self.fields.iter().map(|field| field.name);
 
-        let build_method_name = self.builder_attr.build_method.get_name().unwrap_or(quote!(build));
-        let build_method_visibility =
-            first_visibility(&[self.builder_attr.build_method.vis.as_ref(), Some(&public_visibility())]);
+        let build_method_name = self.build_method_name();
+        let build_method_visibility = self.build_method_visibility();
         let build_method_doc = if self.builder_attr.doc {
             self.builder_attr
                 .build_method

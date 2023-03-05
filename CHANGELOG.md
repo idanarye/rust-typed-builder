@@ -10,6 +10,9 @@ y
 - [**BREAKING**] Builder state parameter moved to the end of the generated builder type's parameters list.
 - Generated builder type's builder state parameter now defaults to tuple of
   empty tuples. This means the empty builder, where no parameter is yet set.
+### Fixed
+- `#[builder(build_method(...))]` now affects the fake `build` method that's
+  generated to add information to the compiler error.
 
 ## 0.12.0 - 2023-01-29
 ### Removed
