@@ -304,8 +304,8 @@ fn test_builder_type_stability_with_other_generics() {
         y: Y,
     }
 
-    impl<X: Default, Y, Y_> FooBuilder<((), Y_), X, Y> {
-        fn x_default(self) -> FooBuilder<((X,), Y_), X, Y> {
+    impl<X: Default, Y, Y_> FooBuilder<X, Y, ((), Y_)> {
+        fn x_default(self) -> FooBuilder<X, Y, ((X,), Y_)> {
             self.x(X::default())
         }
     }
@@ -347,14 +347,14 @@ fn test_builder_type_with_default_on_generic_type() {
         m: M,
     }
 
-    impl<'a, X, Y: Default, M, X_, Y_, M_> FooBuilder<'a, (X_, Y_, (), M_), X, Y, usize, M> {
-        fn z_default(self) -> FooBuilder<'a, (X_, Y_, (usize,), M_), X, Y, usize, M> {
+    impl<'a, X, Y: Default, M, X_, Y_, M_> FooBuilder<'a, X, Y, usize, M, (X_, Y_, (), M_)> {
+        fn z_default(self) -> FooBuilder<'a, X, Y, usize, M, (X_, Y_, (usize,), M_)> {
             self.z(usize::default())
         }
     }
 
-    impl<'a, X, Y: Default, Z: Default, X_, Y_, Z_> FooBuilder<'a, (X_, Y_, Z_, ()), X, Y, Z, ()> {
-        fn m_default(self) -> FooBuilder<'a, (X_, Y_, Z_, ((),)), X, Y, Z, ()> {
+    impl<'a, X, Y: Default, Z: Default, X_, Y_, Z_> FooBuilder<'a, X, Y, Z, (), (X_, Y_, Z_, ())> {
+        fn m_default(self) -> FooBuilder<'a, X, Y, Z, (), (X_, Y_, Z_, ((),))> {
             self.m(())
         }
     }
@@ -596,4 +596,32 @@ fn test_builder_type() {
 
     let builder: __FooBuilder<_> = Foo::builder();
     assert!(builder.x(1).build() == Foo { x: 1 });
+}
+
+#[test]
+fn test_default_builder_type() {
+    #[derive(Debug, PartialEq, TypedBuilder)]
+    #[builder(builder_type(name = InnerBuilder))]
+    struct Inner {
+        a: i32,
+        b: i32,
+    }
+
+    impl Inner {
+        pub fn outer(self) -> Outer {
+            Outer(self)
+        }
+    }
+
+    #[derive(Debug, PartialEq)]
+    struct Outer(Inner);
+
+    impl Outer {
+        pub fn builder() -> InnerBuilder {
+            Inner::builder()
+        }
+    }
+
+    let outer = Outer::builder().a(3).b(5).build().outer();
+    assert_eq!(outer, Outer(Inner { a: 3, b: 5 }));
 }
