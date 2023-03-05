@@ -5,6 +5,11 @@ The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+### Changed
+y
+- [**BREAKING**] Builder state parameter moved to the end of the generated builder type's parameters list.
+- Generated builder type's builder state parameter now defaults to tuple of
+  empty tuples. This means the empty builder, where no parameter is yet set.
 
 ## 0.12.0 - 2023-01-29
 ### Removed
