@@ -48,12 +48,6 @@ impl<'a> StructInfo<'a> {
         })
     }
 
-    fn modify_generics<F: FnMut(&mut syn::Generics)>(&self, mut mutator: F) -> syn::Generics {
-        let mut generics = self.generics.clone();
-        mutator(&mut generics);
-        generics
-    }
-
     pub fn builder_creation_impl(&self) -> Result<TokenStream, Error> {
         let StructInfo {
             vis,
@@ -67,9 +61,11 @@ impl<'a> StructInfo<'a> {
             syn::Ident::new("TypedBuilderFields", proc_macro2::Span::call_site()).into();
         let all_fields_param = syn::GenericParam::Type(all_fields_param_type.clone());
         all_fields_param_type.default = Some(syn::Type::Tuple(empties_tuple.clone()));
-        let b_generics = self.modify_generics(|g| {
-            g.params.push(syn::GenericParam::Type(all_fields_param_type.clone()));
-        });
+        let b_generics = {
+            let mut generics = self.generics.clone();
+            generics.params.push(syn::GenericParam::Type(all_fields_param_type));
+            generics
+        };
         let generics_with_empty = modify_types_generics_hack(&ty_generics, |args| {
             args.push(syn::GenericArgument::Type(empties_tuple.clone().into()));
         });
@@ -234,13 +230,14 @@ impl<'a> StructInfo<'a> {
             .collect();
         let mut target_generics_tuple = empty_type_tuple();
         let mut ty_generics_tuple = empty_type_tuple();
-        let generics = self.modify_generics(|g| {
+        let generics = {
+            let mut generics = self.generics.clone();
             for f in self.included_fields() {
                 if f.ordinal == field.ordinal {
                     ty_generics_tuple.elems.push_value(empty_type());
                     target_generics_tuple.elems.push_value(f.tuplized_type_ty_param());
                 } else {
-                    g.params.push(f.generic_ty_param());
+                    generics.params.push(f.generic_ty_param());
                     let generic_argument: syn::Type = f.type_ident();
                     ty_generics_tuple.elems.push_value(generic_argument.clone());
                     target_generics_tuple.elems.push_value(generic_argument);
@@ -248,7 +245,8 @@ impl<'a> StructInfo<'a> {
                 ty_generics_tuple.elems.push_punct(Default::default());
                 target_generics_tuple.elems.push_punct(Default::default());
             }
-        });
+            generics
+        };
         let mut target_generics = ty_generics.clone();
         target_generics.push(syn::GenericArgument::Type(target_generics_tuple.into()));
         ty_generics.push(syn::GenericArgument::Type(ty_generics_tuple.into()));
@@ -351,7 +349,8 @@ impl<'a> StructInfo<'a> {
             })
             .collect();
         let mut builder_generics_tuple = empty_type_tuple();
-        let generics = self.modify_generics(|g| {
+        let generics = {
+            let mut generics = self.generics.clone();
             for f in self.included_fields() {
                 if f.builder_attr.default.is_some() {
                     // `f` is not mandatory - it does not have it's own fake `build` method, so `field` will need
@@ -361,7 +360,7 @@ impl<'a> StructInfo<'a> {
                         "`required_field_impl` called for optional field {}",
                         field.name
                     );
-                    g.params.push(f.generic_ty_param());
+                    generics.params.push(f.generic_ty_param());
                     builder_generics_tuple.elems.push_value(f.type_ident());
                 } else if f.ordinal < field.ordinal {
                     // Only add a `build` method that warns about missing `field` if `f` is set. If `f` is not set,
@@ -373,13 +372,14 @@ impl<'a> StructInfo<'a> {
                     // `f` appears later in the argument list after `field`, so if they are both missing we will
                     // show a warning for `field` and not for `f` - which means this warning should appear whether
                     // or not `f` is set.
-                    g.params.push(f.generic_ty_param());
+                    generics.params.push(f.generic_ty_param());
                     builder_generics_tuple.elems.push_value(f.type_ident());
                 }
 
                 builder_generics_tuple.elems.push_punct(Default::default());
             }
-        });
+            generics
+        };
 
         builder_generics.push(syn::GenericArgument::Type(builder_generics_tuple.into()));
         let (impl_generics, _, where_clause) = generics.split_for_impl();
@@ -419,7 +419,8 @@ impl<'a> StructInfo<'a> {
             ..
         } = *self;
 
-        let generics = self.modify_generics(|g| {
+        let generics = {
+            let mut generics = self.generics.clone();
             for field in self.included_fields() {
                 if field.builder_attr.default.is_some() {
                     let trait_ref = syn::TraitBound {
@@ -439,10 +440,11 @@ impl<'a> StructInfo<'a> {
                     };
                     let mut generic_param: syn::TypeParam = field.generic_ident.clone().into();
                     generic_param.bounds.push(trait_ref.into());
-                    g.params.push(generic_param.into());
+                    generics.params.push(generic_param.into());
                 }
             }
-        });
+            generics
+        };
         let (impl_generics, _, _) = generics.split_for_impl();
 
         let (_, ty_generics, where_clause) = self.generics.split_for_impl();
