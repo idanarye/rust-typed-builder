@@ -62,14 +62,16 @@ impl<'a> StructInfo<'a> {
             ..
         } = *self;
         let (impl_generics, ty_generics, where_clause) = self.generics.split_for_impl();
-        let all_fields_param =
-            syn::GenericParam::Type(syn::Ident::new("TypedBuilderFields", proc_macro2::Span::call_site()).into());
-        let b_generics = self.modify_generics(|g| {
-            g.params.insert(0, all_fields_param.clone());
-        });
         let empties_tuple = type_tuple(self.included_fields().map(|_| empty_type()));
+        let mut all_fields_param_type: syn::TypeParam =
+            syn::Ident::new("TypedBuilderFields", proc_macro2::Span::call_site()).into();
+        let all_fields_param = syn::GenericParam::Type(all_fields_param_type.clone());
+        all_fields_param_type.default = Some(syn::Type::Tuple(empties_tuple.clone()));
+        let b_generics = self.modify_generics(|g| {
+            g.params.push(syn::GenericParam::Type(all_fields_param_type.clone()));
+        });
         let generics_with_empty = modify_types_generics_hack(&ty_generics, |args| {
-            args.insert(0, syn::GenericArgument::Type(empties_tuple.clone().into()));
+            args.push(syn::GenericArgument::Type(empties_tuple.clone().into()));
         });
         let phantom_generics = self.generics.params.iter().map(|param| match param {
             syn::GenericParam::Lifetime(lifetime) => {
@@ -233,17 +235,12 @@ impl<'a> StructInfo<'a> {
         let mut target_generics_tuple = empty_type_tuple();
         let mut ty_generics_tuple = empty_type_tuple();
         let generics = self.modify_generics(|g| {
-            let index_after_lifetime_in_generics = g
-                .params
-                .iter()
-                .filter(|arg| matches!(arg, syn::GenericParam::Lifetime(_)))
-                .count();
             for f in self.included_fields() {
                 if f.ordinal == field.ordinal {
                     ty_generics_tuple.elems.push_value(empty_type());
                     target_generics_tuple.elems.push_value(f.tuplized_type_ty_param());
                 } else {
-                    g.params.insert(index_after_lifetime_in_generics, f.generic_ty_param());
+                    g.params.push(f.generic_ty_param());
                     let generic_argument: syn::Type = f.type_ident();
                     ty_generics_tuple.elems.push_value(generic_argument.clone());
                     target_generics_tuple.elems.push_value(generic_argument);
@@ -253,18 +250,8 @@ impl<'a> StructInfo<'a> {
             }
         });
         let mut target_generics = ty_generics.clone();
-        let index_after_lifetime_in_generics = target_generics
-            .iter()
-            .filter(|arg| matches!(arg, syn::GenericArgument::Lifetime(_)))
-            .count();
-        target_generics.insert(
-            index_after_lifetime_in_generics,
-            syn::GenericArgument::Type(target_generics_tuple.into()),
-        );
-        ty_generics.insert(
-            index_after_lifetime_in_generics,
-            syn::GenericArgument::Type(ty_generics_tuple.into()),
-        );
+        target_generics.push(syn::GenericArgument::Type(target_generics_tuple.into()));
+        ty_generics.push(syn::GenericArgument::Type(ty_generics_tuple.into()));
         let (impl_generics, _, where_clause) = generics.split_for_impl();
         let doc = match field.builder_attr.setter.doc {
             Some(ref doc) => quote!(#[doc = #doc]),
@@ -365,11 +352,6 @@ impl<'a> StructInfo<'a> {
             .collect();
         let mut builder_generics_tuple = empty_type_tuple();
         let generics = self.modify_generics(|g| {
-            let index_after_lifetime_in_generics = g
-                .params
-                .iter()
-                .filter(|arg| matches!(arg, syn::GenericParam::Lifetime(_)))
-                .count();
             for f in self.included_fields() {
                 if f.builder_attr.default.is_some() {
                     // `f` is not mandatory - it does not have it's own fake `build` method, so `field` will need
@@ -379,7 +361,7 @@ impl<'a> StructInfo<'a> {
                         "`required_field_impl` called for optional field {}",
                         field.name
                     );
-                    g.params.insert(index_after_lifetime_in_generics, f.generic_ty_param());
+                    g.params.push(f.generic_ty_param());
                     builder_generics_tuple.elems.push_value(f.type_ident());
                 } else if f.ordinal < field.ordinal {
                     // Only add a `build` method that warns about missing `field` if `f` is set. If `f` is not set,
@@ -391,7 +373,7 @@ impl<'a> StructInfo<'a> {
                     // `f` appears later in the argument list after `field`, so if they are both missing we will
                     // show a warning for `field` and not for `f` - which means this warning should appear whether
                     // or not `f` is set.
-                    g.params.insert(index_after_lifetime_in_generics, f.generic_ty_param());
+                    g.params.push(f.generic_ty_param());
                     builder_generics_tuple.elems.push_value(f.type_ident());
                 }
 
@@ -399,14 +381,7 @@ impl<'a> StructInfo<'a> {
             }
         });
 
-        let index_after_lifetime_in_generics = builder_generics
-            .iter()
-            .filter(|arg| matches!(arg, syn::GenericArgument::Lifetime(_)))
-            .count();
-        builder_generics.insert(
-            index_after_lifetime_in_generics,
-            syn::GenericArgument::Type(builder_generics_tuple.into()),
-        );
+        builder_generics.push(syn::GenericArgument::Type(builder_generics_tuple.into()));
         let (impl_generics, _, where_clause) = generics.split_for_impl();
         let (_, ty_generics, _) = self.generics.split_for_impl();
 
@@ -445,11 +420,6 @@ impl<'a> StructInfo<'a> {
         } = *self;
 
         let generics = self.modify_generics(|g| {
-            let index_after_lifetime_in_generics = g
-                .params
-                .iter()
-                .filter(|arg| matches!(arg, syn::GenericParam::Lifetime(_)))
-                .count();
             for field in self.included_fields() {
                 if field.builder_attr.default.is_some() {
                     let trait_ref = syn::TraitBound {
@@ -469,7 +439,7 @@ impl<'a> StructInfo<'a> {
                     };
                     let mut generic_param: syn::TypeParam = field.generic_ident.clone().into();
                     generic_param.bounds.push(trait_ref.into());
-                    g.params.insert(index_after_lifetime_in_generics, generic_param.into());
+                    g.params.push(generic_param.into());
                 }
             }
         });
@@ -478,19 +448,16 @@ impl<'a> StructInfo<'a> {
         let (_, ty_generics, where_clause) = self.generics.split_for_impl();
 
         let modified_ty_generics = modify_types_generics_hack(&ty_generics, |args| {
-            args.insert(
-                0,
-                syn::GenericArgument::Type(
-                    type_tuple(self.included_fields().map(|field| {
-                        if field.builder_attr.default.is_some() {
-                            field.type_ident()
-                        } else {
-                            field.tuplized_type_ty_param()
-                        }
-                    }))
-                    .into(),
-                ),
-            );
+            args.push(syn::GenericArgument::Type(
+                type_tuple(self.included_fields().map(|field| {
+                    if field.builder_attr.default.is_some() {
+                        field.type_ident()
+                    } else {
+                        field.tuplized_type_ty_param()
+                    }
+                }))
+                .into(),
+            ));
         });
 
         let descructuring = self.included_fields().map(|f| f.name);
