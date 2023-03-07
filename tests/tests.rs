@@ -601,16 +601,10 @@ fn test_builder_type() {
 #[test]
 fn test_default_builder_type() {
     #[derive(Debug, PartialEq, TypedBuilder)]
-    #[builder(builder_type(name = InnerBuilder))]
+    #[builder(into = Outer, builder_method(vis = ""), builder_type(name = InnerBuilder))]
     struct Inner {
         a: i32,
         b: i32,
-    }
-
-    impl Inner {
-        pub fn outer(self) -> Outer {
-            Outer(self)
-        }
     }
 
     #[derive(Debug, PartialEq)]
@@ -622,6 +616,24 @@ fn test_default_builder_type() {
         }
     }
 
-    let outer = Outer::builder().a(3).b(5).build().outer();
+    impl From<Inner> for Outer {
+        fn from(value: Inner) -> Self {
+            Self(value)
+        }
+    }
+
+    let outer = Outer::builder().a(3).b(5).build();
     assert_eq!(outer, Outer(Inner { a: 3, b: 5 }));
+}
+
+#[test]
+fn test_into_set_generic() {
+    #[derive(Debug, PartialEq, TypedBuilder)]
+    #[builder(into)]
+    struct SomeStruct<T: Default> {
+        #[builder(default)]
+        a: T,
+    }
+
+    let some: SomeStruct<bool> = SomeStruct::builder().build();
 }

@@ -504,17 +504,23 @@ impl<'a> StructInfo<'a> {
         } else {
             quote!()
         };
+        let (build_method_generic, output_type) = match &self.builder_attr.into {
+            IntoSetting::Unset => (None, quote!(#name #ty_generics)),
+            IntoSetting::Set => (Some(quote!(<__R: From<#name #ty_generics>>)), quote!(__R)),
+            IntoSetting::Type(into) => (None, quote!(#into)),
+        };
+
         quote!(
             #[allow(dead_code, non_camel_case_types, missing_docs)]
             impl #impl_generics #builder_name #modified_ty_generics #where_clause {
                 #build_method_doc
                 #[allow(clippy::default_trait_access)]
-                #build_method_visibility fn #build_method_name(self) -> #name #ty_generics {
+                #build_method_visibility fn #build_method_name #build_method_generic (self) -> #output_type {
                     let ( #(#descructuring,)* ) = self.fields;
                     #( #assignments )*
                     #name {
                         #( #field_names ),*
-                    }
+                    }.into()
                 }
             }
         )
@@ -574,10 +580,30 @@ impl CommonDeclarationSettings {
     }
 }
 
+/// Setting of the `into` argument.
+#[derive(Debug)]
+pub enum IntoSetting {
+    /// Setting was not set.
+    Unset,
+    /// Setting was set without a value.
+    Set,
+    /// Setting was set with a specific value (type).
+    Type(syn::ExprPath),
+}
+
+impl Default for IntoSetting {
+    fn default() -> Self {
+        Self::Unset
+    }
+}
+
 #[derive(Debug, Default)]
 pub struct TypeBuilderAttr {
     /// Whether to show docs for the `TypeBuilder` type (rather than hiding them).
     pub doc: bool,
+
+    /// Whether to convert the builded type into another while finishing the build.
+    pub into: IntoSetting,
 
     /// Customize builder method, ex. visibility, name
     pub builder_method: CommonDeclarationSettings,
@@ -631,6 +657,7 @@ impl TypeBuilderAttr {
             syn::Expr::Assign(assign) => {
                 let name =
                     expr_to_single_string(&assign.left).ok_or_else(|| Error::new_spanned(&assign.left, "Expected identifier"))?;
+
                 let gen_structure_depracation_error = |put_under: &str, new_name: &str| {
                     Error::new_spanned(
                         &assign.left,
@@ -644,6 +671,14 @@ impl TypeBuilderAttr {
                     "builder_method_doc" => Err(gen_structure_depracation_error("builder_method", "doc")),
                     "builder_type_doc" => Err(gen_structure_depracation_error("builder_type", "doc")),
                     "build_method_doc" => Err(gen_structure_depracation_error("build_method", "doc")),
+                    "into" => {
+                        let expr_path = match *assign.right {
+                            syn::Expr::Path(expr_path) => expr_path,
+                            _ => return Err(Error::new_spanned(&assign.right, "Expected path expression type")),
+                        };
+                        self.into = IntoSetting::Type(expr_path);
+                        Ok(())
+                    }
                     _ => Err(Error::new_spanned(&assign, format!("Unknown parameter {:?}", name))),
                 }
             }
@@ -652,6 +687,10 @@ impl TypeBuilderAttr {
                 match name.as_str() {
                     "doc" => {
                         self.doc = true;
+                        Ok(())
+                    }
+                    "into" => {
+                        self.into = IntoSetting::Set;
                         Ok(())
                     }
                     _ => Err(Error::new_spanned(&path, format!("Unknown parameter {:?}", name))),
