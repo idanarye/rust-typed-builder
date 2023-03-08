@@ -505,9 +505,9 @@ impl<'a> StructInfo<'a> {
             quote!()
         };
         let (build_method_generic, output_type) = match &self.builder_attr.into {
-            IntoSetting::Unset => (None, quote!(#name #ty_generics)),
-            IntoSetting::Set => (Some(quote!(<__R: From<#name #ty_generics>>)), quote!(__R)),
-            IntoSetting::Type(into) => (None, quote!(#into)),
+            IntoSetting::NoConversion => (None, quote!(#name #ty_generics)),
+            IntoSetting::GenericConversion => (Some(quote!(<__R: From<#name #ty_generics>>)), quote!(__R)),
+            IntoSetting::TypeConversionToSpecificType(into) => (None, quote!(#into)),
         };
 
         quote!(
@@ -583,17 +583,17 @@ impl CommonDeclarationSettings {
 /// Setting of the `into` argument.
 #[derive(Debug)]
 pub enum IntoSetting {
-    /// Setting was not set.
-    Unset,
-    /// Setting was set without a value.
-    Set,
-    /// Setting was set with a specific value (type).
-    Type(syn::ExprPath),
+    /// Do not run any conversion on the built value.
+    NoConversion,
+    /// Convert the build value into the generic parameter passed to the `build` method.
+    GenericConversion,
+    /// Convert the build value into a specific type specified in the attribute.
+    TypeConversionToSpecificType(syn::ExprPath),
 }
 
 impl Default for IntoSetting {
     fn default() -> Self {
-        Self::Unset
+        Self::NoConversion
     }
 }
 
@@ -676,7 +676,7 @@ impl TypeBuilderAttr {
                             syn::Expr::Path(expr_path) => expr_path,
                             _ => return Err(Error::new_spanned(&assign.right, "Expected path expression type")),
                         };
-                        self.into = IntoSetting::Type(expr_path);
+                        self.into = IntoSetting::TypeConversionToSpecificType(expr_path);
                         Ok(())
                     }
                     _ => Err(Error::new_spanned(&assign, format!("Unknown parameter {:?}", name))),
@@ -690,7 +690,7 @@ impl TypeBuilderAttr {
                         Ok(())
                     }
                     "into" => {
-                        self.into = IntoSetting::Set;
+                        self.into = IntoSetting::GenericConversion;
                         Ok(())
                     }
                     _ => Err(Error::new_spanned(&path, format!("Unknown parameter {:?}", name))),
