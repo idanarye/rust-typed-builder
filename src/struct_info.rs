@@ -505,10 +505,14 @@ impl<'a> StructInfo<'a> {
         } else {
             quote!()
         };
-        let (build_method_generic, output_type) = match &self.builder_attr.build_method.into {
-            IntoSetting::NoConversion => (None, quote!(#name #ty_generics)),
-            IntoSetting::GenericConversion => (Some(quote!(<__R: From<#name #ty_generics>>)), quote!(__R)),
-            IntoSetting::TypeConversionToSpecificType(into) => (None, quote!(#into)),
+        let (build_method_generic, output_type, build_method_where_clause) = match &self.builder_attr.build_method.into {
+            IntoSetting::NoConversion => (None, quote!(#name #ty_generics), None),
+            IntoSetting::GenericConversion => (
+                Some(quote!(<__R>)),
+                quote!(__R),
+                Some(quote!(where #name #ty_generics: Into<__R>)),
+            ),
+            IntoSetting::TypeConversionToSpecificType(into) => (None, quote!(#into), None),
         };
 
         quote!(
@@ -516,7 +520,7 @@ impl<'a> StructInfo<'a> {
             impl #impl_generics #builder_name #modified_ty_generics #where_clause {
                 #build_method_doc
                 #[allow(clippy::default_trait_access)]
-                #build_method_visibility fn #build_method_name #build_method_generic (self) -> #output_type {
+                #build_method_visibility fn #build_method_name #build_method_generic (self) -> #output_type #build_method_where_clause {
                     let ( #(#descructuring,)* ) = self.fields;
                     #( #assignments )*
                     #name {

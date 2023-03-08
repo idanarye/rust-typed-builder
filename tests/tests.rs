@@ -627,14 +627,47 @@ fn test_default_builder_type() {
 }
 
 #[test]
-fn test_into_set_generic() {
-    #[derive(Debug, PartialEq, TypedBuilder)]
+fn test_into_set_generic_impl_from() {
+    #[derive(TypedBuilder)]
     #[builder(build_method(into))]
-    struct SomeStruct<T: Default> {
-        #[builder(default)]
-        a: T,
+    struct Foo {
+        value: i32,
     }
 
-    let some: SomeStruct<bool> = SomeStruct::builder().build();
-    assert_eq!(some, SomeStruct { a: false });
+    #[derive(Debug, PartialEq)]
+    struct Bar {
+        value: i32,
+    }
+
+    impl From<Foo> for Bar {
+        fn from(value: Foo) -> Self {
+            Self { value: value.value }
+        }
+    }
+
+    let bar: Bar = Foo::builder().value(42).build();
+    assert_eq!(bar, Bar { value: 42 });
+}
+
+#[test]
+fn test_into_set_generic_impl_into() {
+    #[derive(TypedBuilder)]
+    #[builder(build_method(into))]
+    struct Foo {
+        value: i32,
+    }
+
+    #[derive(Debug, PartialEq)]
+    struct Bar {
+        value: i32,
+    }
+
+    impl Into<Bar> for Foo {
+        fn into(self) -> Bar {
+            Bar { value: self.value }
+        }
+    }
+
+    let bar: Bar = Foo::builder().value(42).build();
+    assert_eq!(bar, Bar { value: 42 });
 }
