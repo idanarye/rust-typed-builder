@@ -74,12 +74,6 @@ mod util;
 ///   but it won't be a link. If you turn this on, the builder type and its `build` method will get
 ///   sane defaults. The field methods on the builder will be undocumented by default.
 ///
-/// - `into` or `into = ...`: change the output type of the builder. When a specific value/type is set
-///   via the assignement, this will be the output type of the builder. This type is required to implement
-///   `From<OriginalType>` to convert from the struct that `TypedBuilder` is derived on. If no specific
-///   type is set, but `into` is specified, the return type will be generic and the user can decide which
-///   type shall be constructed. Again the output type needs to implement `From<OriginalType>`.
-///
 /// - The following subsections:
 ///   - `builder_method(...)`: customize the builder method that creates the builder type
 ///   - `builder_type(...)`: customize the builder type
@@ -90,6 +84,15 @@ mod util;
 ///   - `name = …`: sets the fn name of the build method, default is `build`
 ///   - `doc = "…"` replaces the default documentation that will be generated for the
 ///     `build()` method of the builder type. Setting this implies `doc`.
+///
+///
+/// - The `build_method(...)` subsection also has:
+///   - `into` or `into = ...`: change the output type of the builder. When a specific value/type
+///     is set via the assignement, this will be the output type of the builder. This type is
+///     required to implement `From<OriginalType>` to convert from the struct that `TypedBuilder`
+///     is derived on. If no specific type is set, but `into` is specified, the return type will be
+///     generic and the user can decide which type shall be constructed. Again the output type
+///     needs to implement `From<OriginalType>`.
 ///
 /// - `field_defaults(...)` is structured like the `#[builder(...)]` attribute you can put on the
 ///   fields and sets default options for fields of the type. If specific field need to revert some

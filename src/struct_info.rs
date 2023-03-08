@@ -416,11 +416,11 @@ impl<'a> StructInfo<'a> {
     }
 
     fn build_method_name(&self) -> TokenStream {
-        self.builder_attr.build_method.get_name().unwrap_or(quote!(build))
+        self.builder_attr.build_method.common.get_name().unwrap_or(quote!(build))
     }
 
     fn build_method_visibility(&self) -> TokenStream {
-        first_visibility(&[self.builder_attr.build_method.vis.as_ref(), Some(&public_visibility())])
+        first_visibility(&[self.builder_attr.build_method.common.vis.as_ref(), Some(&public_visibility())])
     }
 
     pub fn build_method_impl(&self) -> TokenStream {
@@ -500,11 +500,12 @@ impl<'a> StructInfo<'a> {
         let build_method_doc = if self.builder_attr.doc {
             self.builder_attr
                 .build_method
+                .common
                 .get_doc_or(|| format!("Finalise the builder and create its [`{}`] instance", name))
         } else {
             quote!()
         };
-        let (build_method_generic, output_type) = match &self.builder_attr.into {
+        let (build_method_generic, output_type) = match &self.builder_attr.build_method.into {
             IntoSetting::NoConversion => (None, quote!(#name #ty_generics)),
             IntoSetting::GenericConversion => (Some(quote!(<__R: From<#name #ty_generics>>)), quote!(__R)),
             IntoSetting::TypeConversionToSpecificType(into) => (None, quote!(#into)),
@@ -581,7 +582,7 @@ impl CommonDeclarationSettings {
 }
 
 /// Setting of the `into` argument.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum IntoSetting {
     /// Do not run any conversion on the built value.
     NoConversion,
@@ -597,13 +598,49 @@ impl Default for IntoSetting {
     }
 }
 
+#[derive(Debug, Default, Clone)]
+pub struct BuildMethodSettings {
+    pub common: CommonDeclarationSettings,
+
+    /// Whether to convert the builded type into another while finishing the build.
+    pub into: IntoSetting,
+}
+
+impl BuildMethodSettings {
+    fn apply_meta(&mut self, expr: syn::Expr) -> Result<(), Error> {
+        match &expr {
+            syn::Expr::Assign(assign) => {
+                let name =
+                    expr_to_single_string(&assign.left).ok_or_else(|| Error::new_spanned(&assign.left, "Expected identifier"))?;
+                if name.as_str() == "into" {
+                    let expr_path = match assign.right.as_ref() {
+                        syn::Expr::Path(expr_path) => expr_path,
+                        _ => return Err(Error::new_spanned(&assign.right, "Expected path expression type")),
+                    };
+                    self.into = IntoSetting::TypeConversionToSpecificType(expr_path.clone());
+                    Ok(())
+                } else {
+                    self.common.apply_meta(expr)
+                }
+            }
+            syn::Expr::Path(path) => {
+                let name = path_to_single_string(&path.path).ok_or_else(|| Error::new_spanned(path, "Expected identifier"))?;
+                if name.as_str() == "into" {
+                    self.into = IntoSetting::GenericConversion;
+                    Ok(())
+                } else {
+                    self.common.apply_meta(expr)
+                }
+            }
+            _ => self.common.apply_meta(expr),
+        }
+    }
+}
+
 #[derive(Debug, Default)]
 pub struct TypeBuilderAttr {
     /// Whether to show docs for the `TypeBuilder` type (rather than hiding them).
     pub doc: bool,
-
-    /// Whether to convert the builded type into another while finishing the build.
-    pub into: IntoSetting,
 
     /// Customize builder method, ex. visibility, name
     pub builder_method: CommonDeclarationSettings,
@@ -612,7 +649,7 @@ pub struct TypeBuilderAttr {
     pub builder_type: CommonDeclarationSettings,
 
     /// Customize build method, ex. visibility, name
-    pub build_method: CommonDeclarationSettings,
+    pub build_method: BuildMethodSettings,
 
     pub field_defaults: FieldBuilderAttr,
 }
@@ -645,7 +682,7 @@ impl TypeBuilderAttr {
             }
         }
 
-        if result.builder_type.doc.is_some() || result.build_method.doc.is_some() {
+        if result.builder_type.doc.is_some() || result.build_method.common.doc.is_some() {
             result.doc = true;
         }
 
@@ -671,14 +708,6 @@ impl TypeBuilderAttr {
                     "builder_method_doc" => Err(gen_structure_depracation_error("builder_method", "doc")),
                     "builder_type_doc" => Err(gen_structure_depracation_error("builder_type", "doc")),
                     "build_method_doc" => Err(gen_structure_depracation_error("build_method", "doc")),
-                    "into" => {
-                        let expr_path = match *assign.right {
-                            syn::Expr::Path(expr_path) => expr_path,
-                            _ => return Err(Error::new_spanned(&assign.right, "Expected path expression type")),
-                        };
-                        self.into = IntoSetting::TypeConversionToSpecificType(expr_path);
-                        Ok(())
-                    }
                     _ => Err(Error::new_spanned(&assign, format!("Unknown parameter {:?}", name))),
                 }
             }
@@ -687,10 +716,6 @@ impl TypeBuilderAttr {
                 match name.as_str() {
                     "doc" => {
                         self.doc = true;
-                        Ok(())
-                    }
-                    "into" => {
-                        self.into = IntoSetting::GenericConversion;
                         Ok(())
                     }
                     _ => Err(Error::new_spanned(&path, format!("Unknown parameter {:?}", name))),

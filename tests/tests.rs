@@ -601,7 +601,7 @@ fn test_builder_type() {
 #[test]
 fn test_default_builder_type() {
     #[derive(Debug, PartialEq, TypedBuilder)]
-    #[builder(into = Outer, builder_method(vis = ""), builder_type(name = InnerBuilder))]
+    #[builder(builder_method(vis = ""), builder_type(name = InnerBuilder), build_method(into = Outer))]
     struct Inner {
         a: i32,
         b: i32,
@@ -629,7 +629,7 @@ fn test_default_builder_type() {
 #[test]
 fn test_into_set_generic() {
     #[derive(Debug, PartialEq, TypedBuilder)]
-    #[builder(into)]
+    #[builder(build_method(into))]
     struct SomeStruct<T: Default> {
         #[builder(default)]
         a: T,
