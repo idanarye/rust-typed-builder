@@ -636,4 +636,5 @@ fn test_into_set_generic() {
     }
 
     let some: SomeStruct<bool> = SomeStruct::builder().build();
+    assert_eq!(some, SomeStruct { a: false });
 }
