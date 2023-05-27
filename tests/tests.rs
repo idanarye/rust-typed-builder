@@ -671,3 +671,27 @@ fn test_into_set_generic_impl_into() {
     let bar: Bar = Foo::builder().value(42).build();
     assert_eq!(bar, Bar { value: 42 });
 }
+
+#[test]
+fn test_const_builder() {
+    #[derive(TypedBuilder, Debug, PartialEq)]
+    #[builder(const_)]
+    struct Foo {
+        x: i32,
+    }
+
+    const FOO: Foo = Foo::builder().x(1).build();
+
+    assert_eq!(FOO, Foo { x: 1 });
+
+    #[derive(TypedBuilder, Debug, PartialEq)]
+    #[builder(const_)]
+    struct Bar {
+        #[builder(default = 1)]
+        x: i32,
+    }
+
+    const BAR: Bar = Bar::builder().build();
+
+    assert_eq!(BAR, Bar { x: 1 });
+}

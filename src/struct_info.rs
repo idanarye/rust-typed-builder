@@ -83,6 +83,8 @@ impl<'a> StructInfo<'a> {
             }
         });
 
+        let phantom_generics_init = self.generics.params.iter().map(|_| quote!(::core::marker::PhantomData::<_>));
+
         let builder_method_name = self.builder_attr.builder_method.get_name().unwrap_or_else(|| quote!(builder));
         let builder_method_visibility = first_visibility(&[
             self.builder_attr.builder_method.vis.as_ref(),
@@ -137,14 +139,16 @@ impl<'a> StructInfo<'a> {
             b_generics_where.predicates.extend(predicates.predicates.clone());
         }
 
+        let const_modifier = self.const_modifier();
+
         Ok(quote! {
             impl #impl_generics #name #ty_generics #where_clause {
                 #builder_method_doc
                 #[allow(dead_code, clippy::default_trait_access)]
-                #builder_method_visibility fn #builder_method_name() -> #builder_name #generics_with_empty {
+                #builder_method_visibility #const_modifier fn #builder_method_name() -> #builder_name #generics_with_empty {
                     #builder_name {
                         fields: #empties_tuple,
-                        phantom: ::core::default::Default::default(),
+                        phantom: (#( #phantom_generics_init ),*),
                     }
                 }
             }
@@ -169,6 +173,14 @@ impl<'a> StructInfo<'a> {
         })
     }
 
+    fn const_modifier(&self) -> Option<TokenStream> {
+        if self.builder_attr.const_ {
+            Some(quote!(const))
+        } else {
+            None
+        }
+    }
+
     // TODO: once the proc-macro crate limitation is lifted, make this an util trait of this
     // crate.
     pub fn conversion_helper_impl(&self) -> TokenStream {
@@ -177,18 +189,21 @@ impl<'a> StructInfo<'a> {
             #[doc(hidden)]
             #[allow(dead_code, non_camel_case_types, non_snake_case)]
             pub trait #trait_name<T> {
-                fn into_value<F: FnOnce() -> T>(self, default: F) -> T;
+                #[inline]
+                fn get(self) -> Option<T>;
             }
 
             impl<T> #trait_name<T> for () {
-                fn into_value<F: FnOnce() -> T>(self, default: F) -> T {
-                    default()
+                #[inline]
+                fn get(self) -> Option<T> {
+                    None
                 }
             }
 
             impl<T> #trait_name<T> for (T,) {
-                fn into_value<F: FnOnce() -> T>(self, _: F) -> T {
-                    self.0
+                #[inline]
+                fn get(self) -> Option<T> {
+                    Some(self.0)
                 }
             }
         }
@@ -293,11 +308,13 @@ impl<'a> StructInfo<'a> {
         );
         let repeated_fields_error_message = format!("Repeated field {}", field_name);
 
+        let const_modifier = self.const_modifier();
+
         Ok(quote! {
             #[allow(dead_code, non_camel_case_types, missing_docs)]
             impl #impl_generics #builder_name < #( #ty_generics ),* > #where_clause {
                 #doc
-                pub fn #field_name (self, #param_list) -> #builder_name < #( #target_generics ),* > {
+                pub #const_modifier fn #field_name (self, #param_list) -> #builder_name < #( #target_generics ),* > {
                     let #field_name = (#arg_expr,);
                     let ( #(#descructuring,)* ) = self.fields;
                     #builder_name {
@@ -487,7 +504,13 @@ impl<'a> StructInfo<'a> {
                 if field.builder_attr.setter.skip.is_some() {
                     quote!(let #name = #default;)
                 } else {
-                    quote!(let #name = #helper_trait_name::into_value(#name, || #default);)
+                    quote! {
+                        let #name = if let Some(value) = #helper_trait_name::get(#name) {
+                            value
+                        } else {
+                            #default
+                        };
+                    }
                 }
             } else {
                 quote!(let #name = #name.0;)
@@ -505,27 +528,31 @@ impl<'a> StructInfo<'a> {
         } else {
             quote!()
         };
-        let (build_method_generic, output_type, build_method_where_clause) = match &self.builder_attr.build_method.into {
-            IntoSetting::NoConversion => (None, quote!(#name #ty_generics), None),
-            IntoSetting::GenericConversion => (
-                Some(quote!(<__R>)),
-                quote!(__R),
-                Some(quote!(where #name #ty_generics: Into<__R>)),
-            ),
-            IntoSetting::TypeConversionToSpecificType(into) => (None, quote!(#into), None),
-        };
+        let (build_method_generic, output_type, build_method_where_clause, into_method_invocation) =
+            match &self.builder_attr.build_method.into {
+                IntoSetting::NoConversion => (None, quote!(#name #ty_generics), None, None),
+                IntoSetting::GenericConversion => (
+                    Some(quote!(<__R>)),
+                    quote!(__R),
+                    Some(quote!(where #name #ty_generics: Into<__R>)),
+                    Some(quote!(.into())),
+                ),
+                IntoSetting::TypeConversionToSpecificType(into) => (None, quote!(#into), None, Some(quote!(.into()))),
+            };
+
+        let const_modifier = self.const_modifier();
 
         quote!(
             #[allow(dead_code, non_camel_case_types, missing_docs)]
             impl #impl_generics #builder_name #modified_ty_generics #where_clause {
                 #build_method_doc
                 #[allow(clippy::default_trait_access)]
-                #build_method_visibility fn #build_method_name #build_method_generic (self) -> #output_type #build_method_where_clause {
+                #build_method_visibility #const_modifier fn #build_method_name #build_method_generic (self) -> #output_type #build_method_where_clause {
                     let ( #(#descructuring,)* ) = self.fields;
                     #( #assignments )*
                     #name {
                         #( #field_names ),*
-                    }.into()
+                    } #into_method_invocation
                 }
             }
         )
@@ -656,6 +683,8 @@ pub struct TypeBuilderAttr {
     pub build_method: BuildMethodSettings,
 
     pub field_defaults: FieldBuilderAttr,
+
+    pub const_: bool,
 }
 
 impl TypeBuilderAttr {
@@ -720,6 +749,10 @@ impl TypeBuilderAttr {
                 match name.as_str() {
                     "doc" => {
                         self.doc = true;
+                        Ok(())
+                    }
+                    "const_" => {
+                        self.const_ = true;
                         Ok(())
                     }
                     _ => Err(Error::new_spanned(&path, format!("Unknown parameter {:?}", name))),
