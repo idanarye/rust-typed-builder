@@ -88,7 +88,7 @@ mod util;
 ///
 /// - The `build_method(...)` subsection also has:
 ///   - `into` or `into = ...`: change the output type of the builder. When a specific value/type
-///     is set via the assignement, this will be the output type of the builder. If no specific
+///     is set via the assignment, this will be the output type of the builder. If no specific
 ///     type is set, but `into` is specified, the return type will be generic and the user can
 ///     decide which type shall be constructed. In both cases an [`Into`] conversion is required to
 ///     be defined from the original type to the target type.

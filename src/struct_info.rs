@@ -606,7 +606,7 @@ impl Default for IntoSetting {
 pub struct BuildMethodSettings {
     pub common: CommonDeclarationSettings,
 
-    /// Whether to convert the builded type into another while finishing the build.
+    /// Whether to convert the built type into another while finishing the build.
     pub into: IntoSetting,
 }
 
