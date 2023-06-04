@@ -4,8 +4,8 @@ use syn::parse::Error;
 
 use crate::field_info::{FieldBuilderAttr, FieldInfo};
 use crate::util::{
-    empty_type, empty_type_tuple, expr_to_single_string, first_visibility, make_punctuated_single, modify_types_generics_hack,
-    path_to_single_string, public_visibility, strip_raw_ident_prefix, type_tuple,
+    apply_subsections, empty_type, empty_type_tuple, expr_to_single_string, first_visibility, make_punctuated_single,
+    modify_types_generics_hack, path_to_single_string, public_visibility, strip_raw_ident_prefix, type_tuple,
 };
 
 #[derive(Debug)]
@@ -661,30 +661,8 @@ pub struct TypeBuilderAttr {
 impl TypeBuilderAttr {
     pub fn new(attrs: &[syn::Attribute]) -> Result<Self, Error> {
         let mut result = Self::default();
-        for attr in attrs {
-            if path_to_single_string(&attr.path).as_deref() != Some("builder") {
-                continue;
-            }
 
-            if attr.tokens.is_empty() {
-                continue;
-            }
-            let as_expr: syn::Expr = syn::parse2(attr.tokens.clone())?;
-
-            match as_expr {
-                syn::Expr::Paren(body) => {
-                    result.apply_meta(*body.expr)?;
-                }
-                syn::Expr::Tuple(body) => {
-                    for expr in body.elems {
-                        result.apply_meta(expr)?;
-                    }
-                }
-                _ => {
-                    return Err(Error::new_spanned(attr.tokens.clone(), "Expected (<...>)"));
-                }
-            }
-        }
+        apply_subsections(attrs, |expr| result.apply_meta(expr))?;
 
         if result.builder_type.doc.is_some() || result.build_method.common.doc.is_some() {
             result.doc = true;

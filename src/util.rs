@@ -1,4 +1,5 @@
 use quote::{quote, ToTokens};
+use syn::parse::Parser;
 
 pub fn path_to_single_string(path: &syn::Path) -> Option<String> {
     if path.leading_colon.is_some() {
@@ -100,7 +101,35 @@ pub fn first_visibility(visibilities: &[Option<&syn::Visibility>]) -> proc_macro
 }
 
 pub fn public_visibility() -> syn::Visibility {
-    syn::Visibility::Public(syn::VisPublic {
-        pub_token: Default::default(),
-    })
+    syn::Visibility::Public(syn::token::Pub::default())
+}
+
+pub fn apply_subsections(
+    attrs: &[syn::Attribute],
+    mut applier: impl FnMut(syn::Expr) -> Result<(), syn::Error>,
+) -> Result<(), syn::Error> {
+    for attr in attrs {
+        let list = match &attr.meta {
+            syn::Meta::List(list) => {
+                if path_to_single_string(&list.path).as_deref() != Some("builder") {
+                    continue;
+                }
+
+                list
+            }
+            _ => continue,
+        };
+
+        if list.tokens.is_empty() {
+            return Err(syn::Error::new_spanned(list, "Expected builder(…)"));
+        }
+
+        let parser = syn::punctuated::Punctuated::<_, syn::token::Comma>::parse_terminated;
+        let exprs = parser.parse2(list.tokens.clone())?;
+        for expr in exprs {
+            applier(expr)?;
+        }
+    }
+
+    Ok(())
 }

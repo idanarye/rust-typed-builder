@@ -1,9 +1,8 @@
 use proc_macro2::{Span, TokenStream};
 use quote::quote;
-use syn::parse::Error;
-use syn::spanned::Spanned;
+use syn::{parse::Error, spanned::Spanned};
 
-use crate::util::{expr_to_single_string, ident_to_type, path_to_single_string, strip_raw_ident_prefix};
+use crate::util::{apply_subsections, expr_to_single_string, ident_to_type, path_to_single_string, strip_raw_ident_prefix};
 
 #[derive(Debug)]
 pub struct FieldInfo<'a> {
@@ -114,30 +113,7 @@ pub struct SetterSettings {
 
 impl FieldBuilderAttr {
     pub fn with(mut self, attrs: &[syn::Attribute]) -> Result<Self, Error> {
-        for attr in attrs {
-            if path_to_single_string(&attr.path).as_deref() != Some("builder") {
-                continue;
-            }
-
-            if attr.tokens.is_empty() {
-                continue;
-            }
-
-            let as_expr: syn::Expr = syn::parse2(attr.tokens.clone())?;
-            match as_expr {
-                syn::Expr::Paren(body) => {
-                    self.apply_meta(*body.expr)?;
-                }
-                syn::Expr::Tuple(body) => {
-                    for expr in body.elems {
-                        self.apply_meta(expr)?;
-                    }
-                }
-                _ => {
-                    return Err(Error::new_spanned(attr.tokens.clone(), "Expected (<...>)"));
-                }
-            }
-        }
+        apply_subsections(attrs, |expr| self.apply_meta(expr))?;
 
         self.inter_fields_conflicts()?;
 
