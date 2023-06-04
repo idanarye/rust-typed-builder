@@ -662,9 +662,9 @@ fn test_into_set_generic_impl_into() {
         value: i32,
     }
 
-    impl Into<Bar> for Foo {
-        fn into(self) -> Bar {
-            Bar { value: self.value }
+    impl From<Foo> for Bar {
+        fn from(val: Foo) -> Self {
+            Self { value: val.value }
         }
     }
 
