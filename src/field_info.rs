@@ -98,6 +98,7 @@ impl<'a> FieldInfo<'a> {
 #[derive(Debug, Default, Clone)]
 pub struct FieldBuilderAttr {
     pub default: Option<syn::Expr>,
+    pub deprecated: Option<syn::Attribute>,
     pub setter: SetterSettings,
 }
 
@@ -113,7 +114,29 @@ pub struct SetterSettings {
 
 impl FieldBuilderAttr {
     pub fn with(mut self, attrs: &[syn::Attribute]) -> Result<Self, Error> {
-        apply_subsections(attrs, |expr| self.apply_meta(expr))?;
+        for attr in attrs {
+            let list = match &attr.meta {
+                syn::Meta::List(list) => {
+                    let Some(path) = path_to_single_string(&list.path) else {
+                        continue;
+                    };
+
+                    if path == "default" {
+                        self.deprecated = Some(attr.clone());
+                        continue;
+                    }
+
+                    if path != "builder" {
+                        continue;
+                    }
+
+                    list
+                }
+                _ => continue,
+            };
+
+            apply_subsections(list, |expr| self.apply_meta(expr))?;
+        }
 
         self.inter_fields_conflicts()?;
 

@@ -255,6 +255,7 @@ impl<'a> StructInfo<'a> {
             Some(ref doc) => quote!(#[doc = #doc]),
             None => quote!(),
         };
+        let deprecated = &field.builder_attr.deprecated;
 
         // NOTE: both auto_into and strip_option affect `arg_type` and `arg_expr`, but the order of
         // nesting is different so we have to do this little dance.
@@ -296,8 +297,9 @@ impl<'a> StructInfo<'a> {
         Ok(quote! {
             #[allow(dead_code, non_camel_case_types, missing_docs)]
             impl #impl_generics #builder_name < #( #ty_generics ),* > #where_clause {
+                #deprecated
                 #doc
-                pub fn #field_name (self, #param_list) -> #builder_name < #( #target_generics ),* > {
+                pub fn #field_name (self, #param_list) -> #builder_name <#( #target_generics ),*> {
                     let #field_name = (#arg_expr,);
                     let ( #(#descructuring,)* ) = self.fields;
                     #builder_name {
@@ -315,7 +317,7 @@ impl<'a> StructInfo<'a> {
                 #[deprecated(
                     note = #repeated_fields_error_message
                 )]
-                pub fn #field_name (self, _: #repeated_fields_error_type_name) -> #builder_name < #( #target_generics ),* > {
+                pub fn #field_name (self, _: #repeated_fields_error_type_name) -> #builder_name <#( #target_generics ),*> {
                     self
                 }
             }
@@ -664,7 +666,20 @@ impl TypeBuilderAttr {
     pub fn new(attrs: &[syn::Attribute]) -> Result<Self, Error> {
         let mut result = Self::default();
 
-        apply_subsections(attrs, |expr| result.apply_meta(expr))?;
+        for attr in attrs {
+            let list = match &attr.meta {
+                syn::Meta::List(list) => {
+                    if path_to_single_string(&list.path).as_deref() != Some("builder") {
+                        continue;
+                    }
+
+                    list
+                }
+                _ => continue,
+            };
+
+            apply_subsections(list, |expr| result.apply_meta(expr))?;
+        }
 
         if result.builder_type.doc.is_some() || result.build_method.common.doc.is_some() {
             result.doc = true;

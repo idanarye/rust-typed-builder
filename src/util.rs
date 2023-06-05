@@ -105,30 +105,17 @@ pub fn public_visibility() -> syn::Visibility {
 }
 
 pub fn apply_subsections(
-    attrs: &[syn::Attribute],
+    list: &syn::MetaList,
     mut applier: impl FnMut(syn::Expr) -> Result<(), syn::Error>,
 ) -> Result<(), syn::Error> {
-    for attr in attrs {
-        let list = match &attr.meta {
-            syn::Meta::List(list) => {
-                if path_to_single_string(&list.path).as_deref() != Some("builder") {
-                    continue;
-                }
+    if list.tokens.is_empty() {
+        return Err(syn::Error::new_spanned(list, "Expected builder(…)"));
+    }
 
-                list
-            }
-            _ => continue,
-        };
-
-        if list.tokens.is_empty() {
-            return Err(syn::Error::new_spanned(list, "Expected builder(…)"));
-        }
-
-        let parser = syn::punctuated::Punctuated::<_, syn::token::Comma>::parse_terminated;
-        let exprs = parser.parse2(list.tokens.clone())?;
-        for expr in exprs {
-            applier(expr)?;
-        }
+    let parser = syn::punctuated::Punctuated::<_, syn::token::Comma>::parse_terminated;
+    let exprs = parser.parse2(list.tokens.clone())?;
+    for expr in exprs {
+        applier(expr)?;
     }
 
     Ok(())
