@@ -121,7 +121,7 @@ impl<'a> FieldBuilderAttr<'a> {
                         continue;
                     };
 
-                    if path == "default" {
+                    if path == "deprecated" {
                         self.deprecated = Some(attr);
                         continue;
                     }
