@@ -671,3 +671,16 @@ fn test_into_set_generic_impl_into() {
     let bar: Bar = Foo::builder().value(42).build();
     assert_eq!(bar, Bar { value: 42 });
 }
+
+#[test]
+fn test_deprecated_fields() {
+    #[derive(TypedBuilder)]
+    struct Foo {
+        #[deprecated = "Don't use this!"]
+        #[allow(dead_code)]
+        value: i32,
+    }
+
+    // Expected deprecation warning for the method value!
+    Foo::builder().value(42).build();
+}
