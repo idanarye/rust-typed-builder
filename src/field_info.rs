@@ -132,7 +132,13 @@ impl<'a> FieldBuilderAttr<'a> {
 
                     list
                 }
-                _ => continue,
+                syn::Meta::Path(path) | syn::Meta::NameValue(syn::MetaNameValue { path, .. }) => {
+                    if path_to_single_string(path).as_deref() == Some("deprecated") {
+                        self.deprecated = Some(attr);
+                    };
+
+                    continue;
+                }
             };
 
             apply_subsections(list, |expr| self.apply_meta(expr))?;
