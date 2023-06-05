@@ -15,7 +15,7 @@ pub struct StructInfo<'a> {
     pub generics: &'a syn::Generics,
     pub fields: Vec<FieldInfo<'a>>,
 
-    pub builder_attr: TypeBuilderAttr,
+    pub builder_attr: TypeBuilderAttr<'a>,
     pub builder_name: syn::Ident,
     pub conversion_helper_trait_name: syn::Ident,
     pub core: syn::Ident,
@@ -646,7 +646,7 @@ impl BuildMethodSettings {
 }
 
 #[derive(Debug, Default)]
-pub struct TypeBuilderAttr {
+pub struct TypeBuilderAttr<'a> {
     /// Whether to show docs for the `TypeBuilder` type (rather than hiding them).
     pub doc: bool,
 
@@ -659,10 +659,10 @@ pub struct TypeBuilderAttr {
     /// Customize build method, ex. visibility, name
     pub build_method: BuildMethodSettings,
 
-    pub field_defaults: FieldBuilderAttr,
+    pub field_defaults: FieldBuilderAttr<'a>,
 }
 
-impl TypeBuilderAttr {
+impl<'a> TypeBuilderAttr<'a> {
     pub fn new(attrs: &[syn::Attribute]) -> Result<Self, Error> {
         let mut result = Self::default();
 

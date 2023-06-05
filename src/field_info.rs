@@ -10,11 +10,11 @@ pub struct FieldInfo<'a> {
     pub name: &'a syn::Ident,
     pub generic_ident: syn::Ident,
     pub ty: &'a syn::Type,
-    pub builder_attr: FieldBuilderAttr,
+    pub builder_attr: FieldBuilderAttr<'a>,
 }
 
 impl<'a> FieldInfo<'a> {
-    pub fn new(ordinal: usize, field: &syn::Field, field_defaults: FieldBuilderAttr) -> Result<FieldInfo, Error> {
+    pub fn new(ordinal: usize, field: &'a syn::Field, field_defaults: FieldBuilderAttr<'a>) -> Result<FieldInfo<'a>, Error> {
         if let Some(ref name) = field.ident {
             FieldInfo {
                 ordinal,
@@ -96,9 +96,9 @@ impl<'a> FieldInfo<'a> {
 }
 
 #[derive(Debug, Default, Clone)]
-pub struct FieldBuilderAttr {
+pub struct FieldBuilderAttr<'a> {
     pub default: Option<syn::Expr>,
-    pub deprecated: Option<syn::Attribute>,
+    pub deprecated: Option<&'a syn::Attribute>,
     pub setter: SetterSettings,
 }
 
@@ -112,8 +112,8 @@ pub struct SetterSettings {
     pub transform: Option<Transform>,
 }
 
-impl FieldBuilderAttr {
-    pub fn with(mut self, attrs: &[syn::Attribute]) -> Result<Self, Error> {
+impl<'a> FieldBuilderAttr<'a> {
+    pub fn with(mut self, attrs: &'a [syn::Attribute]) -> Result<Self, Error> {
         for attr in attrs {
             let list = match &attr.meta {
                 syn::Meta::List(list) => {
@@ -122,7 +122,7 @@ impl FieldBuilderAttr {
                     };
 
                     if path == "default" {
-                        self.deprecated = Some(attr.clone());
+                        self.deprecated = Some(attr);
                         continue;
                     }
 
