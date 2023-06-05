@@ -182,7 +182,6 @@ fn impl_my_derive(ast: &syn::DeriveInput) -> Result<TokenStream, Error> {
                     .included_fields()
                     .map(|f| struct_info.field_impl(f))
                     .collect::<Result<Vec<_>, _>>()?;
-                let fields = quote!(#(#fields)*).into_iter();
                 let required_fields = struct_info
                     .included_fields()
                     .filter(|f| f.builder_attr.default.is_none())
