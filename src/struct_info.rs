@@ -523,6 +523,8 @@ impl<'a> StructInfo<'a> {
                 #build_method_visibility fn #build_method_name #build_method_generic (self) -> #output_type #build_method_where_clause {
                     let ( #(#descructuring,)* ) = self.fields;
                     #( #assignments )*
+
+                    #[allow(deprecated)]
                     #name {
                         #( #field_names ),*
                     }.into()
