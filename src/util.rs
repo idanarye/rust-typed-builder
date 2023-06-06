@@ -73,8 +73,8 @@ pub fn modify_types_generics_hack<F>(ty_generics: &syn::TypeGenerics, mut mutato
 where
     F: FnMut(&mut syn::punctuated::Punctuated<syn::GenericArgument, syn::token::Comma>),
 {
-    let mut abga: syn::AngleBracketedGenericArguments = syn::parse(ty_generics.clone().into_token_stream().into())
-        .unwrap_or_else(|_| syn::AngleBracketedGenericArguments {
+    let mut abga: syn::AngleBracketedGenericArguments =
+        syn::parse2(ty_generics.to_token_stream()).unwrap_or_else(|_| syn::AngleBracketedGenericArguments {
             colon2_token: None,
             lt_token: Default::default(),
             args: Default::default(),
