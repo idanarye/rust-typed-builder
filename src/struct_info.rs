@@ -219,12 +219,12 @@ impl<'a> StructInfo<'a> {
             .map(|generic_param| match generic_param {
                 syn::GenericParam::Type(type_param) => {
                     let ident = type_param.ident.clone();
-                    syn::parse(quote!(#ident).into()).unwrap()
+                    syn::parse2(quote!(#ident)).unwrap()
                 }
                 syn::GenericParam::Lifetime(lifetime_def) => syn::GenericArgument::Lifetime(lifetime_def.lifetime.clone()),
                 syn::GenericParam::Const(const_param) => {
                     let ident = const_param.ident.clone();
-                    syn::parse(quote!(#ident).into()).unwrap()
+                    syn::parse2(quote!(#ident)).unwrap()
                 }
             })
             .collect();
@@ -339,12 +339,12 @@ impl<'a> StructInfo<'a> {
             .map(|generic_param| match generic_param {
                 syn::GenericParam::Type(type_param) => {
                     let ident = &type_param.ident;
-                    syn::parse(quote!(#ident).into()).unwrap()
+                    syn::parse2(quote!(#ident)).unwrap()
                 }
                 syn::GenericParam::Lifetime(lifetime_def) => syn::GenericArgument::Lifetime(lifetime_def.lifetime.clone()),
                 syn::GenericParam::Const(const_param) => {
                     let ident = &const_param.ident;
-                    syn::parse(quote!(#ident).into()).unwrap()
+                    syn::parse2(quote!(#ident)).unwrap()
                 }
             })
             .collect();

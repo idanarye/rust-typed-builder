@@ -139,7 +139,7 @@ impl FieldBuilderAttr {
                             use std::str::FromStr;
                             let tokenized_code = TokenStream::from_str(&code.value())?;
                             self.default =
-                                Some(syn::parse(tokenized_code.into()).map_err(|e| Error::new_spanned(code, format!("{}", e)))?);
+                                Some(syn::parse2(tokenized_code).map_err(|e| Error::new_spanned(code, format!("{}", e)))?);
                         } else {
                             return Err(Error::new_spanned(assign.right, "Expected string"));
                         }
@@ -152,7 +152,7 @@ impl FieldBuilderAttr {
                 let name = path_to_single_string(&path.path).ok_or_else(|| Error::new_spanned(&path, "Expected identifier"))?;
                 match name.as_str() {
                     "default" => {
-                        self.default = Some(syn::parse(quote!(::core::default::Default::default()).into()).unwrap());
+                        self.default = Some(syn::parse2(quote!(::core::default::Default::default())).unwrap());
                         Ok(())
                     }
                     _ => Err(Error::new_spanned(&path, format!("Unknown parameter {:?}", name))),
