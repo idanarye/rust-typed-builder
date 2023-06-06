@@ -1,5 +1,5 @@
 use proc_macro2::TokenStream;
-use quote::quote;
+use quote::{quote, ToTokens};
 use syn::parse::Error;
 
 use crate::field_info::{FieldBuilderAttr, FieldInfo};
@@ -218,13 +218,13 @@ impl<'a> StructInfo<'a> {
             .iter()
             .map(|generic_param| match generic_param {
                 syn::GenericParam::Type(type_param) => {
-                    let ident = type_param.ident.clone();
-                    syn::parse2(quote!(#ident)).unwrap()
+                    let ident = type_param.ident.to_token_stream();
+                    syn::parse2(ident).unwrap()
                 }
                 syn::GenericParam::Lifetime(lifetime_def) => syn::GenericArgument::Lifetime(lifetime_def.lifetime.clone()),
                 syn::GenericParam::Const(const_param) => {
-                    let ident = const_param.ident.clone();
-                    syn::parse2(quote!(#ident)).unwrap()
+                    let ident = const_param.ident.to_token_stream();
+                    syn::parse2(ident).unwrap()
                 }
             })
             .collect();
