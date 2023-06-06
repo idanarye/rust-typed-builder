@@ -504,7 +504,7 @@ fn test_clone_builder_with_generics() {
     let semi_built2 = Foo::builder().x("four");
 
     assert!(semi_built2.clone().y(5).build() == Foo { x: "four", y: 5 });
-    assert!(semi_built2.clone().y(6).build() == Foo { x: "four", y: 6 });
+    assert!(semi_built2.y(6).build() == Foo { x: "four", y: 6 });
 
     // Just to make sure it can build with generic bounds
     #[allow(dead_code)]
