@@ -1,5 +1,5 @@
 use proc_macro2::{Span, TokenStream};
-use quote::quote;
+use quote::{quote, ToTokens};
 use syn::{parse::Error, spanned::Spanned};
 
 use crate::util::{apply_subsections, expr_to_single_string, ident_to_type, path_to_single_string, strip_raw_ident_prefix};
@@ -166,7 +166,7 @@ impl FieldBuilderAttr {
                 }
                 .ok_or_else(|| {
                     let call_func = &call.func;
-                    let call_func = quote!(#call_func);
+                    let call_func = call_func.to_token_stream();
                     Error::new_spanned(&call.func, format!("Illegal builder setting group {}", call_func))
                 })?;
                 match subsetting_name.as_ref() {

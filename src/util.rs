@@ -1,4 +1,4 @@
-use quote::{quote, ToTokens};
+use quote::ToTokens;
 use syn::parse::Parser;
 
 pub fn path_to_single_string(path: &syn::Path) -> Option<String> {
@@ -97,7 +97,8 @@ pub fn first_visibility(visibilities: &[Option<&syn::Visibility>]) -> proc_macro
         .flatten()
         .next()
         .expect("need at least one visibility in the list");
-    quote!(#vis)
+
+    vis.to_token_stream()
 }
 
 pub fn public_visibility() -> syn::Visibility {

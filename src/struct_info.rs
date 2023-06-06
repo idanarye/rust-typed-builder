@@ -202,7 +202,7 @@ impl<'a> StructInfo<'a> {
                 quote!(_)
             } else {
                 let name = f.name;
-                quote!(#name)
+                name.to_token_stream()
             }
         });
         let reconstructing = self.included_fields().map(|f| f.name);
@@ -268,7 +268,7 @@ impl<'a> StructInfo<'a> {
         let (arg_type, arg_expr) = if field.builder_attr.setter.auto_into.is_some() {
             (quote!(impl ::core::convert::Into<#arg_type>), quote!(#field_name.into()))
         } else {
-            (quote!(#arg_type), quote!(#field_name))
+            (arg_type.to_token_stream(), field_name.to_token_stream())
         };
 
         let (param_list, arg_expr) = if field.builder_attr.setter.strip_bool.is_some() {
@@ -338,13 +338,13 @@ impl<'a> StructInfo<'a> {
             .iter()
             .map(|generic_param| match generic_param {
                 syn::GenericParam::Type(type_param) => {
-                    let ident = &type_param.ident;
-                    syn::parse2(quote!(#ident)).unwrap()
+                    let ident = type_param.ident.to_token_stream();
+                    syn::parse2(ident).unwrap()
                 }
                 syn::GenericParam::Lifetime(lifetime_def) => syn::GenericArgument::Lifetime(lifetime_def.lifetime.clone()),
                 syn::GenericParam::Const(const_param) => {
-                    let ident = &const_param.ident;
-                    syn::parse2(quote!(#ident)).unwrap()
+                    let ident = const_param.ident.to_token_stream();
+                    syn::parse2(ident).unwrap()
                 }
             })
             .collect();
@@ -512,7 +512,7 @@ impl<'a> StructInfo<'a> {
                 quote!(__R),
                 Some(quote!(where #name #ty_generics: Into<__R>)),
             ),
-            IntoSetting::TypeConversionToSpecificType(into) => (None, quote!(#into), None),
+            IntoSetting::TypeConversionToSpecificType(into) => (None, into.to_token_stream(), None),
         };
 
         quote!(
@@ -572,7 +572,7 @@ impl CommonDeclarationSettings {
     }
 
     fn get_name(&self) -> Option<TokenStream> {
-        self.name.as_ref().map(|name| quote!(#name))
+        self.name.as_ref().map(|name| name.to_token_stream())
     }
 
     fn get_doc_or(&self, gen_doc: impl FnOnce() -> String) -> TokenStream {
@@ -711,7 +711,7 @@ impl TypeBuilderAttr {
                 }
                 .ok_or_else(|| {
                     let call_func = &call.func;
-                    let call_func = quote!(#call_func);
+                    let call_func = call_func.to_token_stream();
                     Error::new_spanned(&call.func, format!("Illegal builder setting group {}", call_func))
                 })?;
                 match subsetting_name.as_str() {
