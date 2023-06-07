@@ -1,5 +1,5 @@
 use proc_macro2::{Span, TokenStream};
-use quote::quote;
+use quote::{quote, ToTokens};
 use syn::{parse::Error, spanned::Spanned};
 
 use crate::util::{apply_subsections, expr_to_single_string, ident_to_type, path_to_single_string, strip_raw_ident_prefix};
@@ -139,7 +139,7 @@ impl FieldBuilderAttr {
                             use std::str::FromStr;
                             let tokenized_code = TokenStream::from_str(&code.value())?;
                             self.default =
-                                Some(syn::parse(tokenized_code.into()).map_err(|e| Error::new_spanned(code, format!("{}", e)))?);
+                                Some(syn::parse2(tokenized_code).map_err(|e| Error::new_spanned(code, format!("{}", e)))?);
                         } else {
                             return Err(Error::new_spanned(assign.right, "Expected string"));
                         }
@@ -152,7 +152,7 @@ impl FieldBuilderAttr {
                 let name = path_to_single_string(&path.path).ok_or_else(|| Error::new_spanned(&path, "Expected identifier"))?;
                 match name.as_str() {
                     "default" => {
-                        self.default = Some(syn::parse(quote!(::core::default::Default::default()).into()).unwrap());
+                        self.default = Some(syn::parse2(quote!(::core::default::Default::default())).unwrap());
                         Ok(())
                     }
                     _ => Err(Error::new_spanned(&path, format!("Unknown parameter {:?}", name))),
@@ -166,7 +166,7 @@ impl FieldBuilderAttr {
                 }
                 .ok_or_else(|| {
                     let call_func = &call.func;
-                    let call_func = quote!(#call_func);
+                    let call_func = call_func.to_token_stream();
                     Error::new_spanned(&call.func, format!("Illegal builder setting group {}", call_func))
                 })?;
                 match subsetting_name.as_ref() {
@@ -254,7 +254,7 @@ impl SetterSettings {
                         Ok(())
                     }
                     "transform" => {
-                        self.transform = Some(parse_transform_closure(assign.left.span(), &assign.right)?);
+                        self.transform = Some(parse_transform_closure(assign.left.span(), *assign.right)?);
                         Ok(())
                     }
                     _ => Err(Error::new_spanned(&assign, format!("Unknown parameter {:?}", name))),
@@ -337,7 +337,7 @@ pub struct Transform {
     span: Span,
 }
 
-fn parse_transform_closure(span: Span, expr: &syn::Expr) -> Result<Transform, Error> {
+fn parse_transform_closure(span: Span, expr: syn::Expr) -> Result<Transform, Error> {
     let closure = match expr {
         syn::Expr::Closure(closure) => closure,
         _ => return Err(Error::new_spanned(expr, "Expected closure")),
@@ -351,18 +351,16 @@ fn parse_transform_closure(span: Span, expr: &syn::Expr) -> Result<Transform, Er
 
     let params = closure
         .inputs
-        .iter()
+        .into_iter()
         .map(|input| match input {
-            syn::Pat::Type(pat_type) => Ok((syn::Pat::clone(&pat_type.pat), syn::Type::clone(&pat_type.ty))),
+            syn::Pat::Type(pat_type) => Ok((*pat_type.pat, *pat_type.ty)),
             _ => Err(Error::new_spanned(input, "Transform closure must explicitly declare types")),
         })
         .collect::<Result<Vec<_>, _>>()?;
 
-    let body = &closure.body;
-
     Ok(Transform {
         params,
-        body: syn::Expr::clone(body),
+        body: *closure.body,
         span,
     })
 }

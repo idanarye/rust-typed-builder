@@ -1,5 +1,5 @@
 use proc_macro2::TokenStream;
-use quote::quote;
+use quote::{quote, ToTokens};
 use syn::parse::Error;
 
 use crate::field_info::{FieldBuilderAttr, FieldInfo};
@@ -72,15 +72,13 @@ impl<'a> StructInfo<'a> {
         let phantom_generics = self.generics.params.iter().map(|param| match param {
             syn::GenericParam::Lifetime(lifetime) => {
                 let lifetime = &lifetime.lifetime;
-                quote!(::core::marker::PhantomData<&#lifetime ()>)
+                quote!(&#lifetime ())
             }
             syn::GenericParam::Type(ty) => {
                 let ty = &ty.ident;
-                quote!(::core::marker::PhantomData<#ty>)
+                ty.to_token_stream()
             }
-            syn::GenericParam::Const(_cnst) => {
-                quote!()
-            }
+            syn::GenericParam::Const(_cnst) => quote!(),
         });
 
         let builder_method_name = self.builder_attr.builder_method.get_name().unwrap_or_else(|| quote!(builder));
@@ -154,7 +152,7 @@ impl<'a> StructInfo<'a> {
             #[allow(dead_code, non_camel_case_types, non_snake_case)]
             #builder_type_visibility struct #builder_name #b_generics {
                 fields: #all_fields_param,
-                phantom: (#( #phantom_generics ),*),
+                phantom: ::core::marker::PhantomData<(#( #phantom_generics ),*)>,
             }
 
             impl #b_generics_impl Clone for #builder_name #b_generics_ty #b_generics_where {
@@ -162,7 +160,7 @@ impl<'a> StructInfo<'a> {
                 fn clone(&self) -> Self {
                     Self {
                         fields: self.fields.clone(),
-                        phantom: ::core::default::Default::default(),
+                        phantom: ::core::marker::PhantomData,
                     }
                 }
             }
@@ -202,7 +200,7 @@ impl<'a> StructInfo<'a> {
                 quote!(_)
             } else {
                 let name = f.name;
-                quote!(#name)
+                name.to_token_stream()
             }
         });
         let reconstructing = self.included_fields().map(|f| f.name);
@@ -218,13 +216,13 @@ impl<'a> StructInfo<'a> {
             .iter()
             .map(|generic_param| match generic_param {
                 syn::GenericParam::Type(type_param) => {
-                    let ident = type_param.ident.clone();
-                    syn::parse(quote!(#ident).into()).unwrap()
+                    let ident = type_param.ident.to_token_stream();
+                    syn::parse2(ident).unwrap()
                 }
                 syn::GenericParam::Lifetime(lifetime_def) => syn::GenericArgument::Lifetime(lifetime_def.lifetime.clone()),
                 syn::GenericParam::Const(const_param) => {
-                    let ident = const_param.ident.clone();
-                    syn::parse(quote!(#ident).into()).unwrap()
+                    let ident = const_param.ident.to_token_stream();
+                    syn::parse2(ident).unwrap()
                 }
             })
             .collect();
@@ -251,10 +249,7 @@ impl<'a> StructInfo<'a> {
         target_generics.push(syn::GenericArgument::Type(target_generics_tuple.into()));
         ty_generics.push(syn::GenericArgument::Type(ty_generics_tuple.into()));
         let (impl_generics, _, where_clause) = generics.split_for_impl();
-        let doc = match field.builder_attr.setter.doc {
-            Some(ref doc) => quote!(#[doc = #doc]),
-            None => quote!(),
-        };
+        let doc = field.builder_attr.setter.doc.as_ref().map(|doc| quote!(#[doc = #doc]));
 
         // NOTE: both auto_into and strip_option affect `arg_type` and `arg_expr`, but the order of
         // nesting is different so we have to do this little dance.
@@ -268,7 +263,7 @@ impl<'a> StructInfo<'a> {
         let (arg_type, arg_expr) = if field.builder_attr.setter.auto_into.is_some() {
             (quote!(impl ::core::convert::Into<#arg_type>), quote!(#field_name.into()))
         } else {
-            (quote!(#arg_type), quote!(#field_name))
+            (arg_type.to_token_stream(), field_name.to_token_stream())
         };
 
         let (param_list, arg_expr) = if field.builder_attr.setter.strip_bool.is_some() {
@@ -338,13 +333,13 @@ impl<'a> StructInfo<'a> {
             .iter()
             .map(|generic_param| match generic_param {
                 syn::GenericParam::Type(type_param) => {
-                    let ident = &type_param.ident;
-                    syn::parse(quote!(#ident).into()).unwrap()
+                    let ident = type_param.ident.to_token_stream();
+                    syn::parse2(ident).unwrap()
                 }
                 syn::GenericParam::Lifetime(lifetime_def) => syn::GenericArgument::Lifetime(lifetime_def.lifetime.clone()),
                 syn::GenericParam::Const(const_param) => {
-                    let ident = &const_param.ident;
-                    syn::parse(quote!(#ident).into()).unwrap()
+                    let ident = const_param.ident.to_token_stream();
+                    syn::parse2(ident).unwrap()
                 }
             })
             .collect();
@@ -512,7 +507,7 @@ impl<'a> StructInfo<'a> {
                 quote!(__R),
                 Some(quote!(where #name #ty_generics: Into<__R>)),
             ),
-            IntoSetting::TypeConversionToSpecificType(into) => (None, quote!(#into), None),
+            IntoSetting::TypeConversionToSpecificType(into) => (None, into.to_token_stream(), None),
         };
 
         quote!(
@@ -572,7 +567,7 @@ impl CommonDeclarationSettings {
     }
 
     fn get_name(&self) -> Option<TokenStream> {
-        self.name.as_ref().map(|name| quote!(#name))
+        self.name.as_ref().map(|name| name.to_token_stream())
     }
 
     fn get_doc_or(&self, gen_doc: impl FnOnce() -> String) -> TokenStream {
@@ -711,7 +706,7 @@ impl TypeBuilderAttr {
                 }
                 .ok_or_else(|| {
                     let call_func = &call.func;
-                    let call_func = quote!(#call_func);
+                    let call_func = call_func.to_token_stream();
                     Error::new_spanned(&call.func, format!("Illegal builder setting group {}", call_func))
                 })?;
                 match subsetting_name.as_str() {
