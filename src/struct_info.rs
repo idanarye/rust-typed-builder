@@ -249,10 +249,7 @@ impl<'a> StructInfo<'a> {
         target_generics.push(syn::GenericArgument::Type(target_generics_tuple.into()));
         ty_generics.push(syn::GenericArgument::Type(ty_generics_tuple.into()));
         let (impl_generics, _, where_clause) = generics.split_for_impl();
-        let doc = match field.builder_attr.setter.doc {
-            Some(ref doc) => quote!(#[doc = #doc]),
-            None => quote!(),
-        };
+        let doc = field.builder_attr.setter.doc.as_ref().map(|doc| quote!(#[doc = #doc]));
 
         // NOTE: both auto_into and strip_option affect `arg_type` and `arg_expr`, but the order of
         // nesting is different so we have to do this little dance.
