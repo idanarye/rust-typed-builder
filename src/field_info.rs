@@ -254,7 +254,7 @@ impl SetterSettings {
                         Ok(())
                     }
                     "transform" => {
-                        self.transform = Some(parse_transform_closure(assign.left.span(), &assign.right)?);
+                        self.transform = Some(parse_transform_closure(assign.left.span(), *assign.right)?);
                         Ok(())
                     }
                     _ => Err(Error::new_spanned(&assign, format!("Unknown parameter {:?}", name))),
@@ -337,7 +337,7 @@ pub struct Transform {
     span: Span,
 }
 
-fn parse_transform_closure(span: Span, expr: &syn::Expr) -> Result<Transform, Error> {
+fn parse_transform_closure(span: Span, expr: syn::Expr) -> Result<Transform, Error> {
     let closure = match expr {
         syn::Expr::Closure(closure) => closure,
         _ => return Err(Error::new_spanned(expr, "Expected closure")),
@@ -351,18 +351,16 @@ fn parse_transform_closure(span: Span, expr: &syn::Expr) -> Result<Transform, Er
 
     let params = closure
         .inputs
-        .iter()
+        .into_iter()
         .map(|input| match input {
-            syn::Pat::Type(pat_type) => Ok((syn::Pat::clone(&pat_type.pat), syn::Type::clone(&pat_type.ty))),
+            syn::Pat::Type(pat_type) => Ok((*pat_type.pat, *pat_type.ty)),
             _ => Err(Error::new_spanned(input, "Transform closure must explicitly declare types")),
         })
         .collect::<Result<Vec<_>, _>>()?;
 
-    let body = &closure.body;
-
     Ok(Transform {
         params,
-        body: syn::Expr::clone(body),
+        body: *closure.body,
         span,
     })
 }
