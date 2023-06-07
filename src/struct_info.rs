@@ -72,15 +72,13 @@ impl<'a> StructInfo<'a> {
         let phantom_generics = self.generics.params.iter().map(|param| match param {
             syn::GenericParam::Lifetime(lifetime) => {
                 let lifetime = &lifetime.lifetime;
-                quote!(::core::marker::PhantomData<&#lifetime ()>)
+                quote!(&#lifetime ())
             }
             syn::GenericParam::Type(ty) => {
                 let ty = &ty.ident;
-                quote!(::core::marker::PhantomData<#ty>)
+                ty.to_token_stream()
             }
-            syn::GenericParam::Const(_cnst) => {
-                quote!()
-            }
+            syn::GenericParam::Const(_cnst) => quote!(),
         });
 
         let builder_method_name = self.builder_attr.builder_method.get_name().unwrap_or_else(|| quote!(builder));
@@ -154,7 +152,7 @@ impl<'a> StructInfo<'a> {
             #[allow(dead_code, non_camel_case_types, non_snake_case)]
             #builder_type_visibility struct #builder_name #b_generics {
                 fields: #all_fields_param,
-                phantom: (#( #phantom_generics ),*),
+                phantom: ::core::marker::PhantomData<(#( #phantom_generics ),*)>,
             }
 
             impl #b_generics_impl Clone for #builder_name #b_generics_ty #b_generics_where {
@@ -162,7 +160,7 @@ impl<'a> StructInfo<'a> {
                 fn clone(&self) -> Self {
                     Self {
                         fields: self.fields.clone(),
-                        phantom: ::core::default::Default::default(),
+                        phantom: ::core::marker::PhantomData,
                     }
                 }
             }
