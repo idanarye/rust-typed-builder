@@ -15,7 +15,7 @@ pub struct StructInfo<'a> {
     pub generics: &'a syn::Generics,
     pub fields: Vec<FieldInfo<'a>>,
 
-    pub builder_attr: TypeBuilderAttr,
+    pub builder_attr: TypeBuilderAttr<'a>,
     pub builder_name: syn::Ident,
     pub conversion_helper_trait_name: syn::Ident,
     pub core: syn::Ident,
@@ -250,6 +250,7 @@ impl<'a> StructInfo<'a> {
         ty_generics.push(syn::GenericArgument::Type(ty_generics_tuple.into()));
         let (impl_generics, _, where_clause) = generics.split_for_impl();
         let doc = field.builder_attr.setter.doc.as_ref().map(|doc| quote!(#[doc = #doc]));
+        let deprecated = &field.builder_attr.deprecated;
 
         // NOTE: both auto_into and strip_option affect `arg_type` and `arg_expr`, but the order of
         // nesting is different so we have to do this little dance.
@@ -291,8 +292,9 @@ impl<'a> StructInfo<'a> {
         Ok(quote! {
             #[allow(dead_code, non_camel_case_types, missing_docs)]
             impl #impl_generics #builder_name < #( #ty_generics ),* > #where_clause {
+                #deprecated
                 #doc
-                pub fn #field_name (self, #param_list) -> #builder_name < #( #target_generics ),* > {
+                pub fn #field_name (self, #param_list) -> #builder_name <#( #target_generics ),*> {
                     let #field_name = (#arg_expr,);
                     let ( #(#descructuring,)* ) = self.fields;
                     #builder_name {
@@ -310,7 +312,7 @@ impl<'a> StructInfo<'a> {
                 #[deprecated(
                     note = #repeated_fields_error_message
                 )]
-                pub fn #field_name (self, _: #repeated_fields_error_type_name) -> #builder_name < #( #target_generics ),* > {
+                pub fn #field_name (self, _: #repeated_fields_error_type_name) -> #builder_name <#( #target_generics ),*> {
                     self
                 }
             }
@@ -518,6 +520,8 @@ impl<'a> StructInfo<'a> {
                 #build_method_visibility fn #build_method_name #build_method_generic (self) -> #output_type #build_method_where_clause {
                     let ( #(#descructuring,)* ) = self.fields;
                     #( #assignments )*
+
+                    #[allow(deprecated)]
                     #name {
                         #( #field_names ),*
                     }.into()
@@ -637,7 +641,7 @@ impl BuildMethodSettings {
 }
 
 #[derive(Debug, Default)]
-pub struct TypeBuilderAttr {
+pub struct TypeBuilderAttr<'a> {
     /// Whether to show docs for the `TypeBuilder` type (rather than hiding them).
     pub doc: bool,
 
@@ -650,14 +654,27 @@ pub struct TypeBuilderAttr {
     /// Customize build method, ex. visibility, name
     pub build_method: BuildMethodSettings,
 
-    pub field_defaults: FieldBuilderAttr,
+    pub field_defaults: FieldBuilderAttr<'a>,
 }
 
-impl TypeBuilderAttr {
+impl<'a> TypeBuilderAttr<'a> {
     pub fn new(attrs: &[syn::Attribute]) -> Result<Self, Error> {
         let mut result = Self::default();
 
-        apply_subsections(attrs, |expr| result.apply_meta(expr))?;
+        for attr in attrs {
+            let list = match &attr.meta {
+                syn::Meta::List(list) => {
+                    if path_to_single_string(&list.path).as_deref() != Some("builder") {
+                        continue;
+                    }
+
+                    list
+                }
+                _ => continue,
+            };
+
+            apply_subsections(list, |expr| result.apply_meta(expr))?;
+        }
 
         if result.builder_type.doc.is_some() || result.build_method.common.doc.is_some() {
             result.doc = true;

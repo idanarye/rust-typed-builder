@@ -10,11 +10,11 @@ pub struct FieldInfo<'a> {
     pub name: &'a syn::Ident,
     pub generic_ident: syn::Ident,
     pub ty: &'a syn::Type,
-    pub builder_attr: FieldBuilderAttr,
+    pub builder_attr: FieldBuilderAttr<'a>,
 }
 
 impl<'a> FieldInfo<'a> {
-    pub fn new(ordinal: usize, field: &syn::Field, field_defaults: FieldBuilderAttr) -> Result<FieldInfo, Error> {
+    pub fn new(ordinal: usize, field: &'a syn::Field, field_defaults: FieldBuilderAttr<'a>) -> Result<FieldInfo<'a>, Error> {
         if let Some(ref name) = field.ident {
             FieldInfo {
                 ordinal,
@@ -96,8 +96,9 @@ impl<'a> FieldInfo<'a> {
 }
 
 #[derive(Debug, Default, Clone)]
-pub struct FieldBuilderAttr {
+pub struct FieldBuilderAttr<'a> {
     pub default: Option<syn::Expr>,
+    pub deprecated: Option<&'a syn::Attribute>,
     pub setter: SetterSettings,
 }
 
@@ -111,9 +112,37 @@ pub struct SetterSettings {
     pub transform: Option<Transform>,
 }
 
-impl FieldBuilderAttr {
-    pub fn with(mut self, attrs: &[syn::Attribute]) -> Result<Self, Error> {
-        apply_subsections(attrs, |expr| self.apply_meta(expr))?;
+impl<'a> FieldBuilderAttr<'a> {
+    pub fn with(mut self, attrs: &'a [syn::Attribute]) -> Result<Self, Error> {
+        for attr in attrs {
+            let list = match &attr.meta {
+                syn::Meta::List(list) => {
+                    let Some(path) = path_to_single_string(&list.path) else {
+                        continue;
+                    };
+
+                    if path == "deprecated" {
+                        self.deprecated = Some(attr);
+                        continue;
+                    }
+
+                    if path != "builder" {
+                        continue;
+                    }
+
+                    list
+                }
+                syn::Meta::Path(path) | syn::Meta::NameValue(syn::MetaNameValue { path, .. }) => {
+                    if path_to_single_string(path).as_deref() == Some("deprecated") {
+                        self.deprecated = Some(attr);
+                    };
+
+                    continue;
+                }
+            };
+
+            apply_subsections(list, |expr| self.apply_meta(expr))?;
+        }
 
         self.inter_fields_conflicts()?;
 

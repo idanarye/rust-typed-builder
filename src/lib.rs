@@ -285,4 +285,20 @@ fn impl_my_derive(ast: &syn::DeriveInput) -> Result<TokenStream, Error> {
 ///
 /// let _ = Foo::builder().x(Uncloneable).clone();
 /// ```
+///
+/// Handling deprecated fields:
+///
+/// ```compile_fail
+/// use typed_builder::TypedBuilder;
+///
+/// #[derive(TypedBuilder)]
+/// struct Foo {
+///     #[deprecated = "Don't use this!"]
+///     #[allow(dead_code)]
+///     value: i32,
+/// }
+///
+/// #[deny(deprecated)]
+/// Foo::builder().value(42).build();
+///```
 fn _compile_fail_tests() {}
