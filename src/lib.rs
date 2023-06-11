@@ -150,6 +150,23 @@
 ///     when the setter is called.
 pub use typed_builder_macro::TypedBuilder;
 
+#[doc(hidden)]
+pub trait Optional<T> {
+    fn into_value<F: FnOnce() -> T>(self, default: F) -> T;
+}
+
+impl<T> Optional<T> for () {
+    fn into_value<F: FnOnce() -> T>(self, default: F) -> T {
+        default()
+    }
+}
+
+impl<T> Optional<T> for (T,) {
+    fn into_value<F: FnOnce() -> T>(self, _: F) -> T {
+        self.0
+    }
+}
+
 // It'd be nice for the compilation tests to live in tests/ with the rest, but short of pulling in
 // some other test runner for that purpose (e.g. compiletest_rs), rustdoc compile_fail in this
 // crate is all we can use.

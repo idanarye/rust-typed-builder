@@ -21,7 +21,6 @@ fn impl_my_derive(ast: &syn::DeriveInput) -> Result<TokenStream, Error> {
             syn::Fields::Named(fields) => {
                 let struct_info = struct_info::StructInfo::new(ast, fields.named.iter())?;
                 let builder_creation = struct_info.builder_creation_impl()?;
-                let conversion_helper = struct_info.conversion_helper_impl();
                 let fields = struct_info
                     .included_fields()
                     .map(|f| struct_info.field_impl(f))
@@ -34,7 +33,6 @@ fn impl_my_derive(ast: &syn::DeriveInput) -> Result<TokenStream, Error> {
 
                 quote! {
                     #builder_creation
-                    #conversion_helper
                     #fields
                     #(#required_fields)*
                     #build_method
