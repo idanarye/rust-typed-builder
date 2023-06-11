@@ -11,10 +11,5 @@ readme = "README.md"
 keywords = ["builder"]
 categories = ["rust-patterns"]
 
-[lib]
-proc-macro = true
-
 [dependencies]
-syn = { version = "2", features = ["full", "extra-traits"] }
-quote = "1"
-proc-macro2 = "1"
+typed-builder-macro = { path = "typed-builder-macro", version = "=0.14.0"}
