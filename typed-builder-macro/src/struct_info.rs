@@ -209,7 +209,7 @@ impl<'a> StructInfo<'a> {
                     target_generics_tuple.elems.push_value(f.tuplized_type_ty_param());
                 } else {
                     generics.params.push(f.generic_ty_param());
-                    let generic_argument: syn::Type = f.type_ident();
+                    let generic_argument = f.type_ident();
                     ty_generics_tuple.elems.push_value(generic_argument.clone());
                     target_generics_tuple.elems.push_value(generic_argument);
                 }
