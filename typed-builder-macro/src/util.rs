@@ -63,12 +63,6 @@ pub fn empty_type_tuple() -> syn::TypeTuple {
     }
 }
 
-pub fn make_punctuated_single<T, P: Default>(value: T) -> syn::punctuated::Punctuated<T, P> {
-    let mut punctuated = syn::punctuated::Punctuated::new();
-    punctuated.push(value);
-    punctuated
-}
-
 pub fn modify_types_generics_hack<F>(ty_generics: &syn::TypeGenerics, mut mutator: F) -> syn::AngleBracketedGenericArguments
 where
     F: FnMut(&mut syn::punctuated::Punctuated<syn::GenericArgument, syn::token::Comma>),

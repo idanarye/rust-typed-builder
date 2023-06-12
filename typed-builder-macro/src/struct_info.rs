@@ -1,11 +1,11 @@
-use proc_macro2::TokenStream;
+use proc_macro2::{Ident, Span, TokenStream};
 use quote::{quote, ToTokens};
 use syn::parse::Error;
 
 use crate::field_info::{FieldBuilderAttr, FieldInfo};
 use crate::util::{
-    apply_subsections, empty_type, empty_type_tuple, expr_to_single_string, first_visibility, make_punctuated_single,
-    modify_types_generics_hack, path_to_single_string, public_visibility, strip_raw_ident_prefix, type_tuple,
+    apply_subsections, empty_type, empty_type_tuple, expr_to_single_string, first_visibility, modify_types_generics_hack,
+    path_to_single_string, public_visibility, strip_raw_ident_prefix, type_tuple,
 };
 
 #[derive(Debug)]
@@ -17,7 +17,6 @@ pub struct StructInfo<'a> {
 
     pub builder_attr: TypeBuilderAttr<'a>,
     pub builder_name: syn::Ident,
-    pub conversion_helper_trait_name: syn::Ident,
     pub core: syn::Ident,
 }
 
@@ -43,7 +42,6 @@ impl<'a> StructInfo<'a> {
                 .collect::<Result<_, _>>()?,
             builder_attr,
             builder_name: syn::Ident::new(&builder_name, proc_macro2::Span::call_site()),
-            conversion_helper_trait_name: syn::Ident::new(&format!("{}_Optional", builder_name), proc_macro2::Span::call_site()),
             core: syn::Ident::new(&format!("{}_core", builder_name), proc_macro2::Span::call_site()),
         })
     }
@@ -165,31 +163,6 @@ impl<'a> StructInfo<'a> {
                 }
             }
         })
-    }
-
-    // TODO: once the proc-macro crate limitation is lifted, make this an util trait of this
-    // crate.
-    pub fn conversion_helper_impl(&self) -> TokenStream {
-        let trait_name = &self.conversion_helper_trait_name;
-        quote! {
-            #[doc(hidden)]
-            #[allow(dead_code, non_camel_case_types, non_snake_case)]
-            pub trait #trait_name<T> {
-                fn into_value<F: FnOnce() -> T>(self, default: F) -> T;
-            }
-
-            impl<T> #trait_name<T> for () {
-                fn into_value<F: FnOnce() -> T>(self, default: F) -> T {
-                    default()
-                }
-            }
-
-            impl<T> #trait_name<T> for (T,) {
-                fn into_value<F: FnOnce() -> T>(self, _: F) -> T {
-                    self.0
-                }
-            }
-        }
     }
 
     pub fn field_impl(&self, field: &FieldInfo) -> Result<TokenStream, Error> {
@@ -435,16 +408,26 @@ impl<'a> StructInfo<'a> {
                         paren_token: None,
                         lifetimes: None,
                         modifier: syn::TraitBoundModifier::None,
-                        path: syn::PathSegment {
-                            ident: self.conversion_helper_trait_name.clone(),
-                            arguments: syn::PathArguments::AngleBracketed(syn::AngleBracketedGenericArguments {
-                                colon2_token: None,
-                                lt_token: Default::default(),
-                                args: make_punctuated_single(syn::GenericArgument::Type(field.ty.clone())),
-                                gt_token: Default::default(),
-                            }),
-                        }
-                        .into(),
+                        path: syn::Path {
+                            leading_colon: Some(syn::token::PathSep::default()),
+                            segments: [
+                                syn::PathSegment {
+                                    ident: Ident::new("typed_builder", Span::call_site()),
+                                    arguments: syn::PathArguments::None,
+                                },
+                                syn::PathSegment {
+                                    ident: Ident::new("Optional", Span::call_site()),
+                                    arguments: syn::PathArguments::AngleBracketed(syn::AngleBracketedGenericArguments {
+                                        colon2_token: None,
+                                        lt_token: Default::default(),
+                                        args: [syn::GenericArgument::Type(field.ty.clone())].into_iter().collect(),
+                                        gt_token: Default::default(),
+                                    }),
+                                },
+                            ]
+                            .into_iter()
+                            .collect(),
+                        },
                     };
                     let mut generic_param: syn::TypeParam = field.generic_ident.clone().into();
                     generic_param.bounds.push(trait_ref.into());
@@ -472,7 +455,6 @@ impl<'a> StructInfo<'a> {
 
         let descructuring = self.included_fields().map(|f| f.name);
 
-        let helper_trait_name = &self.conversion_helper_trait_name;
         // The default of a field can refer to earlier-defined fields, which we handle by
         // writing out a bunch of `let` statements first, which can each refer to earlier ones.
         // This means that field ordering may actually be significant, which isn't ideal. We could
@@ -484,7 +466,7 @@ impl<'a> StructInfo<'a> {
                 if field.builder_attr.setter.skip.is_some() {
                     quote!(let #name = #default;)
                 } else {
-                    quote!(let #name = #helper_trait_name::into_value(#name, || #default);)
+                    quote!(let #name = ::typed_builder::Optional::into_value(#name, || #default);)
                 }
             } else {
                 quote!(let #name = #name.0;)
