@@ -1,7 +1,7 @@
 mod scope {
     use typed_builder::TypedBuilder;
 
-    #[derive(PartialEq, TypedBuilder)]
+    #[derive(Debug, PartialEq, TypedBuilder)]
     #[builder(build_method(vis="", name=__build))]
     pub struct Foo {
         // Mandatory Field:
@@ -36,7 +36,7 @@ mod scope {
         }
     }
 
-    #[derive(PartialEq)]
+    #[derive(Debug, PartialEq)]
     pub struct Bar {
         pub x: i32,
         pub y: Option<i32>,
@@ -47,7 +47,7 @@ mod scope {
 use scope::{Bar, Foo};
 
 fn main() {
-    assert!(Foo::builder().x(1).y(2).z(3).build() == Bar { x: 2, y: Some(3), z: 4 });
+    assert_eq!(Foo::builder().x(1).y(2).z(3).build(), Bar { x: 2, y: Some(3), z: 4 });
 
     // This will not compile - because `__build` is a private method
     // Foo::builder().x(1).y(2).z(3).__build()
