@@ -48,7 +48,7 @@
 /// // Foo::builder().x(1).y(2).y(3);
 /// ```
 ///
-/// # Customisation with attributes
+/// # Customization with attributes
 ///
 /// In addition to putting `#[derive(TypedBuilder)]` on a type, you can specify a `#[builder(…)]`
 /// attribute on the type, and on any fields in it.
@@ -148,6 +148,14 @@
 ///     `param1: Type1, param2: Type2 ...` instead of the field type itself. The parameters are
 ///     transformed into the field type using the expression `expr`. The transformation is performed
 ///     when the setter is called.
+///
+///   - `prefix = "..."` prepends the setter method with the specified prefix. For example, setting
+///     `prefix = "with"` results in setters like `with_x` or `with_y`. This option is combinable
+///     with `suffix = "..."`.
+///
+///   - `suffix = "..."` appends the setter method with the specified suffix. For example, setting
+///     `suffix = "value"` results in setters like `x_value` or `y_value`. This option is combinable
+///     with `prefix = "..."`.
 pub use typed_builder_macro::TypedBuilder;
 
 #[doc(hidden)]

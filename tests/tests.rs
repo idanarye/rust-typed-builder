@@ -671,3 +671,42 @@ fn test_into_set_generic_impl_into() {
     let bar: Bar = Foo::builder().value(42).build();
     assert_eq!(bar, Bar { value: 42 });
 }
+
+#[test]
+fn test_prefix() {
+    #[derive(Debug, PartialEq, TypedBuilder)]
+    #[builder(field_defaults(setter(prefix = "with")))]
+    struct Foo {
+        x: i32,
+        y: i32,
+    }
+
+    let foo = Foo::builder().with_x(1).with_y(2).build();
+    assert_eq!(foo, Foo { x: 1, y: 2 })
+}
+
+#[test]
+fn test_suffix() {
+    #[derive(Debug, PartialEq, TypedBuilder)]
+    #[builder(field_defaults(setter(suffix = "value")))]
+    struct Foo {
+        x: i32,
+        y: i32,
+    }
+
+    let foo = Foo::builder().x_value(1).y_value(2).build();
+    assert_eq!(foo, Foo { x: 1, y: 2 })
+}
+
+#[test]
+fn test_prefix_and_suffix() {
+    #[derive(Debug, PartialEq, TypedBuilder)]
+    #[builder(field_defaults(setter(prefix = "with", suffix = "value")))]
+    struct Foo {
+        x: i32,
+        y: i32,
+    }
+
+    let foo = Foo::builder().with_x_value(1).with_y_value(2).build();
+    assert_eq!(foo, Foo { x: 1, y: 2 })
+}

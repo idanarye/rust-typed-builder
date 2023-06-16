@@ -110,6 +110,8 @@ pub struct SetterSettings {
     pub strip_option: Option<Span>,
     pub strip_bool: Option<Span>,
     pub transform: Option<Transform>,
+    pub prefix: Option<syn::Expr>,
+    pub suffix: Option<syn::Expr>,
 }
 
 impl<'a> FieldBuilderAttr<'a> {
@@ -284,6 +286,14 @@ impl SetterSettings {
                     }
                     "transform" => {
                         self.transform = Some(parse_transform_closure(assign.left.span(), *assign.right)?);
+                        Ok(())
+                    }
+                    "prefix" => {
+                        self.prefix = Some(*assign.right);
+                        Ok(())
+                    }
+                    "suffix" => {
+                        self.suffix = Some(*assign.right);
                         Ok(())
                     }
                     _ => Err(Error::new_spanned(&assign, format!("Unknown parameter {:?}", name))),
