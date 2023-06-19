@@ -11,7 +11,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   setter for that field now does.
 
 ### Added
-- Support for setter method pre- and suffixes `#[builder(field_defaults(setter(prefix = "...", suffix = "...")))]`.
+- Support for setter method prefixes and suffixes `#[builder(field_defaults(setter(prefix = "...", suffix = "...")))]`.
   This either prepends or appends the provided string to the setter method. This allows method names like: `set_x()`,
   `with_y()`, or `set_z_value()`.
 
