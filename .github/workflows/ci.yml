@@ -126,6 +126,9 @@ jobs:
         run: |-
           cargo doc --verbose &&
           echo "<meta http-equiv=refresh content=0;url=typed_builder/index.html>" > target/doc/index.html
+      - name: Add read permissions
+        run: |-
+          chmod --recursive +r target/doc
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v1
         with:
@@ -140,4 +143,4 @@ jobs:
     steps:
       - name: Deploy to GitHub Pages
         id: deployment
-        uses: actions/deploy-pages@v1
+        uses: actions/deploy-pages@v2
