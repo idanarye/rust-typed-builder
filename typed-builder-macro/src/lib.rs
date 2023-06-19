@@ -30,12 +30,14 @@ fn impl_my_derive(ast: &syn::DeriveInput) -> Result<TokenStream, Error> {
                     .filter(|f| f.builder_attr.default.is_none())
                     .map(|f| struct_info.required_field_impl(f));
                 let build_method = struct_info.build_method_impl();
+                let postbuild_impl = struct_info.postbuild_trait_impl();
 
                 quote! {
                     #builder_creation
                     #fields
                     #(#required_fields)*
                     #build_method
+                    #postbuild_impl
                 }
             }
             syn::Fields::Unnamed(_) => return Err(Error::new(ast.span(), "TypedBuilder is not supported for tuple structs")),
