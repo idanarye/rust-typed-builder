@@ -1,7 +1,7 @@
 use typed_builder::TypedBuilder;
 
 #[derive(Debug, PartialEq, TypedBuilder)]
-#[builder(field_defaults(setter(prefix = "with", suffix = "value")))]
+#[builder(field_defaults(setter(prefix = "with_", suffix = "_value")))]
 struct Foo {
     // Mandatory Field:
     x: i32,

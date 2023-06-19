@@ -262,7 +262,7 @@ impl<'a> StructInfo<'a> {
         );
         let repeated_fields_error_message = format!("Repeated field {}", field_name);
 
-        let method_name = Self::method_name(field, field_name)?;
+        let method_name = field.setter_method_name();
 
         Ok(quote! {
             #[allow(dead_code, non_camel_case_types, missing_docs)]
@@ -292,69 +292,6 @@ impl<'a> StructInfo<'a> {
                 }
             }
         })
-    }
-
-    fn method_name(field: &FieldInfo, field_name: &Ident) -> Result<Ident, Error> {
-        let prefix = match &field.builder_attr.setter.prefix {
-            Some(prefix) => match prefix {
-                syn::Expr::Lit(lit) => match &lit.lit {
-                    syn::Lit::Str(str) => Some(syn::Ident::new(&format!("{}", str.value()), proc_macro2::Span::call_site())),
-                    _ => {
-                        return Err(Error::new_spanned(
-                            prefix,
-                            "field_defaults(setter(prefix)) only allows str values",
-                        ))
-                    }
-                },
-                _ => {
-                    return Err(Error::new_spanned(
-                        prefix,
-                        "field_defaults(setter(prefix)) only allows str values",
-                    ))
-                }
-            },
-            None => None,
-        };
-
-        let suffix = match &field.builder_attr.setter.suffix {
-            Some(suffix) => match suffix {
-                syn::Expr::Lit(lit) => match &lit.lit {
-                    syn::Lit::Str(str) => Some(syn::Ident::new(&format!("{}", str.value()), proc_macro2::Span::call_site())),
-                    _ => {
-                        return Err(Error::new_spanned(
-                            suffix,
-                            "field_defaults(setter(suffix)) only allows str values",
-                        ))
-                    }
-                },
-                _ => {
-                    return Err(Error::new_spanned(
-                        suffix,
-                        "field_defaults(setter(suffix)) only allows str values",
-                    ))
-                }
-            },
-            None => None,
-        };
-
-        if let (Some(prefix), Some(suffix)) = (&prefix, &suffix) {
-            Ok(Ident::new(
-                &format!("{}_{}_{}", prefix, field_name, suffix),
-                proc_macro2::Span::call_site(),
-            ))
-        } else if let Some(prefix) = prefix {
-            Ok(Ident::new(
-                &format!("{}_{}", prefix, field_name),
-                proc_macro2::Span::call_site(),
-            ))
-        } else if let Some(suffix) = suffix {
-            Ok(Ident::new(
-                &format!("{}_{}", field_name, suffix),
-                proc_macro2::Span::call_site(),
-            ))
-        } else {
-            Ok(field_name.clone())
-        }
     }
 
     pub fn required_field_impl(&self, field: &FieldInfo) -> TokenStream {

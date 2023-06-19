@@ -675,7 +675,7 @@ fn test_into_set_generic_impl_into() {
 #[test]
 fn test_prefix() {
     #[derive(Debug, PartialEq, TypedBuilder)]
-    #[builder(field_defaults(setter(prefix = "with")))]
+    #[builder(field_defaults(setter(prefix = "with_")))]
     struct Foo {
         x: i32,
         y: i32,
@@ -688,7 +688,7 @@ fn test_prefix() {
 #[test]
 fn test_suffix() {
     #[derive(Debug, PartialEq, TypedBuilder)]
-    #[builder(field_defaults(setter(suffix = "value")))]
+    #[builder(field_defaults(setter(suffix = "_value")))]
     struct Foo {
         x: i32,
         y: i32,
@@ -701,7 +701,7 @@ fn test_suffix() {
 #[test]
 fn test_prefix_and_suffix() {
     #[derive(Debug, PartialEq, TypedBuilder)]
-    #[builder(field_defaults(setter(prefix = "with", suffix = "value")))]
+    #[builder(field_defaults(setter(prefix = "with_", suffix = "_value")))]
     struct Foo {
         x: i32,
         y: i32,

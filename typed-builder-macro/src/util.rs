@@ -1,5 +1,5 @@
 use quote::ToTokens;
-use syn::parse::Parser;
+use syn::{parse::Parser, Error};
 
 pub fn path_to_single_string(path: &syn::Path) -> Option<String> {
     if path.leading_colon.is_some() {
@@ -114,4 +114,14 @@ pub fn apply_subsections(
     }
 
     Ok(())
+}
+
+pub fn expr_to_lit_string(expr: &syn::Expr) -> Result<String, Error> {
+    match expr {
+        syn::Expr::Lit(lit) => match &lit.lit {
+            syn::Lit::Str(str) => Ok(str.value()),
+            _ => return Err(Error::new_spanned(expr, "attribute only allows str values")),
+        },
+        _ => return Err(Error::new_spanned(expr, "attribute only allows str values")),
+    }
 }
