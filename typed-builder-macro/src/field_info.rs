@@ -85,7 +85,7 @@ impl<'a> FieldInfo<'a> {
         } else if let Some(suffix) = &self.builder_attr.setter.suffix {
             Ident::new(&format!("{}{}", name, suffix), Span::call_site())
         } else {
-            Ident::new_raw(&name, Span::call_site())
+            self.name.clone()
         }
     }
 
