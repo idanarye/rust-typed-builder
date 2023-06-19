@@ -543,6 +543,32 @@ fn test_builder_on_struct_with_keywords() {
 }
 
 #[test]
+fn test_builder_on_struct_with_keywords_prefix_suffix() {
+    #[allow(non_camel_case_types)]
+    #[derive(PartialEq, TypedBuilder)]
+    #[builder(field_defaults(setter(prefix = "set_", suffix = "_value")))]
+    struct r#struct {
+        r#fn: u32,
+        #[builder(default, setter(strip_option))]
+        r#type: Option<u32>,
+        #[builder(default = Some(()), setter(skip))]
+        r#enum: Option<()>,
+        #[builder(setter(into))]
+        r#union: String,
+    }
+
+    assert!(
+        r#struct::builder().r#set_fn_value(1).r#set_union_value("two").build()
+            == r#struct {
+                r#fn: 1,
+                r#type: None,
+                r#enum: Some(()),
+                r#union: "two".to_owned(),
+            }
+    );
+}
+
+#[test]
 fn test_field_setter_transform() {
     #[derive(PartialEq)]
     struct Point {

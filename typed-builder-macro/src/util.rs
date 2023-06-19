@@ -85,6 +85,17 @@ pub fn strip_raw_ident_prefix(mut name: String) -> String {
     name
 }
 
+pub fn strip_raw_ident_prefix_with_status(mut name: String) -> (String, bool) {
+    let len = name.len();
+    name = strip_raw_ident_prefix(name);
+
+    if name.len() < len {
+        (name, true)
+    } else {
+        (name, false)
+    }
+}
+
 pub fn first_visibility(visibilities: &[Option<&syn::Visibility>]) -> proc_macro2::TokenStream {
     let vis = visibilities
         .iter()
