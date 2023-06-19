@@ -543,6 +543,32 @@ fn test_builder_on_struct_with_keywords() {
 }
 
 #[test]
+fn test_builder_on_struct_with_keywords_prefix_suffix() {
+    #[allow(non_camel_case_types)]
+    #[derive(PartialEq, TypedBuilder)]
+    #[builder(field_defaults(setter(prefix = "set_", suffix = "_value")))]
+    struct r#struct {
+        r#fn: u32,
+        #[builder(default, setter(strip_option))]
+        r#type: Option<u32>,
+        #[builder(default = Some(()), setter(skip))]
+        r#enum: Option<()>,
+        #[builder(setter(into))]
+        r#union: String,
+    }
+
+    assert!(
+        r#struct::builder().r#set_fn_value(1).r#set_union_value("two").build()
+            == r#struct {
+                r#fn: 1,
+                r#type: None,
+                r#enum: Some(()),
+                r#union: "two".to_owned(),
+            }
+    );
+}
+
+#[test]
 fn test_field_setter_transform() {
     #[derive(PartialEq)]
     struct Point {
@@ -670,4 +696,43 @@ fn test_into_set_generic_impl_into() {
 
     let bar: Bar = Foo::builder().value(42).build();
     assert_eq!(bar, Bar { value: 42 });
+}
+
+#[test]
+fn test_prefix() {
+    #[derive(Debug, PartialEq, TypedBuilder)]
+    #[builder(field_defaults(setter(prefix = "with_")))]
+    struct Foo {
+        x: i32,
+        y: i32,
+    }
+
+    let foo = Foo::builder().with_x(1).with_y(2).build();
+    assert_eq!(foo, Foo { x: 1, y: 2 })
+}
+
+#[test]
+fn test_suffix() {
+    #[derive(Debug, PartialEq, TypedBuilder)]
+    #[builder(field_defaults(setter(suffix = "_value")))]
+    struct Foo {
+        x: i32,
+        y: i32,
+    }
+
+    let foo = Foo::builder().x_value(1).y_value(2).build();
+    assert_eq!(foo, Foo { x: 1, y: 2 })
+}
+
+#[test]
+fn test_prefix_and_suffix() {
+    #[derive(Debug, PartialEq, TypedBuilder)]
+    #[builder(field_defaults(setter(prefix = "with_", suffix = "_value")))]
+    struct Foo {
+        x: i32,
+        y: i32,
+    }
+
+    let foo = Foo::builder().with_x_value(1).with_y_value(2).build();
+    assert_eq!(foo, Foo { x: 1, y: 2 })
 }
