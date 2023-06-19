@@ -4,7 +4,6 @@ use syn::{parse::Error, spanned::Spanned};
 
 use crate::util::{
     apply_subsections, expr_to_lit_string, expr_to_single_string, ident_to_type, path_to_single_string, strip_raw_ident_prefix,
-    strip_raw_ident_prefix_with_status,
 };
 
 #[derive(Debug)]
@@ -77,22 +76,16 @@ impl<'a> FieldInfo<'a> {
     }
 
     pub fn setter_method_name(&self) -> Ident {
-        let (name, was_stripped) = strip_raw_ident_prefix_with_status(self.name.to_string());
+        let name = strip_raw_ident_prefix(self.name.to_string());
 
-        let ident = if let (Some(prefix), Some(suffix)) = (&self.builder_attr.setter.prefix, &self.builder_attr.setter.suffix) {
-            format!("{}{}{}", prefix, name, suffix)
+        if let (Some(prefix), Some(suffix)) = (&self.builder_attr.setter.prefix, &self.builder_attr.setter.suffix) {
+            Ident::new(&format!("{}{}{}", prefix, name, suffix), Span::call_site())
         } else if let Some(prefix) = &self.builder_attr.setter.prefix {
-            format!("{}{}", prefix, name)
+            Ident::new(&format!("{}{}", prefix, name), Span::call_site())
         } else if let Some(suffix) = &self.builder_attr.setter.suffix {
-            format!("{}{}", name, suffix)
+            Ident::new(&format!("{}{}", name, suffix), Span::call_site())
         } else {
-            name
-        };
-
-        if was_stripped {
-            Ident::new_raw(&ident, Span::call_site())
-        } else {
-            Ident::new(&ident, Span::call_site())
+            Ident::new_raw(&name, Span::call_site())
         }
     }
 
