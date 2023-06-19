@@ -150,11 +150,11 @@
 ///     when the setter is called.
 ///
 ///   - `prefix = "..."` prepends the setter method with the specified prefix. For example, setting
-///     `prefix = "with"` results in setters like `with_x` or `with_y`. This option is combinable
+///     `prefix = "with_"` results in setters like `with_x` or `with_y`. This option is combinable
 ///     with `suffix = "..."`.
 ///
 ///   - `suffix = "..."` appends the setter method with the specified suffix. For example, setting
-///     `suffix = "value"` results in setters like `x_value` or `y_value`. This option is combinable
+///     `suffix = "_value"` results in setters like `x_value` or `y_value`. This option is combinable
 ///     with `prefix = "..."`.
 pub use typed_builder_macro::TypedBuilder;
 
