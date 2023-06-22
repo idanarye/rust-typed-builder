@@ -296,7 +296,6 @@ impl<'a> StructInfo<'a> {
 
     pub fn required_field_impl(&self, field: &FieldInfo) -> TokenStream {
         let StructInfo {
-            ref name,
             ref builder_name,
             ..
         } = self;
@@ -355,7 +354,6 @@ impl<'a> StructInfo<'a> {
 
         builder_generics.push(syn::GenericArgument::Type(builder_generics_tuple.into()));
         let (impl_generics, _, where_clause) = generics.split_for_impl();
-        let (_, ty_generics, _) = self.generics.split_for_impl();
 
         let early_build_error_type_name = syn::Ident::new(
             &format!(
@@ -380,8 +378,8 @@ impl<'a> StructInfo<'a> {
                 #[deprecated(
                     note = #early_build_error_message
                 )]
-                #build_method_visibility fn #build_method_name(self, _: #early_build_error_type_name) -> #name #ty_generics {
-                    panic!();
+                #build_method_visibility fn #build_method_name(self, _: #early_build_error_type_name) -> ! {
+                    panic!()
                 }
             }
         }
