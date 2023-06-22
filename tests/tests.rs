@@ -699,25 +699,6 @@ fn test_into_set_generic_impl_into() {
 }
 
 #[test]
-<<<<<<< HEAD
-fn test_requires() {
-    #[derive(TypedBuilder, Debug, PartialEq)]
-    struct Customer {
-        #[builder(default)]
-        plan: u64,
-        #[builder(requires = plan, default, setter(strip_option))]
-        tax_percent: Option<u64>,
-    }
-
-    let customer = Customer::builder().plan(42).tax_percent(13).build();
-    assert_eq!(
-        customer,
-        Customer {
-            plan: 42,
-            tax_percent: Some(13)
-        }
-    );
-=======
 fn test_prefix() {
     #[derive(Debug, PartialEq, TypedBuilder)]
     #[builder(field_defaults(setter(prefix = "with_")))]
@@ -754,5 +735,24 @@ fn test_prefix_and_suffix() {
 
     let foo = Foo::builder().with_x_value(1).with_y_value(2).build();
     assert_eq!(foo, Foo { x: 1, y: 2 })
->>>>>>> 20d0cf15eb9f938c82979f9039612104a0123a82
+}
+
+#[test]
+fn test_requires() {
+    #[derive(TypedBuilder, Debug, PartialEq)]
+    struct Customer {
+        #[builder(default)]
+        plan: u64,
+        #[builder(requires = plan, default, setter(strip_option))]
+        tax_percent: Option<u64>,
+    }
+
+    let customer = Customer::builder().plan(42).tax_percent(13).build();
+    assert_eq!(
+        customer,
+        Customer {
+            plan: 42,
+            tax_percent: Some(13)
+        }
+    );
 }
