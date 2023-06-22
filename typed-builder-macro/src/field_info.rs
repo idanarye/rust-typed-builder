@@ -1,8 +1,10 @@
-use proc_macro2::{Span, TokenStream};
+use proc_macro2::{Ident, Span, TokenStream};
 use quote::{quote, ToTokens};
 use syn::{parse::Error, spanned::Spanned};
 
-use crate::util::{apply_subsections, expr_to_single_string, ident_to_type, path_to_single_string, strip_raw_ident_prefix};
+use crate::util::{
+    apply_subsections, expr_to_lit_string, expr_to_single_string, ident_to_type, path_to_single_string, strip_raw_ident_prefix,
+};
 
 #[derive(Debug)]
 pub struct FieldInfo<'a> {
@@ -78,6 +80,20 @@ impl<'a> FieldInfo<'a> {
         }
     }
 
+    pub fn setter_method_name(&self) -> Ident {
+        let name = strip_raw_ident_prefix(self.name.to_string());
+
+        if let (Some(prefix), Some(suffix)) = (&self.builder_attr.setter.prefix, &self.builder_attr.setter.suffix) {
+            Ident::new(&format!("{}{}{}", prefix, name, suffix), Span::call_site())
+        } else if let Some(prefix) = &self.builder_attr.setter.prefix {
+            Ident::new(&format!("{}{}", prefix, name), Span::call_site())
+        } else if let Some(suffix) = &self.builder_attr.setter.suffix {
+            Ident::new(&format!("{}{}", name, suffix), Span::call_site())
+        } else {
+            self.name.clone()
+        }
+    }
+
     fn post_process(mut self) -> Result<Self, Error> {
         if let Some(ref strip_bool_span) = self.builder_attr.setter.strip_bool {
             if let Some(default_span) = self.builder_attr.default.as_ref().map(Spanned::span) {
@@ -116,6 +132,8 @@ pub struct SetterSettings {
     pub strip_option: Option<Span>,
     pub strip_bool: Option<Span>,
     pub transform: Option<Transform>,
+    pub prefix: Option<String>,
+    pub suffix: Option<String>,
 }
 
 impl<'a> FieldBuilderAttr<'a> {
@@ -316,6 +334,14 @@ impl SetterSettings {
                     }
                     "transform" => {
                         self.transform = Some(parse_transform_closure(assign.left.span(), *assign.right)?);
+                        Ok(())
+                    }
+                    "prefix" => {
+                        self.prefix = Some(expr_to_lit_string(&*assign.right)?);
+                        Ok(())
+                    }
+                    "suffix" => {
+                        self.suffix = Some(expr_to_lit_string(&*assign.right)?);
                         Ok(())
                     }
                     _ => Err(Error::new_spanned(&assign, format!("Unknown parameter {:?}", name))),

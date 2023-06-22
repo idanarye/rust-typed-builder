@@ -183,7 +183,7 @@ impl<'a> StructInfo<'a> {
         let reconstructing = self.included_fields().map(|f| f.name);
 
         let &FieldInfo {
-            name: ref field_name,
+            name: field_name,
             ty: field_type,
             ..
         } = field;
@@ -266,12 +266,14 @@ impl<'a> StructInfo<'a> {
         );
         let repeated_fields_error_message = format!("Repeated field {}", field_name);
 
+        let method_name = field.setter_method_name();
+
         Ok(quote! {
             #[allow(dead_code, non_camel_case_types, missing_docs)]
             impl #impl_generics #builder_name < #( #ty_generics ),* > #where_clause {
                 #deprecated
                 #doc
-                pub fn #field_name (self, #param_list) -> #builder_name <#( #target_generics ),*> {
+                pub fn #method_name (self, #param_list) -> #builder_name <#( #target_generics ),*> {
                     let #field_name = (#arg_expr,);
                     let ( #(#descructuring,)* ) = self.fields;
                     #builder_name {
@@ -289,7 +291,7 @@ impl<'a> StructInfo<'a> {
                 #[deprecated(
                     note = #repeated_fields_error_message
                 )]
-                pub fn #field_name (self, _: #repeated_fields_error_type_name) -> #builder_name <#( #target_generics ),*> {
+                pub fn #method_name (self, _: #repeated_fields_error_type_name) -> #builder_name <#( #target_generics ),*> {
                     self
                 }
             }
