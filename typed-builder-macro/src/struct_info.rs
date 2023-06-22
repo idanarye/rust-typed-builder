@@ -25,7 +25,11 @@ impl<'a> StructInfo<'a> {
         self.fields.iter().filter(|f| f.builder_attr.setter.skip.is_none())
     }
 
-    pub fn new(ast: &'a syn::DeriveInput, fields: impl Iterator<Item = &'a syn::Field>) -> Result<StructInfo<'a>, Error> {
+    pub fn new(
+        ast: &'a syn::DeriveInput,
+        fields: impl Iterator<Item = &'a syn::Field>,
+        field_names: Vec<String>,
+    ) -> Result<StructInfo<'a>, Error> {
         let builder_attr = TypeBuilderAttr::new(&ast.attrs)?;
         let builder_name = builder_attr
             .builder_type
@@ -38,7 +42,7 @@ impl<'a> StructInfo<'a> {
             generics: &ast.generics,
             fields: fields
                 .enumerate()
-                .map(|(i, f)| FieldInfo::new(i, f, builder_attr.field_defaults.clone()))
+                .map(|(i, f)| FieldInfo::new(i, f, builder_attr.field_defaults.clone(), &field_names))
                 .collect::<Result<_, _>>()?,
             builder_attr,
             builder_name: syn::Ident::new(&builder_name, proc_macro2::Span::call_site()),
@@ -680,6 +684,7 @@ impl<'a> TypeBuilderAttr<'a> {
                         ),
                     )
                 };
+
                 match name.as_str() {
                     "builder_method_doc" => Err(gen_structure_depracation_error("builder_method", "doc")),
                     "builder_type_doc" => Err(gen_structure_depracation_error("builder_type", "doc")),
@@ -689,6 +694,7 @@ impl<'a> TypeBuilderAttr<'a> {
             }
             syn::Expr::Path(path) => {
                 let name = path_to_single_string(&path.path).ok_or_else(|| Error::new_spanned(&path, "Expected identifier"))?;
+
                 match name.as_str() {
                     "doc" => {
                         self.doc = true;
@@ -708,10 +714,11 @@ impl<'a> TypeBuilderAttr<'a> {
                     let call_func = call_func.to_token_stream();
                     Error::new_spanned(&call.func, format!("Illegal builder setting group {}", call_func))
                 })?;
+
                 match subsetting_name.as_str() {
                     "field_defaults" => {
                         for arg in call.args {
-                            self.field_defaults.apply_meta(arg)?;
+                            self.field_defaults.apply_meta(arg, None)?;
                         }
                         Ok(())
                     }

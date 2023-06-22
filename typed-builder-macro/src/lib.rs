@@ -19,7 +19,19 @@ fn impl_my_derive(ast: &syn::DeriveInput) -> Result<TokenStream, Error> {
     let data = match &ast.data {
         syn::Data::Struct(data) => match &data.fields {
             syn::Fields::Named(fields) => {
-                let struct_info = struct_info::StructInfo::new(ast, fields.named.iter())?;
+                let field_names = fields
+                    .named
+                    .iter()
+                    .map(|field| {
+                        Ok(field
+                            .ident
+                            .as_ref()
+                            .ok_or_else(|| Error::new_spanned(field, "Failed to get the name of the field"))?
+                            .to_string())
+                    })
+                    .collect::<Result<Vec<_>, Error>>()?;
+
+                let struct_info = struct_info::StructInfo::new(ast, fields.named.iter(), field_names)?;
                 let builder_creation = struct_info.builder_creation_impl()?;
                 let fields = struct_info
                     .included_fields()

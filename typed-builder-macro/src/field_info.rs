@@ -14,14 +14,19 @@ pub struct FieldInfo<'a> {
 }
 
 impl<'a> FieldInfo<'a> {
-    pub fn new(ordinal: usize, field: &'a syn::Field, field_defaults: FieldBuilderAttr<'a>) -> Result<FieldInfo<'a>, Error> {
+    pub fn new(
+        ordinal: usize,
+        field: &'a syn::Field,
+        field_defaults: FieldBuilderAttr<'a>,
+        field_names: &[String],
+    ) -> Result<FieldInfo<'a>, Error> {
         if let Some(ref name) = field.ident {
             FieldInfo {
                 ordinal,
                 name,
                 generic_ident: syn::Ident::new(&format!("__{}", strip_raw_ident_prefix(name.to_string())), Span::call_site()),
                 ty: &field.ty,
-                builder_attr: field_defaults.with(&field.attrs)?,
+                builder_attr: field_defaults.with(&field.attrs, field_names, ordinal)?,
             }
             .post_process()
         } else {
@@ -100,6 +105,7 @@ pub struct FieldBuilderAttr<'a> {
     pub default: Option<syn::Expr>,
     pub deprecated: Option<&'a syn::Attribute>,
     pub setter: SetterSettings,
+    pub implementations: Option<Vec<Vec<sus_impls::Dependency>>>,
 }
 
 #[derive(Debug, Default, Clone)]
@@ -113,7 +119,7 @@ pub struct SetterSettings {
 }
 
 impl<'a> FieldBuilderAttr<'a> {
-    pub fn with(mut self, attrs: &'a [syn::Attribute]) -> Result<Self, Error> {
+    pub fn with(mut self, attrs: &'a [syn::Attribute], field_names: &[String], ordinal: usize) -> Result<Self, Error> {
         for attr in attrs {
             let list = match &attr.meta {
                 syn::Meta::List(list) => {
@@ -141,7 +147,7 @@ impl<'a> FieldBuilderAttr<'a> {
                 }
             };
 
-            apply_subsections(list, |expr| self.apply_meta(expr))?;
+            apply_subsections(list, |expr| self.apply_meta(expr, Some((field_names, ordinal))))?;
         }
 
         self.inter_fields_conflicts()?;
@@ -149,15 +155,19 @@ impl<'a> FieldBuilderAttr<'a> {
         Ok(self)
     }
 
-    pub fn apply_meta(&mut self, expr: syn::Expr) -> Result<(), Error> {
+    pub fn apply_meta(
+        &mut self,
+        expr: syn::Expr,
+        field_names_with_current_orinal: Option<(&[String], usize)>,
+    ) -> Result<(), Error> {
         match expr {
             syn::Expr::Assign(assign) => {
                 let name =
                     expr_to_single_string(&assign.left).ok_or_else(|| Error::new_spanned(&assign.left, "Expected identifier"))?;
+
                 match name.as_str() {
                     "default" => {
                         self.default = Some(*assign.right);
-                        Ok(())
                     }
                     "default_code" => {
                         if let syn::Expr::Lit(syn::ExprLit {
@@ -172,10 +182,31 @@ impl<'a> FieldBuilderAttr<'a> {
                         } else {
                             return Err(Error::new_spanned(assign.right, "Expected string"));
                         }
-                        Ok(())
                     }
-                    _ => Err(Error::new_spanned(&assign, format!("Unknown parameter {:?}", name))),
+                    "requires" => {
+                        let Some((field_names, ordinal)) = field_names_with_current_orinal
+                        else {
+                            return Err(Error::new_spanned(assign, "`requires` is only allowed as a field attribute, not as a struct attribute."));
+                        };
+
+                        let mut impls = sus_impls::impls(&*assign.right, field_names)?;
+
+                        for implementation in impls.iter_mut() {
+                            let dep = implementation.get_mut(ordinal).unwrap();
+
+                            if !matches!(dep, sus_impls::Dependency::Generic) {
+                                return Err(Error::new_spanned(assign.right, "The name of the field with this `requires` attribute is not allowed to be used inside of `requires`"));
+                            }
+
+                            *dep = sus_impls::Dependency::Unset;
+                        }
+
+                        self.implementations = Some(impls);
+                    }
+                    _ => return Err(Error::new_spanned(&assign, format!("Unknown parameter {:?}", name))),
                 }
+
+                Ok(())
             }
             syn::Expr::Path(path) => {
                 let name = path_to_single_string(&path.path).ok_or_else(|| Error::new_spanned(&path, "Expected identifier"))?;
@@ -198,6 +229,7 @@ impl<'a> FieldBuilderAttr<'a> {
                     let call_func = call_func.to_token_stream();
                     Error::new_spanned(&call.func, format!("Illegal builder setting group {}", call_func))
                 })?;
+
                 match subsetting_name.as_ref() {
                     "setter" => {
                         for arg in call.args {

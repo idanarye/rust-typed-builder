@@ -671,3 +671,23 @@ fn test_into_set_generic_impl_into() {
     let bar: Bar = Foo::builder().value(42).build();
     assert_eq!(bar, Bar { value: 42 });
 }
+
+#[test]
+fn test_requires() {
+    #[derive(TypedBuilder, Debug, PartialEq)]
+    struct Customer {
+        #[builder(default)]
+        plan: u64,
+        #[builder(requires = plan, default, setter(strip_option))]
+        tax_percent: Option<u64>,
+    }
+
+    let customer = Customer::builder().plan(42).tax_percent(13).build();
+    assert_eq!(
+        customer,
+        Customer {
+            plan: 42,
+            tax_percent: Some(13)
+        }
+    );
+}
