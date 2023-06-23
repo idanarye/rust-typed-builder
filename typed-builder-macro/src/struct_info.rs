@@ -295,10 +295,7 @@ impl<'a> StructInfo<'a> {
     }
 
     pub fn required_field_impl(&self, field: &FieldInfo) -> TokenStream {
-        let StructInfo {
-            ref builder_name,
-            ..
-        } = self;
+        let StructInfo { ref builder_name, .. } = self;
 
         let FieldInfo {
             name: ref field_name, ..
