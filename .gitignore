@@ -11,3 +11,5 @@ Cargo.lock
 /target/
 **/*.rs.bk
 Cargo.lock
+
+/typed-builder-macro/target/
