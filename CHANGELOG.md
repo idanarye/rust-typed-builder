@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - Marking a field as `#[deprecated]` now behaves properly - `TypedBuilder`
   generated code itself does trigger the deprecation warning, and instead the
   setter for that field now does.
+- The "fake" `build` method when required fields are not provided now returns
+  the never type ("`!`"). Refer to PR #97 for more thorough explanation.
 
 ### Added
 - Support for setter method prefixes and suffixes `#[builder(field_defaults(setter(prefix = "...", suffix = "...")))]`.
