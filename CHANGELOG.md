@@ -5,6 +5,7 @@ The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+## 0.15.0 - 2023-07-06
 ### Fixed
 - Marking a field as `#[deprecated]` now behaves properly - `TypedBuilder`
   generated code itself does trigger the deprecation warning, and instead the
