@@ -6,6 +6,12 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 ## 0.15.0 - 2023-07-06
+### Changed
+- [**BREAKING**] Split the derive macro out to [a separate procmacro
+  crate](https://crates.io/crates/typed-builder-macro). This is considered a
+  breaking change because reexporting and/or renmaing the crate can now prevent
+  the generated code from finding the types it needs (see issue #101)
+
 ### Fixed
 - Marking a field as `#[deprecated]` now behaves properly - `TypedBuilder`
   generated code itself does trigger the deprecation warning, and instead the
@@ -28,6 +34,7 @@ y
 - [**BREAKING**] Builder state parameter moved to the end of the generated builder type's parameters list.
 - Generated builder type's builder state parameter now defaults to tuple of
   empty tuples. This means the empty builder, where no parameter is yet set.
+
 ### Fixed
 - `#[builder(build_method(...))]` now affects the fake `build` method that's
   generated to add information to the compiler error.
@@ -37,6 +44,7 @@ y
 - [**BREAKING**] `builder_method_doc = "..."`, `builder_type_doc = "..."` and
   `build_method_doc = "..."` are replaced with `builder_method(doc = "...")`,
   `builder_type(doc = "...")` and `build_method(doc = "...")`.
+
 ### Added
 - `build_method(...)` now has a `doc` field.
 - `builder_method(...)` and `builder_type(...)`, which are structured similarly to `build_method(...)`.
