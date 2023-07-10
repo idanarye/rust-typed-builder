@@ -48,6 +48,35 @@ jobs:
         with:
           command: test
           args: --all-targets
+  nostd-build:
+    name: nostd Build
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest]
+        rust: [nightly]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v2
+      - name: Install rust
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: ${{ matrix.rust }}
+          override: true
+      - name: Ready cache
+        if: matrix.os == 'ubuntu-latest'
+        run: sudo chown -R $(whoami):$(id -ng) ~/.cargo/
+      - name: Cache cargo
+        uses: actions/cache@v1
+        id: cache
+        with:
+          path: ~/.cargo
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+      - name: Build with nostd
+        uses: actions-rs/cargo@v1
+        with:
+          command: build
+          args: -Zbuild-std=core --target aarch64-unknown-none 
   fmt:
    name: Rustfmt
    runs-on: ubuntu-latest
