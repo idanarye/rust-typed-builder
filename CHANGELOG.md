@@ -5,6 +5,9 @@ The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+### Fixed
+- no-std build.
+
 ## 0.15.0 - 2023-07-06
 ### Changed
 - [**BREAKING**] Split the derive macro out to [a separate procmacro
