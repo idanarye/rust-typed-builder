@@ -73,6 +73,8 @@ jobs:
         with:
           path: ~/.cargo
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+      - name: Add rustup components
+        run: rustup component add rust-src --toolchain nightly-x86_64-unknown-linux-gnu
       - name: Build with nostd
         uses: actions-rs/cargo@v1
         with:
