@@ -67,16 +67,16 @@ impl<'a> StructInfo<'a> {
         let generics_with_empty = modify_types_generics_hack(&ty_generics, |args| {
             args.push(syn::GenericArgument::Type(empties_tuple.clone().into()));
         });
-        let phantom_generics = self.generics.params.iter().map(|param| match param {
+        let phantom_generics = self.generics.params.iter().filter_map(|param| match param {
             syn::GenericParam::Lifetime(lifetime) => {
                 let lifetime = &lifetime.lifetime;
-                quote!(&#lifetime ())
+                Some(quote!(&#lifetime ()))
             }
             syn::GenericParam::Type(ty) => {
                 let ty = &ty.ident;
-                ty.to_token_stream()
+                Some(ty.to_token_stream())
             }
-            syn::GenericParam::Const(_cnst) => quote!(),
+            syn::GenericParam::Const(_cnst) => None,
         });
 
         let builder_method_name = self.builder_attr.builder_method.get_name().unwrap_or_else(|| quote!(builder));
