@@ -67,6 +67,49 @@ fn test_generics() {
 }
 
 #[test]
+fn test_2d_const_generics() {
+    #[derive(PartialEq, TypedBuilder)]
+    struct Foo<const NUM_COLS: usize, const NUM_ROWS: usize> {
+        data: [[u32; NUM_ROWS]; NUM_COLS],
+    }
+    assert!(Foo::builder().data([[]]).build() == Foo { data: [[]] });
+}
+
+#[test]
+fn test_multiple_const_generics() {
+    #[derive(PartialEq, TypedBuilder)]
+    struct Foo<const A: usize, const B: usize, const C: usize> {
+        data: [u32; A],
+        data2: [u32; B],
+        data3: [u32; C],
+    }
+    assert!(
+        Foo::builder().data([1]).data2([2, 3]).data3([]).build()
+            == Foo {
+                data: [1],
+                data2: [2, 3],
+                data3: []
+            }
+    );
+}
+
+#[test]
+fn test_const_generics_with_other_generics() {
+    #[derive(PartialEq, TypedBuilder)]
+    struct Foo<const A: usize, B> {
+        data: [B; A],
+        data2: [B; 3],
+    }
+    assert!(
+        Foo::builder().data([3]).data2([0, 1, 2]).build()
+            == Foo {
+                data: [3],
+                data2: [0, 1, 2]
+            }
+    );
+}
+
+#[test]
 fn test_into() {
     #[derive(PartialEq, TypedBuilder)]
     struct Foo {
