@@ -496,17 +496,46 @@ impl<'a> StructInfo<'a> {
             impl #impl_generics #builder_name #modified_ty_generics #where_clause {
                 #build_method_doc
                 #[allow(clippy::default_trait_access)]
-                #build_method_visibility fn #build_method_name #build_method_generic (self) -> #output_type #build_method_where_clause {
+                #build_method_visibility fn #build_method_name #build_method_generic (self) -> <#output_type as typed_builder::PostBuild>::Output #build_method_where_clause {
                     let ( #(#descructuring,)* ) = self.fields;
                     #( #assignments )*
 
-                    #[allow(deprecated)]
-                    #name {
+                    typed_builder::PostBuild::postbuild(#name {
                         #( #field_names ),*
-                    }.into()
+                    }).into()
                 }
             }
         )
+    }
+
+    pub fn postbuild_trait_impl(&self) -> TokenStream {
+        let StructInfo { name, .. } = &self;
+        let (impl_generics, ty_generics, where_clause) = self.generics.split_for_impl();
+
+        // TODO (Techassi): Move into method / function
+        let (_, output_type, _) = match &self.builder_attr.build_method.into {
+            IntoSetting::NoConversion => (None, quote!(#name #ty_generics), None),
+            IntoSetting::GenericConversion => (
+                Some(quote!(<__R>)),
+                quote!(__R),
+                Some(quote!(where #name #ty_generics: Into<__R>)),
+            ),
+            IntoSetting::TypeConversionToSpecificType(into) => (None, into.to_token_stream(), None),
+        };
+
+        if !self.builder_attr.custom_postbuild {
+            return quote!(
+                impl #impl_generics typed_builder::PostBuild for #output_type #where_clause {
+                    type Output = #output_type;
+
+                    fn postbuild(self) -> Self::Output {
+                        self
+                    }
+                }
+            );
+        }
+
+        quote!()
     }
 }
 
@@ -634,6 +663,10 @@ pub struct TypeBuilderAttr<'a> {
     pub build_method: BuildMethodSettings,
 
     pub field_defaults: FieldBuilderAttr<'a>,
+
+    /// Wether to generate the default PostBuild trait implementation or use a
+    /// custom user-provided one.
+    pub custom_postbuild: bool,
 }
 
 impl<'a> TypeBuilderAttr<'a> {
@@ -668,7 +701,7 @@ impl<'a> TypeBuilderAttr<'a> {
                 let name =
                     expr_to_single_string(&assign.left).ok_or_else(|| Error::new_spanned(&assign.left, "Expected identifier"))?;
 
-                let gen_structure_depracation_error = |put_under: &str, new_name: &str| {
+                let gen_structure_deprecation_error = |put_under: &str, new_name: &str| {
                     Error::new_spanned(
                         &assign.left,
                         format!(
@@ -678,9 +711,9 @@ impl<'a> TypeBuilderAttr<'a> {
                     )
                 };
                 match name.as_str() {
-                    "builder_method_doc" => Err(gen_structure_depracation_error("builder_method", "doc")),
-                    "builder_type_doc" => Err(gen_structure_depracation_error("builder_type", "doc")),
-                    "build_method_doc" => Err(gen_structure_depracation_error("build_method", "doc")),
+                    "builder_method_doc" => Err(gen_structure_deprecation_error("builder_method", "doc")),
+                    "builder_type_doc" => Err(gen_structure_deprecation_error("builder_type", "doc")),
+                    "build_method_doc" => Err(gen_structure_deprecation_error("build_method", "doc")),
                     _ => Err(Error::new_spanned(&assign, format!("Unknown parameter {:?}", name))),
                 }
             }
@@ -689,6 +722,10 @@ impl<'a> TypeBuilderAttr<'a> {
                 match name.as_str() {
                     "doc" => {
                         self.doc = true;
+                        Ok(())
+                    }
+                    "postbuild" => {
+                        self.custom_postbuild = true;
                         Ok(())
                     }
                     _ => Err(Error::new_spanned(&path, format!("Unknown parameter {:?}", name))),
