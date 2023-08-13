@@ -170,7 +170,7 @@ impl<'a> StructInfo<'a> {
 
         let descructuring = self.included_fields().map(|f| {
             if f.ordinal == field.ordinal {
-                quote!(_)
+                quote!(())
             } else {
                 let name = f.name;
                 name.to_token_stream()
