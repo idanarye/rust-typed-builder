@@ -405,25 +405,18 @@ impl<'a> StructInfo<'a> {
                         paren_token: None,
                         lifetimes: None,
                         modifier: syn::TraitBoundModifier::None,
-                        path: syn::Path {
-                            leading_colon: Some(syn::token::PathSep::default()),
-                            segments: [
-                                syn::PathSegment {
-                                    ident: Ident::new("typed_builder", Span::call_site()),
-                                    arguments: syn::PathArguments::None,
-                                },
-                                syn::PathSegment {
-                                    ident: Ident::new("Optional", Span::call_site()),
-                                    arguments: syn::PathArguments::AngleBracketed(syn::AngleBracketedGenericArguments {
-                                        colon2_token: None,
-                                        lt_token: Default::default(),
-                                        args: [syn::GenericArgument::Type(field.ty.clone())].into_iter().collect(),
-                                        gt_token: Default::default(),
-                                    }),
-                                },
-                            ]
-                            .into_iter()
-                            .collect(),
+                        path: {
+                            let mut path = self.builder_attr.crate_module_path.clone();
+                            path.segments.push(syn::PathSegment {
+                                ident: Ident::new("Optional", Span::call_site()),
+                                arguments: syn::PathArguments::AngleBracketed(syn::AngleBracketedGenericArguments {
+                                    colon2_token: None,
+                                    lt_token: Default::default(),
+                                    args: [syn::GenericArgument::Type(field.ty.clone())].into_iter().collect(),
+                                    gt_token: Default::default(),
+                                }),
+                            });
+                            path
                         },
                     };
                     let mut generic_param: syn::TypeParam = field.generic_ident.clone().into();
@@ -463,7 +456,8 @@ impl<'a> StructInfo<'a> {
                 if field.builder_attr.setter.skip.is_some() {
                     quote!(let #name = #default;)
                 } else {
-                    quote!(let #name = ::typed_builder::Optional::into_value(#name, || #default);)
+                    let crate_module_path = &self.builder_attr.crate_module_path;
+                    quote!(let #name = #crate_module_path::Optional::into_value(#name, || #default);)
                 }
             } else {
                 quote!(let #name = #name.0;)
@@ -619,7 +613,7 @@ impl BuildMethodSettings {
     }
 }
 
-#[derive(Debug, Default)]
+#[derive(Debug)]
 pub struct TypeBuilderAttr<'a> {
     /// Whether to show docs for the `TypeBuilder` type (rather than hiding them).
     pub doc: bool,
@@ -634,6 +628,21 @@ pub struct TypeBuilderAttr<'a> {
     pub build_method: BuildMethodSettings,
 
     pub field_defaults: FieldBuilderAttr<'a>,
+
+    pub crate_module_path: syn::Path,
+}
+
+impl Default for TypeBuilderAttr<'_> {
+    fn default() -> Self {
+        Self {
+            doc: Default::default(),
+            builder_method: Default::default(),
+            builder_type: Default::default(),
+            build_method: Default::default(),
+            field_defaults: Default::default(),
+            crate_module_path: syn::parse_quote!(::typed_builder),
+        }
+    }
 }
 
 impl<'a> TypeBuilderAttr<'a> {
@@ -678,6 +687,14 @@ impl<'a> TypeBuilderAttr<'a> {
                     )
                 };
                 match name.as_str() {
+                    "crate_module_path" => {
+                        if let syn::Expr::Path(crate_module_path) = assign.right.as_ref() {
+                            self.crate_module_path = crate_module_path.path.clone();
+                            Ok(())
+                        } else {
+                            Err(Error::new_spanned(&assign.right, "crate_module_path must be a path"))
+                        }
+                    }
                     "builder_method_doc" => Err(gen_structure_depracation_error("builder_method", "doc")),
                     "builder_type_doc" => Err(gen_structure_depracation_error("builder_type", "doc")),
                     "build_method_doc" => Err(gen_structure_depracation_error("build_method", "doc")),
