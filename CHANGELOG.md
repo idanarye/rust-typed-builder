@@ -5,6 +5,8 @@ The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+
+## 0.16.0 - 2023-08-26
 ### Added
 - `#[builder(crate_module_path = ...)]` for overcoming cases where the derive
   macro is used in another crate's macro (see issue #109)
