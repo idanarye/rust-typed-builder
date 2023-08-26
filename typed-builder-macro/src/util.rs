@@ -120,8 +120,8 @@ pub fn expr_to_lit_string(expr: &syn::Expr) -> Result<String, Error> {
     match expr {
         syn::Expr::Lit(lit) => match &lit.lit {
             syn::Lit::Str(str) => Ok(str.value()),
-            _ => return Err(Error::new_spanned(expr, "attribute only allows str values")),
+            _ => Err(Error::new_spanned(expr, "attribute only allows str values")),
         },
-        _ => return Err(Error::new_spanned(expr, "attribute only allows str values")),
+        _ => Err(Error::new_spanned(expr, "attribute only allows str values")),
     }
 }

@@ -305,11 +305,11 @@ impl SetterSettings {
                         Ok(())
                     }
                     "prefix" => {
-                        self.prefix = Some(expr_to_lit_string(&*assign.right)?);
+                        self.prefix = Some(expr_to_lit_string(&assign.right)?);
                         Ok(())
                     }
                     "suffix" => {
-                        self.suffix = Some(expr_to_lit_string(&*assign.right)?);
+                        self.suffix = Some(expr_to_lit_string(&assign.right)?);
                         Ok(())
                     }
                     _ => Err(Error::new_spanned(&assign, format!("Unknown parameter {:?}", name))),

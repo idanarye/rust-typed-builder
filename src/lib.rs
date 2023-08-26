@@ -64,6 +64,14 @@ use core::ops::FnOnce;
 ///   but it won't be a link. If you turn this on, the builder type and its `build` method will get
 ///   sane defaults. The field methods on the builder will be undocumented by default.
 ///
+/// - `crate_module_path`: This is only needed when `typed_builder` is reexported from another
+///   crate - which usually happens when another macro uses it. In that case, it is the
+///   reponsibility of that macro to set the `crate_module_path` to the _unquoted_ module path from
+///   which the `typed_builder` crate can be accessed, so that the `TypedBuilder` macro will be
+///   able to access the typed declared in it.
+///
+///   Defaults to `#[builder(crate_module_path=::typed_builder)]`.
+///
 /// - The following subsections:
 ///   - `builder_method(...)`: customize the builder method that creates the builder type
 ///   - `builder_type(...)`: customize the builder type
