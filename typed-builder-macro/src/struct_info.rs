@@ -5,7 +5,7 @@ use syn::parse::Error;
 use crate::field_info::{FieldBuilderAttr, FieldInfo};
 use crate::util::{
     apply_subsections, empty_type, empty_type_tuple, expr_to_single_string, first_visibility, modify_types_generics_hack,
-    path_to_single_string, public_visibility, strip_raw_ident_prefix, type_tuple,
+    path_to_single_string, public_visibility, strip_raw_ident_prefix, type_tuple, AttrArg, KeyValue,
 };
 
 #[derive(Debug)]
@@ -680,88 +680,70 @@ impl<'a> TypeBuilderAttr<'a> {
         Ok(result)
     }
 
-    fn apply_meta(&mut self, expr: syn::Expr) -> Result<(), Error> {
+    fn apply_meta(&mut self, expr: AttrArg) -> Result<(), Error> {
         match expr {
-            syn::Expr::Assign(assign) => {
-                let name =
-                    expr_to_single_string(&assign.left).ok_or_else(|| Error::new_spanned(&assign.left, "Expected identifier"))?;
-
+            AttrArg::KeyValue(KeyValue { ref name, ref value, .. }) => {
                 let gen_structure_depracation_error = |put_under: &str, new_name: &str| {
                     Error::new_spanned(
-                        &assign.left,
+                        name,
                         format!(
                             "`{} = \"...\"` is deprecated - use `{}({} = \"...\")` instead",
                             name, put_under, new_name
                         ),
                     )
                 };
-                match name.as_str() {
+                match name.to_string().as_str() {
                     "crate_module_path" => {
-                        if let syn::Expr::Path(crate_module_path) = assign.right.as_ref() {
+                        if let syn::Expr::Path(crate_module_path) = &value {
                             self.crate_module_path = crate_module_path.path.clone();
                             Ok(())
                         } else {
-                            Err(Error::new_spanned(&assign.right, "crate_module_path must be a path"))
+                            Err(Error::new_spanned(value, "crate_module_path must be a path"))
                         }
                     }
                     "builder_method_doc" => Err(gen_structure_depracation_error("builder_method", "doc")),
                     "builder_type_doc" => Err(gen_structure_depracation_error("builder_type", "doc")),
                     "build_method_doc" => Err(gen_structure_depracation_error("build_method", "doc")),
-                    _ => Err(Error::new_spanned(&assign, format!("Unknown parameter {:?}", name))),
+                    _ => Err(Error::new_spanned(&expr, format!("Unknown parameter {:?}", name))),
                 }
             }
-            syn::Expr::Path(path) => {
-                let name = path_to_single_string(&path.path).ok_or_else(|| Error::new_spanned(&path, "Expected identifier"))?;
-                match name.as_str() {
-                    "doc" => {
-                        self.doc = true;
-                        Ok(())
-                    }
-                    _ => Err(Error::new_spanned(&path, format!("Unknown parameter {:?}", name))),
+            AttrArg::Flag(name) => match name.to_string().as_str() {
+                "doc" => {
+                    self.doc = true;
+                    Ok(())
                 }
-            }
-            syn::Expr::Call(call) => {
-                let subsetting_name = if let syn::Expr::Path(path) = &*call.func {
-                    path_to_single_string(&path.path)
-                } else {
-                    None
+                _ => Err(Error::new_spanned(&name, format!("Unknown parameter {:?}", name))),
+            },
+            AttrArg::Sub(sub) => match sub.name.to_string().as_str() {
+                "field_defaults" => {
+                    for arg in sub.args()? {
+                        self.field_defaults.apply_meta(arg)?;
+                    }
+                    Ok(())
                 }
-                .ok_or_else(|| {
-                    let call_func = &call.func;
-                    let call_func = call_func.to_token_stream();
-                    Error::new_spanned(&call.func, format!("Illegal builder setting group {}", call_func))
-                })?;
-                match subsetting_name.as_str() {
-                    "field_defaults" => {
-                        for arg in call.args {
-                            self.field_defaults.apply_meta(arg)?;
-                        }
-                        Ok(())
+                "builder_method" => {
+                    for arg in sub.args()? {
+                        self.builder_method.apply_meta(arg)?;
                     }
-                    "builder_method" => {
-                        for arg in call.args {
-                            self.builder_method.apply_meta(arg)?;
-                        }
-                        Ok(())
-                    }
-                    "builder_type" => {
-                        for arg in call.args {
-                            self.builder_type.apply_meta(arg)?;
-                        }
-                        Ok(())
-                    }
-                    "build_method" => {
-                        for arg in call.args {
-                            self.build_method.apply_meta(arg)?;
-                        }
-                        Ok(())
-                    }
-                    _ => Err(Error::new_spanned(
-                        &call.func,
-                        format!("Illegal builder setting group name {}", subsetting_name),
-                    )),
+                    Ok(())
                 }
-            }
+                "builder_type" => {
+                    for arg in sub.args()? {
+                        self.builder_type.apply_meta(arg)?;
+                    }
+                    Ok(())
+                }
+                "build_method" => {
+                    for arg in sub.args()? {
+                        self.build_method.apply_meta(arg)?;
+                    }
+                    Ok(())
+                }
+                _ => Err(Error::new_spanned(
+                    &sub,
+                    format!("Illegal builder setting group name {}", sub.name),
+                )),
+            },
             _ => Err(Error::new_spanned(expr, "Expected (<...>=<...>)")),
         }
     }
