@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - Add `#[allow(clippy::exhaustive_enums)]` to generated empty enums used for
   error "reporting" (see issue #112)
 - Add `#[automatically_derived]` to generated `impl`s (see issue #114)
+- Add `#[allow(clippy::used_underscore_binding)]` to build method and setter
+  methods (see issue #113)
 
 ## 0.16.0 - 2023-08-26
 ### Added

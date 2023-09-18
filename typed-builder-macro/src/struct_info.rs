@@ -272,6 +272,7 @@ impl<'a> StructInfo<'a> {
             impl #impl_generics #builder_name < #( #ty_generics ),* > #where_clause {
                 #deprecated
                 #doc
+                #[allow(clippy::used_underscore_binding)]
                 pub fn #method_name (self, #param_list) -> #builder_name <#( #target_generics ),*> {
                     let #field_name = (#arg_expr,);
                     let ( #(#descructuring,)* ) = self.fields;
@@ -497,7 +498,7 @@ impl<'a> StructInfo<'a> {
             #[automatically_derived]
             impl #impl_generics #builder_name #modified_ty_generics #where_clause {
                 #build_method_doc
-                #[allow(clippy::default_trait_access)]
+                #[allow(clippy::default_trait_access, clippy::used_underscore_binding)]
                 #build_method_visibility fn #build_method_name #build_method_generic (self) -> #output_type #build_method_where_clause {
                     let ( #(#descructuring,)* ) = self.fields;
                     #( #assignments )*
