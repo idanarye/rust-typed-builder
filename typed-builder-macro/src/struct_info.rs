@@ -280,6 +280,7 @@ impl<'a> StructInfo<'a> {
             }
             #[doc(hidden)]
             #[allow(dead_code, non_camel_case_types, non_snake_case)]
+            #[allow(clippy::exhaustive_enums)]
             pub enum #repeated_fields_error_type_name {}
             #[doc(hidden)]
             #[allow(dead_code, non_camel_case_types, missing_docs)]
@@ -368,6 +369,7 @@ impl<'a> StructInfo<'a> {
         quote! {
             #[doc(hidden)]
             #[allow(dead_code, non_camel_case_types, non_snake_case)]
+            #[allow(clippy::exhaustive_enums)]
             pub enum #early_build_error_type_name {}
             #[doc(hidden)]
             #[allow(dead_code, non_camel_case_types, missing_docs, clippy::panic)]
