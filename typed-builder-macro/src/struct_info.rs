@@ -134,6 +134,7 @@ impl<'a> StructInfo<'a> {
         }
 
         Ok(quote! {
+            #[automatically_derived]
             impl #impl_generics #name #ty_generics #where_clause {
                 #builder_method_doc
                 #[allow(dead_code, clippy::default_trait_access)]
@@ -153,6 +154,7 @@ impl<'a> StructInfo<'a> {
                 phantom: ::core::marker::PhantomData<(#( #phantom_generics ),*)>,
             }
 
+            #[automatically_derived]
             impl #b_generics_impl Clone for #builder_name #b_generics_ty #b_generics_where {
                 #[allow(clippy::default_trait_access)]
                 fn clone(&self) -> Self {
@@ -266,6 +268,7 @@ impl<'a> StructInfo<'a> {
 
         Ok(quote! {
             #[allow(dead_code, non_camel_case_types, missing_docs)]
+            #[automatically_derived]
             impl #impl_generics #builder_name < #( #ty_generics ),* > #where_clause {
                 #deprecated
                 #doc
@@ -284,6 +287,7 @@ impl<'a> StructInfo<'a> {
             pub enum #repeated_fields_error_type_name {}
             #[doc(hidden)]
             #[allow(dead_code, non_camel_case_types, missing_docs)]
+            #[automatically_derived]
             impl #impl_generics #builder_name < #( #target_generics ),* > #where_clause {
                 #[deprecated(
                     note = #repeated_fields_error_message
@@ -373,6 +377,7 @@ impl<'a> StructInfo<'a> {
             pub enum #early_build_error_type_name {}
             #[doc(hidden)]
             #[allow(dead_code, non_camel_case_types, missing_docs, clippy::panic)]
+            #[automatically_derived]
             impl #impl_generics #builder_name < #( #builder_generics ),* > #where_clause {
                 #[deprecated(
                     note = #early_build_error_message
@@ -489,6 +494,7 @@ impl<'a> StructInfo<'a> {
 
         quote!(
             #[allow(dead_code, non_camel_case_types, missing_docs)]
+            #[automatically_derived]
             impl #impl_generics #builder_name #modified_ty_generics #where_clause {
                 #build_method_doc
                 #[allow(clippy::default_trait_access)]
