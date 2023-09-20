@@ -821,3 +821,20 @@ fn test_mutable_defaults() {
 
     assert_eq!(foo, Foo { x: Some(10), y: 10 });
 }
+
+#[test]
+fn test_preinitialized_fields() {
+    #[derive(Debug, PartialEq, TypedBuilder)]
+    struct Foo {
+        x: i32,
+        #[builder(via_mutators)]
+        y: i32,
+        #[builder(via_mutators = 2)]
+        z: i32,
+        #[builder(via_mutators(init = 2))]
+        w: i32,
+    }
+
+    let foo = Foo::builder().x(1).build();
+    assert_eq!(foo, Foo { x: 1, y: 0, z: 2, w: 2 });
+}

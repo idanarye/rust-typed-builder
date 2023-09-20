@@ -2,7 +2,9 @@ use proc_macro2::{Ident, Span, TokenStream};
 use quote::quote_spanned;
 use syn::{parse::Error, spanned::Spanned, ItemFn};
 
-use crate::util::{expr_to_lit_string, ident_to_type, path_to_single_string, strip_raw_ident_prefix, ApplyMeta, AttrArg};
+use crate::util::{
+    expr_to_lit_string, ident_to_type, path_to_single_string, strip_raw_ident_prefix, ApplyMeta, AttrArg, KeyValue,
+};
 
 #[derive(Debug)]
 pub struct FieldInfo<'a> {
@@ -112,6 +114,7 @@ impl<'a> FieldInfo<'a> {
 #[derive(Debug, Default, Clone)]
 pub struct FieldBuilderAttr<'a> {
     pub default: Option<syn::Expr>,
+    pub via_mutators: Option<syn::Expr>,
     pub deprecated: Option<&'a syn::Attribute>,
     pub setter: SetterSettings,
     pub mutators: Vec<ItemFn>,
@@ -243,6 +246,35 @@ impl ApplyMeta for FieldBuilderAttr<'_> {
                 &mut self.mutable_during_default_resolution,
                 "made mutable during default resolution",
             ),
+            "via_mutators" => {
+                match expr {
+                    AttrArg::Flag(ident) => {
+                        self.via_mutators =
+                            Some(syn::parse2(quote_spanned!(ident.span() => ::core::default::Default::default())).unwrap());
+                    }
+                    AttrArg::KeyValue(key_value) => {
+                        self.via_mutators = Some(key_value.value);
+                    }
+                    AttrArg::Not { .. } => {
+                        self.via_mutators = None;
+                    }
+                    AttrArg::Sub(sub) => {
+                        let paren_span = sub.paren.span.span();
+                        let mut args = sub.args()?.into_iter();
+                        let Some(KeyValue { name, value, .. }) = args.next() else {
+                            return Err(Error::new(paren_span, "Expected `init = ...`"));
+                        };
+                        if name != "init" {
+                            return Err(Error::new_spanned(name, "Expected `init`"));
+                        }
+                        if let Some(remaining) = args.next() {
+                            return Err(Error::new_spanned(remaining, "Expected only one argument (`init = ...`)"));
+                        }
+                        self.via_mutators = Some(value);
+                    }
+                }
+                Ok(())
+            }
             _ => Err(Error::new_spanned(
                 expr.name(),
                 format!("Unknown parameter {:?}", expr.name().to_string()),

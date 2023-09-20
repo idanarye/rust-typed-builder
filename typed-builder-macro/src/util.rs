@@ -202,6 +202,16 @@ impl ToTokens for KeyValue {
     }
 }
 
+impl Parse for KeyValue {
+    fn parse(input: syn::parse::ParseStream) -> syn::Result<Self> {
+        Ok(Self {
+            name: input.parse()?,
+            eq: input.parse()?,
+            value: input.parse()?,
+        })
+    }
+}
+
 pub struct SubAttr {
     pub name: Ident,
     pub paren: token::Paren,

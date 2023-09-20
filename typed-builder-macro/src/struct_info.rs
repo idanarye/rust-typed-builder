@@ -24,6 +24,9 @@ impl<'a> StructInfo<'a> {
     pub fn included_fields(&self) -> impl Iterator<Item = &FieldInfo<'a>> {
         self.fields.iter().filter(|f| f.builder_attr.setter.skip.is_none())
     }
+    pub fn setter_fields(&self) -> impl Iterator<Item = &FieldInfo<'a>> {
+        self.included_fields().filter(|f| f.builder_attr.via_mutators.is_none())
+    }
 
     pub fn new(ast: &'a syn::DeriveInput, fields: impl Iterator<Item = &'a syn::Field>) -> Result<StructInfo<'a>, Error> {
         let builder_attr = TypeBuilderAttr::new(&ast.attrs)?;
@@ -54,18 +57,30 @@ impl<'a> StructInfo<'a> {
             ..
         } = *self;
         let (impl_generics, ty_generics, where_clause) = self.generics.split_for_impl();
-        let empties_tuple = type_tuple(self.included_fields().map(|_| empty_type()));
+        let init_fields_type = type_tuple(self.included_fields().map(|f| {
+            if f.builder_attr.via_mutators.is_some() {
+                f.tuplized_type_ty_param()
+            } else {
+                empty_type()
+            }
+        }));
+        let init_fields_expr = self.included_fields().map(|f| {
+            f.builder_attr
+                .via_mutators
+                .as_ref()
+                .map_or_else(|| quote!(()), |i| quote!((#i,)))
+        });
         let mut all_fields_param_type: syn::TypeParam =
             syn::Ident::new("TypedBuilderFields", proc_macro2::Span::call_site()).into();
         let all_fields_param = syn::GenericParam::Type(all_fields_param_type.clone());
-        all_fields_param_type.default = Some(syn::Type::Tuple(empties_tuple.clone()));
+        all_fields_param_type.default = Some(syn::Type::Tuple(init_fields_type.clone()));
         let b_generics = {
             let mut generics = self.generics.clone();
             generics.params.push(syn::GenericParam::Type(all_fields_param_type));
             generics
         };
         let generics_with_empty = modify_types_generics_hack(&ty_generics, |args| {
-            args.push(syn::GenericArgument::Type(empties_tuple.clone().into()));
+            args.push(syn::GenericArgument::Type(init_fields_type.clone().into()));
         });
         let phantom_generics = self.generics.params.iter().filter_map(|param| match param {
             syn::GenericParam::Lifetime(lifetime) => {
@@ -96,7 +111,7 @@ impl<'a> StructInfo<'a> {
                 setters = {
                     let mut result = String::new();
                     let mut is_first = true;
-                    for field in self.included_fields() {
+                    for field in self.setter_fields() {
                         use std::fmt::Write;
                         if is_first {
                             is_first = false;
@@ -140,7 +155,7 @@ impl<'a> StructInfo<'a> {
                 #[allow(dead_code, clippy::default_trait_access)]
                 #builder_method_visibility fn #builder_method_name() -> #builder_name #generics_with_empty {
                     #builder_name {
-                        fields: #empties_tuple,
+                        fields: (#(#init_fields_expr,)*),
                         phantom: ::core::default::Default::default(),
                     }
                 }
@@ -326,7 +341,7 @@ impl<'a> StructInfo<'a> {
         let generics = {
             let mut generics = self.generics.clone();
             for f in self.included_fields() {
-                if f.builder_attr.default.is_some() {
+                if f.builder_attr.default.is_some() || f.builder_attr.via_mutators.is_some() {
                     // `f` is not mandatory - it does not have it's own fake `build` method, so `field` will need
                     // to warn about missing `field` whether or not `f` is set.
                     assert!(
