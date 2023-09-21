@@ -6,6 +6,9 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+### Fixed
+- Use generics with the constructor in `build` method (see issue #118)
+
 ## 0.16.1 - 2023-09-18
 ### Fixed
 - Add `#[allow(clippy::exhaustive_enums)]` to generated empty enums used for

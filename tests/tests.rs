@@ -779,3 +779,24 @@ fn test_prefix_and_suffix() {
     let foo = Foo::builder().with_x_value(1).with_y_value(2).build();
     assert_eq!(foo, Foo { x: 1, y: 2 })
 }
+
+#[test]
+fn test_issue_118() {
+    #[derive(TypedBuilder)]
+    #[builder(build_method(into=Bar))]
+    struct Foo<T> {
+        #[builder(default, setter(skip))]
+        #[allow(dead_code)]
+        foo: Option<T>,
+    }
+
+    struct Bar;
+
+    impl<T> From<Foo<T>> for Bar {
+        fn from(_value: Foo<T>) -> Self {
+            Self
+        }
+    }
+
+    let _ = Foo::<u32>::builder().build();
+}

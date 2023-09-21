@@ -483,6 +483,12 @@ impl<'a> StructInfo<'a> {
         } else {
             quote!()
         };
+
+        let type_constructor = {
+            let ty_generics = ty_generics.as_turbofish();
+            quote!(#name #ty_generics)
+        };
+
         let (build_method_generic, output_type, build_method_where_clause) = match &self.builder_attr.build_method.into {
             IntoSetting::NoConversion => (None, quote!(#name #ty_generics), None),
             IntoSetting::GenericConversion => (
@@ -504,7 +510,7 @@ impl<'a> StructInfo<'a> {
                     #( #assignments )*
 
                     #[allow(deprecated)]
-                    #name {
+                    #type_constructor {
                         #( #field_names ),*
                     }.into()
                 }
