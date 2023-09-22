@@ -500,7 +500,7 @@ impl<'a> StructInfo<'a> {
         };
 
         quote!(
-            #[allow(dead_code, non_camel_case_types, missing_docs)]
+            #[allow(dead_code, non_camel_case_types, missing_docs, unused_mut)]
             #[automatically_derived]
             impl #impl_generics #builder_name #modified_ty_generics #where_clause {
                 #build_method_doc
