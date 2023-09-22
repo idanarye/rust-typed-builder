@@ -462,13 +462,22 @@ impl<'a> StructInfo<'a> {
             let name = &field.name;
             if let Some(ref default) = field.builder_attr.default {
                 if field.builder_attr.setter.skip.is_some() {
-                    quote!(let mut #name = #default;)
+                    quote! {
+                        #[allow(unused_mut)]
+                        let mut #name = #default;
+                    }
                 } else {
                     let crate_module_path = &self.builder_attr.crate_module_path;
-                    quote!(let mut #name = #crate_module_path::Optional::into_value(#name, || #default);)
+                    quote! {
+                        #[allow(unused_mut)]
+                        let mut #name = #crate_module_path::Optional::into_value(#name, || #default);
+                    }
                 }
             } else {
-                quote!(let mut #name = #name.0;)
+                quote! {
+                    #[allow(unused_mut)]
+                    let mut #name = #name.0;
+                }
             }
         });
         let field_names = self.fields.iter().map(|field| field.name);
@@ -500,7 +509,7 @@ impl<'a> StructInfo<'a> {
         };
 
         quote!(
-            #[allow(dead_code, non_camel_case_types, missing_docs, unused_mut)]
+            #[allow(dead_code, non_camel_case_types, missing_docs)]
             #[automatically_derived]
             impl #impl_generics #builder_name #modified_ty_generics #where_clause {
                 #build_method_doc
