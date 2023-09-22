@@ -462,13 +462,13 @@ impl<'a> StructInfo<'a> {
             let name = &field.name;
             if let Some(ref default) = field.builder_attr.default {
                 if field.builder_attr.setter.skip.is_some() {
-                    quote!(let #name = #default;)
+                    quote!(let mut #name = #default;)
                 } else {
                     let crate_module_path = &self.builder_attr.crate_module_path;
-                    quote!(let #name = #crate_module_path::Optional::into_value(#name, || #default);)
+                    quote!(let mut #name = #crate_module_path::Optional::into_value(#name, || #default);)
                 }
             } else {
-                quote!(let #name = #name.0;)
+                quote!(let #name mut = #name.0;)
             }
         });
         let field_names = self.fields.iter().map(|field| field.name);
