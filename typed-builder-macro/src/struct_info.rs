@@ -468,7 +468,7 @@ impl<'a> StructInfo<'a> {
                     quote!(let mut #name = #crate_module_path::Optional::into_value(#name, || #default);)
                 }
             } else {
-                quote!(let #name mut = #name.0;)
+                quote!(let mut #name = #name.0;)
             }
         });
         let field_names = self.fields.iter().map(|field| field.name);
