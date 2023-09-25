@@ -121,6 +121,8 @@ use core::ops::FnOnce;
 ///    #[derive(Default)]
 ///    struct Point { x: f32, y: f32 }
 ///    ```
+/// - `mutators(...)` takes functions, that can mutate fields inside of the builder.
+///   See [mutators](#mutators) for details.
 ///
 /// On each **field**, the following values are permitted:
 ///
@@ -134,6 +136,12 @@ use core::ops::FnOnce;
 ///    derive proc-macro crates that complain about "expected literal".
 ///    Note that if `...` contains a string, you can use raw string literals to avoid escaping the
 ///    double quotes - e.g. `#[builder(default_code = r#""default text".to_owned()"#)]`.
+///
+/// - `via_mutators`: initialize the field when constructing the builder, useful in combination
+///   with [mutators](#mutators).
+///
+/// - `via_mutators = …` or `via_mutators(init = …)`: initialies the field with the expression `…`
+///   when constructing the builder, useful in combination with [mutators](#mutators).
 ///
 /// - `setter(...)`: settings for the field setters. The following values are permitted inside:
 ///
@@ -174,6 +182,42 @@ use core::ops::FnOnce;
 ///     later-defined fields.
 ///     **Warning** - Use this feature with care! If the field that mutates the previous field in
 ///     its `default` expression is set via a setter, that mutation will not happen.
+///
+/// # Mutators
+/// Set fields can be mutated using mutators, these can be defind via `mutators(...)`.
+///
+/// Fields annotated with `#[builder(via_mutators)]` are always available to mutators. Additional
+/// fields can be specified via `self: (field1, field2)` in the mutator's function signature.
+/// Mutators that require non `via_mutators` fields, will only be availible if these fields are set.
+///
+/// ```
+/// use typed_builder::TypedBuilder;
+///
+/// #[derive(PartialEq, Debug, TypedBuilder)]
+/// #[builder(mutators(
+///     // &mut is optional
+///     fn inc_a(&mut self, a: i32){
+///         self.a += a;
+///     }
+///     // (x) defines what fields to require
+///     // &mut cannot be used in combination with :(field)
+///     fn x_into_b(self: (x)) {
+///         self.b.push(self.x)
+///     }
+/// ))]
+/// struct Struct {
+///     x: i32,
+///     #[builder(via_mutators(init = 1))]
+///     a: i32,
+///     #[builder(via_mutators)]
+///     b: Vec<i32>
+/// }
+///
+/// // Mutators do not enforce only being called once
+/// assert_eq!(
+///     Struct::builder().x(2).x_into_b().x_into_b().inc_a(2).build(),
+///     Struct {x: 2, a: 3, b: vec![2, 2]});
+/// ```
 pub use typed_builder_macro::TypedBuilder;
 
 #[doc(hidden)]

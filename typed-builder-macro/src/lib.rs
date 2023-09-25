@@ -29,12 +29,19 @@ fn impl_my_derive(ast: &syn::DeriveInput) -> Result<TokenStream, Error> {
                     .setter_fields()
                     .filter(|f| f.builder_attr.default.is_none())
                     .map(|f| struct_info.required_field_impl(f));
+                let mutators = struct_info
+                    .builder_attr
+                    .mutators
+                    .iter()
+                    .map(|m| struct_info.mutator_impl(m))
+                    .collect::<Result<TokenStream, _>>()?;
                 let build_method = struct_info.build_method_impl();
 
                 quote! {
                     #builder_creation
                     #fields
                     #(#required_fields)*
+                    #mutators
                     #build_method
                 }
             }

@@ -1,10 +1,14 @@
+use std::iter;
+
 use proc_macro2::{Ident, Span, TokenStream};
-use quote::ToTokens;
+use quote::{format_ident, ToTokens};
 use syn::{
     parenthesized,
-    parse::{Parse, Parser},
+    parse::{Parse, ParseStream, Parser},
+    parse_quote,
     punctuated::Punctuated,
-    token, Error, Expr, Token,
+    spanned::Spanned,
+    token, Error, Expr, FnArg, ItemFn, Pat, PatIdent, ReturnType, Signature, Token, Type,
 };
 
 pub fn path_to_single_string(path: &syn::Path) -> Option<String> {
@@ -222,6 +226,9 @@ impl SubAttr {
     pub fn args<T: Parse>(self) -> syn::Result<impl IntoIterator<Item = T>> {
         Punctuated::<T, Token![,]>::parse_terminated.parse2(self.args)
     }
+    pub fn undelimited<T: Parse>(self) -> syn::Result<impl IntoIterator<Item = T>> {
+        (|p: ParseStream| iter::from_fn(|| (!p.is_empty()).then(|| p.parse())).collect::<syn::Result<Vec<T>>>()).parse2(self.args)
+    }
 }
 
 impl ToTokens for SubAttr {
@@ -298,5 +305,122 @@ pub trait ApplyMeta {
         }
 
         Ok(())
+    }
+}
+
+
+#[derive(Debug)]
+pub struct Mutator {
+    pub fun: ItemFn,
+    pub required_fields: Vec<Ident>,
+    pub required_fields_span: Span,
+}
+
+impl Parse for Mutator {
+    fn parse(input: ParseStream) -> syn::Result<Self> {
+        let mut fun: ItemFn = input.parse()?;
+
+        // Parse receiver
+        let requires;
+        let required_fields_span;
+        if let Some(FnArg::Receiver(receiver)) = fun.sig.inputs.first_mut() {
+            // If `: (...)` was specified, this will define the required fields
+            if receiver.colon_token.is_some() {
+                let fields = match &*receiver.ty {
+                    Type::Paren(ty) => {
+                        vec![&*ty.elem]
+                    }
+                    Type::Tuple(ty) => ty.elems.iter().collect(),
+                    ty => {
+                        return Err(syn::Error::new_spanned(
+                            ty,
+                            "expected (field, field2) to specify required fields",
+                        ))
+                    }
+                };
+                requires = fields
+                    .into_iter()
+                    .map(|field| match field {
+                        Type::Path(field) => field.path.require_ident().cloned(),
+                        other => Err(syn::Error::new_spanned(other, "expected field identifier")),
+                    })
+                    .collect::<Result<_, _>>()?;
+                required_fields_span = receiver.ty.span();
+            } else {
+                requires = vec![];
+                required_fields_span = receiver.self_token.span();
+            }
+            *receiver = parse_quote!(&mut self);
+        } else {
+            // Error either on first argument or `()`
+            return Err(syn::Error::new(
+                fun.sig
+                    .inputs
+                    .first()
+                    .map(Spanned::span)
+                    .unwrap_or(fun.sig.paren_token.span.span()),
+                "mutator needs to take a reference to `self`",
+            ));
+        };
+
+        Ok(Self {
+            fun,
+            required_fields: requires,
+            required_fields_span,
+        })
+    }
+}
+
+fn pat_to_ident(i: usize, pat: &Pat) -> Ident {
+    if let Pat::Ident(PatIdent { ident, .. }) = pat {
+        ident.clone()
+    } else {
+        format_ident!("__{i}", span = pat.span())
+    }
+}
+
+impl Mutator {
+    /// Signature for Builder::<mutator> function
+    pub fn outer_sig(&self, output: Type) -> Signature {
+        let mut sig = self.fun.sig.clone();
+        *sig.inputs.first_mut().expect("should have receiver") = parse_quote!(self);
+        sig.output = ReturnType::Type(Default::default(), output.into());
+
+        sig.inputs = sig
+            .inputs
+            .into_iter()
+            .enumerate()
+            .map(|(i, input)| match input {
+                FnArg::Receiver(_) => parse_quote!(self),
+                FnArg::Typed(mut input) => {
+                    input.pat = Box::new(
+                        PatIdent {
+                            attrs: Vec::new(),
+                            by_ref: None,
+                            mutability: None,
+                            ident: pat_to_ident(i, &input.pat),
+                            subpat: None,
+                        }
+                        .into(),
+                    );
+                    FnArg::Typed(input)
+                }
+            })
+            .collect();
+        sig
+    }
+
+    /// Arguments to call inner mutator function
+    pub fn arguments(&self) -> Punctuated<Ident, Token![,]> {
+        self.fun
+            .sig
+            .inputs
+            .iter()
+            .enumerate()
+            .filter_map(|(i, input)| match &input {
+                FnArg::Receiver(_) => None,
+                FnArg::Typed(input) => Some(pat_to_ident(i, &input.pat)),
+            })
+            .collect()
     }
 }
