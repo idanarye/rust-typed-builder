@@ -1,5 +1,11 @@
+use proc_macro2::{Ident, TokenStream};
 use quote::ToTokens;
-use syn::{parse::Parser, Error};
+use syn::{
+    parenthesized,
+    parse::{Parse, Parser},
+    punctuated::Punctuated,
+    token, Error, Expr, Token,
+};
 
 pub fn path_to_single_string(path: &syn::Path) -> Option<String> {
     if path.leading_colon.is_some() {
@@ -101,7 +107,7 @@ pub fn public_visibility() -> syn::Visibility {
 
 pub fn apply_subsections(
     list: &syn::MetaList,
-    mut applier: impl FnMut(syn::Expr) -> Result<(), syn::Error>,
+    mut applier: impl FnMut(AttrArg) -> Result<(), syn::Error>,
 ) -> Result<(), syn::Error> {
     if list.tokens.is_empty() {
         return Err(syn::Error::new_spanned(list, "Expected builder(…)"));
@@ -123,5 +129,90 @@ pub fn expr_to_lit_string(expr: &syn::Expr) -> Result<String, Error> {
             _ => Err(Error::new_spanned(expr, "attribute only allows str values")),
         },
         _ => Err(Error::new_spanned(expr, "attribute only allows str values")),
+    }
+}
+
+pub enum AttrArg {
+    Flag(Ident),
+    KeyValue(KeyValue),
+    Sub(SubAttr),
+    Not { not: Token![!], name: Ident },
+}
+
+pub struct KeyValue {
+    pub name: Ident,
+    pub eq: Token![=],
+    pub value: Expr,
+}
+
+impl ToTokens for KeyValue {
+    fn to_tokens(&self, tokens: &mut TokenStream) {
+        self.name.to_tokens(tokens);
+        self.eq.to_tokens(tokens);
+        self.value.to_tokens(tokens);
+    }
+}
+
+pub struct SubAttr {
+    pub name: Ident,
+    pub paren: token::Paren,
+    pub args: TokenStream,
+}
+
+impl SubAttr {
+    pub fn args<T: Parse>(self) -> syn::Result<impl IntoIterator<Item = T>> {
+        Punctuated::<T, Token![,]>::parse_terminated.parse2(self.args)
+    }
+}
+
+impl ToTokens for SubAttr {
+    fn to_tokens(&self, tokens: &mut TokenStream) {
+        self.name.to_tokens(tokens);
+        self.paren.surround(tokens, |t| self.args.to_tokens(t));
+    }
+}
+
+impl Parse for AttrArg {
+    fn parse(input: syn::parse::ParseStream) -> syn::Result<Self> {
+        if input.peek(Token![!]) {
+            Ok(Self::Not {
+                not: input.parse()?,
+                name: input.parse()?,
+            })
+        } else {
+            let name = input.parse()?;
+            if input.peek(Token![,]) || input.is_empty() {
+                Ok(Self::Flag(name))
+            } else if input.peek(token::Paren) {
+                let args;
+                Ok(Self::Sub(SubAttr {
+                    name,
+                    paren: parenthesized!(args in input),
+                    args: args.parse()?,
+                }))
+            } else if input.peek(Token![=]) {
+                Ok(Self::KeyValue(KeyValue {
+                    name,
+                    eq: input.parse()?,
+                    value: input.parse()?,
+                }))
+            } else {
+                Err(input.error("expected !<ident>, <ident>=<value> or <ident>(…)"))
+            }
+        }
+    }
+}
+
+impl ToTokens for AttrArg {
+    fn to_tokens(&self, tokens: &mut TokenStream) {
+        match self {
+            AttrArg::Flag(flag) => flag.to_tokens(tokens),
+            AttrArg::KeyValue(kv) => kv.to_tokens(tokens),
+            AttrArg::Sub(sub) => sub.to_tokens(tokens),
+            AttrArg::Not { not, name } => {
+                not.to_tokens(tokens);
+                name.to_tokens(tokens);
+            }
+        }
     }
 }

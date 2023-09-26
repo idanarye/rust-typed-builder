@@ -1,3 +1,4 @@
+#![allow(clippy::disallowed_names)]
 mod scope {
     use typed_builder::TypedBuilder;
 
