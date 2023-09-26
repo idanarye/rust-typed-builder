@@ -23,14 +23,6 @@ pub fn path_to_single_string(path: &syn::Path) -> Option<String> {
     Some(segment.ident.to_string())
 }
 
-pub fn expr_to_single_string(expr: &syn::Expr) -> Option<String> {
-    if let syn::Expr::Path(path) = expr {
-        path_to_single_string(&path.path)
-    } else {
-        None
-    }
-}
-
 pub fn ident_to_type(ident: syn::Ident) -> syn::Type {
     let mut path = syn::Path {
         leading_colon: None,

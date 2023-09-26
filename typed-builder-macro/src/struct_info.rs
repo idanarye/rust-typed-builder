@@ -4,8 +4,8 @@ use syn::parse::Error;
 
 use crate::field_info::{FieldBuilderAttr, FieldInfo};
 use crate::util::{
-    apply_subsections, empty_type, empty_type_tuple, expr_to_single_string, first_visibility, modify_types_generics_hack,
-    path_to_single_string, public_visibility, strip_raw_ident_prefix, type_tuple, AttrArg,
+    apply_subsections, empty_type, empty_type_tuple, first_visibility, modify_types_generics_hack, path_to_single_string,
+    public_visibility, strip_raw_ident_prefix, type_tuple, AttrArg,
 };
 
 #[derive(Debug)]
@@ -526,35 +526,31 @@ pub struct CommonDeclarationSettings {
     pub doc: Option<syn::Expr>,
 }
 impl CommonDeclarationSettings {
-    fn apply_meta(&mut self, expr: syn::Expr) -> Result<(), Error> {
-        match expr {
-            syn::Expr::Assign(assign) => {
-                let name =
-                    expr_to_single_string(&assign.left).ok_or_else(|| Error::new_spanned(&assign.left, "Expected identifier"))?;
-                match name.as_str() {
-                    "vis" => {
-                        if let syn::Expr::Lit(expr_lit) = &*assign.right {
-                            if let syn::Lit::Str(ref s) = expr_lit.lit {
-                                self.vis = Some(syn::parse_str(&s.value()).expect("invalid visibility found"));
-                            }
-                        }
-                        if self.vis.is_none() {
-                            panic!("invalid visibility found")
-                        }
-                        Ok(())
-                    }
-                    "name" => {
-                        self.name = Some(*assign.right);
-                        Ok(())
-                    }
-                    "doc" => {
-                        self.doc = Some(*assign.right);
-                        Ok(())
-                    }
-                    _ => Err(Error::new_spanned(&assign, format!("Unknown parameter {:?}", name))),
-                }
+    fn apply_meta(&mut self, expr: AttrArg) -> Result<(), Error> {
+        match expr.name().to_string().as_str() {
+            "vis" => {
+                let value = expr.key_value()?.value;
+                let syn::Expr::Lit(expr_lit) = value else {
+                    return Err(Error::new_spanned(value, "invalid visibility found"));
+                };
+                let syn::Lit::Str(expr_str) = expr_lit.lit else {
+                    return Err(Error::new_spanned(expr_lit, "invalid visibility found"));
+                };
+                self.vis = Some(syn::parse_str(&expr_str.value())?);
+                Ok(())
             }
-            _ => Err(Error::new_spanned(expr, "Expected (<...>=<...>)")),
+            "name" => {
+                self.name = Some(expr.key_value()?.value);
+                Ok(())
+            }
+            "doc" => {
+                self.doc = Some(expr.key_value()?.value);
+                Ok(())
+            }
+            _ => Err(Error::new_spanned(
+                expr.name(),
+                format!("Unknown parameter {:?}", expr.name().to_string()),
+            )),
         }
     }
 
@@ -598,31 +594,23 @@ pub struct BuildMethodSettings {
 }
 
 impl BuildMethodSettings {
-    fn apply_meta(&mut self, expr: syn::Expr) -> Result<(), Error> {
-        match &expr {
-            syn::Expr::Assign(assign) => {
-                let name =
-                    expr_to_single_string(&assign.left).ok_or_else(|| Error::new_spanned(&assign.left, "Expected identifier"))?;
-                if name.as_str() == "into" {
-                    let expr_path = match assign.right.as_ref() {
+    fn apply_meta(&mut self, expr: AttrArg) -> Result<(), Error> {
+        match expr.name().to_string().as_str() {
+            "into" => match expr {
+                AttrArg::Flag(_) => {
+                    self.into = IntoSetting::GenericConversion;
+                    Ok(())
+                }
+                AttrArg::KeyValue(key_value) => {
+                    let expr_path = match key_value.value {
                         syn::Expr::Path(expr_path) => expr_path,
-                        _ => return Err(Error::new_spanned(&assign.right, "Expected path expression type")),
+                        _ => return Err(Error::new_spanned(&key_value.value, "Expected path expression type")),
                     };
                     self.into = IntoSetting::TypeConversionToSpecificType(expr_path.clone());
                     Ok(())
-                } else {
-                    self.common.apply_meta(expr)
                 }
-            }
-            syn::Expr::Path(path) => {
-                let name = path_to_single_string(&path.path).ok_or_else(|| Error::new_spanned(path, "Expected identifier"))?;
-                if name.as_str() == "into" {
-                    self.into = IntoSetting::GenericConversion;
-                    Ok(())
-                } else {
-                    self.common.apply_meta(expr)
-                }
-            }
+                _ => Err(expr.incorrect_type()),
+            },
             _ => self.common.apply_meta(expr),
         }
     }
