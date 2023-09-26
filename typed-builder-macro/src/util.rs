@@ -139,6 +139,35 @@ pub enum AttrArg {
     Not { not: Token![!], name: Ident },
 }
 
+impl AttrArg {
+    pub fn name(&self) -> &Ident {
+        match self {
+            AttrArg::Flag(name) => name,
+            AttrArg::KeyValue(KeyValue { name, .. }) => name,
+            AttrArg::Sub(SubAttr { name, .. }) => name,
+            AttrArg::Not { name, .. } => name,
+        }
+    }
+
+    pub fn incorrect_type(&self) -> syn::Error {
+        let message = match self {
+            AttrArg::Flag(name) => format!("{:?} is not supported as a flag", name.to_string()),
+            AttrArg::KeyValue(KeyValue { name, .. }) => format!("{:?} is not supported as key-value", name.to_string()),
+            AttrArg::Sub(SubAttr { name, .. }) => format!("{:?} is not supported as nested attribute", name.to_string()),
+            AttrArg::Not { name, .. } => format!("{:?} cannot be nullified", name.to_string()),
+        };
+        syn::Error::new_spanned(self, message)
+    }
+
+    pub fn iter_if_sub<T: Parse>(self) -> syn::Result<impl IntoIterator<Item = T>> {
+        if let Self::Sub(sub) = self {
+            sub.args()
+        } else {
+            Err(self.incorrect_type())
+        }
+    }
+}
+
 pub struct KeyValue {
     pub name: Ident,
     pub eq: Token![=],

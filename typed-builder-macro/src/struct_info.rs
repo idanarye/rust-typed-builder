@@ -687,70 +687,67 @@ impl<'a> TypeBuilderAttr<'a> {
     }
 
     fn apply_meta(&mut self, expr: AttrArg) -> Result<(), Error> {
-        match expr {
-            AttrArg::KeyValue(KeyValue { ref name, ref value, .. }) => {
-                let gen_structure_depracation_error = |put_under: &str, new_name: &str| {
-                    Error::new_spanned(
-                        name,
-                        format!(
-                            "`{} = \"...\"` is deprecated - use `{}({} = \"...\")` instead",
-                            name, put_under, new_name
-                        ),
-                    )
-                };
-                match name.to_string().as_str() {
-                    "crate_module_path" => {
-                        if let syn::Expr::Path(crate_module_path) = &value {
-                            self.crate_module_path = crate_module_path.path.clone();
-                            Ok(())
-                        } else {
-                            Err(Error::new_spanned(value, "crate_module_path must be a path"))
-                        }
+        let name = expr.name();
+        let name_str = name.to_string();
+        let name_str = name_str.as_str();
+        match name_str {
+            "crate_module_path" => {
+                if let AttrArg::KeyValue(KeyValue { value, .. }) = expr {
+                    if let syn::Expr::Path(crate_module_path) = &value {
+                        self.crate_module_path = crate_module_path.path.clone();
+                        Ok(())
+                    } else {
+                        Err(Error::new_spanned(value, "crate_module_path must be a path"))
                     }
-                    "builder_method_doc" => Err(gen_structure_depracation_error("builder_method", "doc")),
-                    "builder_type_doc" => Err(gen_structure_depracation_error("builder_type", "doc")),
-                    "build_method_doc" => Err(gen_structure_depracation_error("build_method", "doc")),
-                    _ => Err(Error::new_spanned(&expr, format!("Unknown parameter {:?}", name))),
+                } else {
+                    Err(expr.incorrect_type())
                 }
             }
-            AttrArg::Flag(name) => match name.to_string().as_str() {
-                "doc" => {
+            "builder_method_doc" => Err(Error::new_spanned(
+                name,
+                "`builder_method_doc` is deprecated - use `builder_method(doc = \"...\")`",
+            )),
+            "builder_type_doc" => Err(Error::new_spanned(
+                name,
+                "`builder_typemethod_doc` is deprecated - use `builder_type(doc = \"...\")`",
+            )),
+            "build_method_doc" => Err(Error::new_spanned(
+                name,
+                "`build_method_doc` is deprecated - use `build_method(doc = \"...\")`",
+            )),
+            "doc" => {
+                if matches!(expr, AttrArg::Flag(..)) {
                     self.doc = true;
                     Ok(())
+                } else {
+                    Err(expr.incorrect_type())
                 }
-                _ => Err(Error::new_spanned(&name, format!("Unknown parameter {:?}", name))),
-            },
-            AttrArg::Sub(sub) => match sub.name.to_string().as_str() {
-                "field_defaults" => {
-                    for arg in sub.args()? {
-                        self.field_defaults.apply_meta(arg)?;
-                    }
-                    Ok(())
+            }
+            "field_defaults" => {
+                for arg in expr.iter_if_sub()? {
+                    self.field_defaults.apply_meta(arg)?;
                 }
-                "builder_method" => {
-                    for arg in sub.args()? {
-                        self.builder_method.apply_meta(arg)?;
-                    }
-                    Ok(())
+                Ok(())
+            }
+            "builder_method" => {
+                for arg in expr.iter_if_sub()? {
+                    self.builder_method.apply_meta(arg)?;
                 }
-                "builder_type" => {
-                    for arg in sub.args()? {
-                        self.builder_type.apply_meta(arg)?;
-                    }
-                    Ok(())
+                Ok(())
+            }
+            "builder_type" => {
+                for arg in expr.iter_if_sub()? {
+                    self.builder_type.apply_meta(arg)?;
                 }
-                "build_method" => {
-                    for arg in sub.args()? {
-                        self.build_method.apply_meta(arg)?;
-                    }
-                    Ok(())
+                Ok(())
+            }
+            "build_method" => {
+                for arg in expr.iter_if_sub()? {
+                    self.build_method.apply_meta(arg)?;
                 }
-                _ => Err(Error::new_spanned(
-                    &sub,
-                    format!("Illegal builder setting group name {}", sub.name),
-                )),
-            },
-            _ => Err(Error::new_spanned(expr, "Expected (<...>=<...>)")),
+                Ok(())
+            }
+            _ => Err(Error::new_spanned(name, format!("Unknown parameter {name_str:?}"))),
         }
     }
 }
