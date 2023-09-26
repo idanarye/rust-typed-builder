@@ -121,6 +121,7 @@ use core::ops::FnOnce;
 ///    #[derive(Default)]
 ///    struct Point { x: f32, y: f32 }
 ///    ```
+///
 /// - `mutators(...)` takes functions, that can mutate fields inside of the builder.
 ///   See [mutators](#mutators) for details.
 ///
@@ -142,6 +143,9 @@ use core::ops::FnOnce;
 ///
 /// - `via_mutators = …` or `via_mutators(init = …)`: initialies the field with the expression `…`
 ///   when constructing the builder, useful in combination with [mutators](#mutators).
+///
+/// - `mutators(...)` takes functions, that can mutate fields inside of the builder.
+///   Mutators specified on a field, mark this field as required, see [mutators](#mutators) for details.
 ///
 /// - `setter(...)`: settings for the field setters. The following values are permitted inside:
 ///
@@ -190,6 +194,10 @@ use core::ops::FnOnce;
 /// fields can be specified via `self: (field1, field2)` in the mutator's function signature.
 /// Mutators that require non `via_mutators` fields, will only be availible if these fields are set.
 ///
+/// Mutators on a field, result in them automatically making the field required, i.e., its setter
+/// needs to be executed or it needs to be marked as `via_mutators`. Appart from that, they behave
+/// identically.
+///
 /// ```
 /// use typed_builder::TypedBuilder;
 ///
@@ -206,6 +214,13 @@ use core::ops::FnOnce;
 ///     }
 /// ))]
 /// struct Struct {
+///     // Does not require `self: (x)`, due to always
+//      // requiring, the field the mutator is specifed on.
+///     #[builder(mutators(
+///         fn x_into_b_field(self) {
+///             self.b.push(self.x)
+///         }
+///     ))]
 ///     x: i32,
 ///     #[builder(via_mutators(init = 1))]
 ///     a: i32,
@@ -215,8 +230,8 @@ use core::ops::FnOnce;
 ///
 /// // Mutators do not enforce only being called once
 /// assert_eq!(
-///     Struct::builder().x(2).x_into_b().x_into_b().inc_a(2).build(),
-///     Struct {x: 2, a: 3, b: vec![2, 2]});
+///     Struct::builder().x(2).x_into_b().x_into_b().x_into_b_field().inc_a(2).build(),
+///     Struct {x: 2, a: 3, b: vec![2, 2, 2]});
 /// ```
 pub use typed_builder_macro::TypedBuilder;
 

@@ -1,4 +1,4 @@
-use std::iter;
+use std::{collections::HashSet, iter};
 
 use proc_macro2::{Ident, Span, TokenStream};
 use quote::{format_ident, ToTokens};
@@ -308,12 +308,10 @@ pub trait ApplyMeta {
     }
 }
 
-
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Mutator {
     pub fun: ItemFn,
-    pub required_fields: Vec<Ident>,
-    pub required_fields_span: Span,
+    pub required_fields: HashSet<Ident>,
 }
 
 impl Parse for Mutator {
@@ -321,8 +319,7 @@ impl Parse for Mutator {
         let mut fun: ItemFn = input.parse()?;
 
         // Parse receiver
-        let requires;
-        let required_fields_span;
+        let required_fields;
         if let Some(FnArg::Receiver(receiver)) = fun.sig.inputs.first_mut() {
             // If `: (...)` was specified, this will define the required fields
             if receiver.colon_token.is_some() {
@@ -338,17 +335,15 @@ impl Parse for Mutator {
                         ))
                     }
                 };
-                requires = fields
+                required_fields = fields
                     .into_iter()
                     .map(|field| match field {
                         Type::Path(field) => field.path.require_ident().cloned(),
                         other => Err(syn::Error::new_spanned(other, "expected field identifier")),
                     })
                     .collect::<Result<_, _>>()?;
-                required_fields_span = receiver.ty.span();
             } else {
-                requires = vec![];
-                required_fields_span = receiver.self_token.span();
+                required_fields = Default::default();
             }
             *receiver = parse_quote!(&mut self);
         } else {
@@ -363,11 +358,7 @@ impl Parse for Mutator {
             ));
         };
 
-        Ok(Self {
-            fun,
-            required_fields: requires,
-            required_fields_span,
-        })
+        Ok(Self { fun, required_fields })
     }
 }
 

@@ -6,8 +6,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 ### Added
-- `#[builder(mutators(...))]` to generate functions on `Builder` able to 
-  mutate fields
+- `#[builder(mutators(...))]` to generate functions on builder to mutate fields
 - `#[builder(via_mutator)]` on fields to allow defining fields initialized 
   during `::builder()` for use with `mutators`
 

@@ -1,7 +1,5 @@
-use std::collections::HashSet;
-
 use proc_macro2::{Ident, Span, TokenStream};
-use quote::{quote, quote_spanned, ToTokens};
+use quote::{format_ident, quote, quote_spanned, ToTokens};
 use syn::parse::Error;
 use syn::punctuated::Punctuated;
 use syn::{parse_quote, GenericArgument, ItemFn, Token};
@@ -417,12 +415,11 @@ impl<'a> StructInfo<'a> {
         mutator @ Mutator {
             fun: mutator_fn,
             required_fields,
-            required_fields_span,
         }: &Mutator,
     ) -> syn::Result<TokenStream> {
         let StructInfo { ref builder_name, .. } = *self;
 
-        let mut required_fields: HashSet<_> = required_fields.iter().collect();
+        let mut required_fields = required_fields.clone();
 
         let mut ty_generics = self.generic_argumnents();
         let mut destructuring = TokenStream::new();
@@ -446,7 +443,7 @@ impl<'a> StructInfo<'a> {
         ty_generics.push(syn::GenericArgument::Type(ty_generics_tuple.into()));
         let (impl_generics, _, where_clause) = generics.split_for_impl();
 
-        let mutator_struct_name = Ident::new("TypedBuilderFieldMutator", *required_fields_span);
+        let mutator_struct_name = format_ident!("TypedBuilderFieldMutator");
 
         let ItemFn { attrs, vis, .. } = mutator_fn;
         let sig = mutator.outer_sig(parse_quote!(#builder_name <#ty_generics>));

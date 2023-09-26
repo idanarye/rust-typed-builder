@@ -1,9 +1,9 @@
 use proc_macro2::{Ident, Span, TokenStream};
 use quote::quote_spanned;
-use syn::{parse::Error, spanned::Spanned, ItemFn};
+use syn::{parse::Error, spanned::Spanned};
 
 use crate::util::{
-    expr_to_lit_string, ident_to_type, path_to_single_string, strip_raw_ident_prefix, ApplyMeta, AttrArg, KeyValue,
+    expr_to_lit_string, ident_to_type, path_to_single_string, strip_raw_ident_prefix, ApplyMeta, AttrArg, KeyValue, Mutator,
 };
 
 #[derive(Debug)]
@@ -23,7 +23,7 @@ impl<'a> FieldInfo<'a> {
                 name,
                 generic_ident: syn::Ident::new(&format!("__{}", strip_raw_ident_prefix(name.to_string())), Span::call_site()),
                 ty: &field.ty,
-                builder_attr: field_defaults.with(&field.attrs)?,
+                builder_attr: field_defaults.with(&field.attrs, name)?,
             }
             .post_process()
         } else {
@@ -117,7 +117,8 @@ pub struct FieldBuilderAttr<'a> {
     pub via_mutators: Option<syn::Expr>,
     pub deprecated: Option<&'a syn::Attribute>,
     pub setter: SetterSettings,
-    pub mutators: Vec<ItemFn>,
+    /// Functions that are able to mutate fields in the builder that are already set
+    pub mutators: Vec<Mutator>,
     pub mutable_during_default_resolution: Option<Span>,
 }
 
@@ -134,7 +135,7 @@ pub struct SetterSettings {
 }
 
 impl<'a> FieldBuilderAttr<'a> {
-    pub fn with(mut self, attrs: &'a [syn::Attribute]) -> Result<Self, Error> {
+    pub fn with(mut self, attrs: &'a [syn::Attribute], name: &Ident) -> Result<Self, Error> {
         for attr in attrs {
             let list = match &attr.meta {
                 syn::Meta::List(list) => {
@@ -163,6 +164,10 @@ impl<'a> FieldBuilderAttr<'a> {
             };
 
             self.apply_subsections(list)?;
+        }
+
+        for mutator in self.mutators.iter_mut() {
+            mutator.required_fields.insert(name.clone());
         }
 
         self.inter_fields_conflicts()?;
@@ -275,6 +280,7 @@ impl ApplyMeta for FieldBuilderAttr<'_> {
                 }
                 Ok(())
             }
+            "mutators" => expr.sub_attr()?.undelimited().map(|fns| self.mutators.extend(fns)),
             _ => Err(Error::new_spanned(
                 expr.name(),
                 format!("Unknown parameter {:?}", expr.name().to_string()),

@@ -873,3 +873,36 @@ fn test_mutators_item() {
     let foo = Foo::builder().x(1).inc_x_by(4).inc_y_by_x().build();
     assert_eq!(foo, Foo { x: 5, y: 5, z: 2, w: 2 });
 }
+
+#[test]
+fn test_mutators_field() {
+    #[derive(Debug, PartialEq, TypedBuilder)]
+    #[builder(mutators())]
+    struct Foo {
+        #[builder(mutators(
+            fn inc_x(self: (x)) {
+                self.x += 1;
+            }
+            fn inc_y_by_x(self: (y)) {
+                self.y += self.x;
+            }
+        ))]
+        x: i32,
+        #[builder(default)]
+        y: i32,
+        #[builder(via_mutators = 2, mutators(
+            fn inc_preset(self) {
+                self.z += 1;
+                self.w += 1;
+            }
+        ))]
+        z: i32,
+        #[builder(via_mutators(init = 2))]
+        w: i32,
+    }
+
+    let foo = Foo::builder().x(1).inc_x().inc_preset().build();
+    assert_eq!(foo, Foo { x: 2, y: 0, z: 3, w: 3 });
+    let foo = Foo::builder().x(1).y(1).inc_y_by_x().build();
+    assert_eq!(foo, Foo { x: 1, y: 2, z: 2, w: 2 });
+}
