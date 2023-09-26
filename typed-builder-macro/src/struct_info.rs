@@ -4,8 +4,8 @@ use syn::parse::Error;
 
 use crate::field_info::{FieldBuilderAttr, FieldInfo};
 use crate::util::{
-    apply_subsections, empty_type, empty_type_tuple, first_visibility, modify_types_generics_hack, path_to_single_string,
-    public_visibility, strip_raw_ident_prefix, type_tuple, AttrArg,
+    empty_type, empty_type_tuple, first_visibility, modify_types_generics_hack, path_to_single_string, public_visibility,
+    strip_raw_ident_prefix, type_tuple, ApplyMeta, AttrArg,
 };
 
 #[derive(Debug)]
@@ -525,7 +525,7 @@ pub struct CommonDeclarationSettings {
     pub name: Option<syn::Expr>,
     pub doc: Option<syn::Expr>,
 }
-impl CommonDeclarationSettings {
+impl ApplyMeta for CommonDeclarationSettings {
     fn apply_meta(&mut self, expr: AttrArg) -> Result<(), Error> {
         match expr.name().to_string().as_str() {
             "vis" => {
@@ -553,7 +553,9 @@ impl CommonDeclarationSettings {
             )),
         }
     }
+}
 
+impl CommonDeclarationSettings {
     fn get_name(&self) -> Option<TokenStream> {
         self.name.as_ref().map(|name| name.to_token_stream())
     }
@@ -593,7 +595,7 @@ pub struct BuildMethodSettings {
     pub into: IntoSetting,
 }
 
-impl BuildMethodSettings {
+impl ApplyMeta for BuildMethodSettings {
     fn apply_meta(&mut self, expr: AttrArg) -> Result<(), Error> {
         match expr.name().to_string().as_str() {
             "into" => match expr {
@@ -664,7 +666,7 @@ impl<'a> TypeBuilderAttr<'a> {
                 _ => continue,
             };
 
-            apply_subsections(list, |expr| result.apply_meta(expr))?;
+            result.apply_subsections(list)?;
         }
 
         if result.builder_type.doc.is_some() || result.build_method.common.doc.is_some() {
@@ -673,7 +675,9 @@ impl<'a> TypeBuilderAttr<'a> {
 
         Ok(result)
     }
+}
 
+impl ApplyMeta for TypeBuilderAttr<'_> {
     fn apply_meta(&mut self, expr: AttrArg) -> Result<(), Error> {
         match expr.name().to_string().as_str() {
             "crate_module_path" => {
@@ -702,30 +706,10 @@ impl<'a> TypeBuilderAttr<'a> {
                 self.doc = true;
                 Ok(())
             }
-            "field_defaults" => {
-                for arg in expr.sub_attr()?.args()? {
-                    self.field_defaults.apply_meta(arg)?;
-                }
-                Ok(())
-            }
-            "builder_method" => {
-                for arg in expr.sub_attr()?.args()? {
-                    self.builder_method.apply_meta(arg)?;
-                }
-                Ok(())
-            }
-            "builder_type" => {
-                for arg in expr.sub_attr()?.args()? {
-                    self.builder_type.apply_meta(arg)?;
-                }
-                Ok(())
-            }
-            "build_method" => {
-                for arg in expr.sub_attr()?.args()? {
-                    self.build_method.apply_meta(arg)?;
-                }
-                Ok(())
-            }
+            "field_defaults" => self.field_defaults.apply_sub_attr(expr),
+            "builder_method" => self.builder_method.apply_sub_attr(expr),
+            "builder_type" => self.builder_type.apply_sub_attr(expr),
+            "build_method" => self.build_method.apply_sub_attr(expr),
             _ => Err(Error::new_spanned(
                 expr.name(),
                 format!("Unknown parameter {:?}", expr.name().to_string()),

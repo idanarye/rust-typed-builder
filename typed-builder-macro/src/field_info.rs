@@ -2,7 +2,7 @@ use proc_macro2::{Ident, Span, TokenStream};
 use quote::quote_spanned;
 use syn::{parse::Error, spanned::Spanned, ItemFn};
 
-use crate::util::{apply_subsections, expr_to_lit_string, ident_to_type, path_to_single_string, strip_raw_ident_prefix, AttrArg};
+use crate::util::{expr_to_lit_string, ident_to_type, path_to_single_string, strip_raw_ident_prefix, ApplyMeta, AttrArg};
 
 #[derive(Debug)]
 pub struct FieldInfo<'a> {
@@ -158,58 +158,12 @@ impl<'a> FieldBuilderAttr<'a> {
                 }
             };
 
-            apply_subsections(list, |expr| self.apply_meta(expr))?;
+            self.apply_subsections(list)?;
         }
 
         self.inter_fields_conflicts()?;
 
         Ok(self)
-    }
-
-    pub fn apply_meta(&mut self, expr: AttrArg) -> Result<(), Error> {
-        match expr.name().to_string().as_str() {
-            "default" => match expr {
-                AttrArg::Flag(ident) => {
-                    self.default =
-                        Some(syn::parse2(quote_spanned!(ident.span() => ::core::default::Default::default())).unwrap());
-                    Ok(())
-                }
-                AttrArg::KeyValue(key_value) => {
-                    self.default = Some(key_value.value);
-                    Ok(())
-                }
-                AttrArg::Not { .. } => {
-                    self.default = None;
-                    Ok(())
-                }
-                AttrArg::Sub(_) => Err(expr.incorrect_type()),
-            },
-            "default_code" => {
-                let value = expr.key_value()?.value;
-                if let syn::Expr::Lit(syn::ExprLit {
-                    lit: syn::Lit::Str(code),
-                    ..
-                }) = value
-                {
-                    use std::str::FromStr;
-                    let tokenized_code = TokenStream::from_str(&code.value())?;
-                    self.default = Some(syn::parse2(tokenized_code).map_err(|e| Error::new_spanned(code, format!("{}", e)))?);
-                } else {
-                    return Err(Error::new_spanned(value, "Expected string"));
-                }
-                Ok(())
-            }
-            "setter" => {
-                for arg in expr.sub_attr()?.args()? {
-                    self.setter.apply_meta(arg)?;
-                }
-                Ok(())
-            }
-            _ => Err(Error::new_spanned(
-                expr.name(),
-                format!("Unknown parameter {:?}", expr.name().to_string()),
-            )),
-        }
     }
 
     fn inter_fields_conflicts(&self) -> Result<(), Error> {
@@ -249,7 +203,50 @@ impl<'a> FieldBuilderAttr<'a> {
     }
 }
 
-impl SetterSettings {
+impl ApplyMeta for FieldBuilderAttr<'_> {
+    fn apply_meta(&mut self, expr: AttrArg) -> Result<(), Error> {
+        match expr.name().to_string().as_str() {
+            "default" => match expr {
+                AttrArg::Flag(ident) => {
+                    self.default =
+                        Some(syn::parse2(quote_spanned!(ident.span() => ::core::default::Default::default())).unwrap());
+                    Ok(())
+                }
+                AttrArg::KeyValue(key_value) => {
+                    self.default = Some(key_value.value);
+                    Ok(())
+                }
+                AttrArg::Not { .. } => {
+                    self.default = None;
+                    Ok(())
+                }
+                AttrArg::Sub(_) => Err(expr.incorrect_type()),
+            },
+            "default_code" => {
+                let value = expr.key_value()?.value;
+                if let syn::Expr::Lit(syn::ExprLit {
+                    lit: syn::Lit::Str(code),
+                    ..
+                }) = value
+                {
+                    use std::str::FromStr;
+                    let tokenized_code = TokenStream::from_str(&code.value())?;
+                    self.default = Some(syn::parse2(tokenized_code).map_err(|e| Error::new_spanned(code, format!("{}", e)))?);
+                } else {
+                    return Err(Error::new_spanned(value, "Expected string"));
+                }
+                Ok(())
+            }
+            "setter" => self.setter.apply_sub_attr(expr),
+            _ => Err(Error::new_spanned(
+                expr.name(),
+                format!("Unknown parameter {:?}", expr.name().to_string()),
+            )),
+        }
+    }
+}
+
+impl ApplyMeta for SetterSettings {
     fn apply_meta(&mut self, expr: AttrArg) -> Result<(), Error> {
         match expr.name().to_string().as_str() {
             "doc" => {

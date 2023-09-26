@@ -97,23 +97,6 @@ pub fn public_visibility() -> syn::Visibility {
     syn::Visibility::Public(syn::token::Pub::default())
 }
 
-pub fn apply_subsections(
-    list: &syn::MetaList,
-    mut applier: impl FnMut(AttrArg) -> Result<(), syn::Error>,
-) -> Result<(), syn::Error> {
-    if list.tokens.is_empty() {
-        return Err(syn::Error::new_spanned(list, "Expected builder(…)"));
-    }
-
-    let parser = syn::punctuated::Punctuated::<_, syn::token::Comma>::parse_terminated;
-    let exprs = parser.parse2(list.tokens.clone())?;
-    for expr in exprs {
-        applier(expr)?;
-    }
-
-    Ok(())
-}
-
 pub fn expr_to_lit_string(expr: &syn::Expr) -> Result<String, Error> {
     match expr {
         syn::Expr::Lit(lit) => match &lit.lit {
@@ -202,13 +185,6 @@ impl AttrArg {
             }
             _ => Err(self.incorrect_type()),
         }
-        // if field {
-        // Err(Error::new(name.span(), concat!("Illegal setting - field is already ", $already)))
-        // } else {
-        // $checks;
-        // self.$field = Some(name.span());
-        // Ok(())
-        // }
     }
 }
 
@@ -287,5 +263,30 @@ impl ToTokens for AttrArg {
                 name.to_tokens(tokens);
             }
         }
+    }
+}
+
+pub trait ApplyMeta {
+    fn apply_meta(&mut self, expr: AttrArg) -> Result<(), Error>;
+
+    fn apply_sub_attr(&mut self, attr_arg: AttrArg) -> syn::Result<()> {
+        for arg in attr_arg.sub_attr()?.args()? {
+            self.apply_meta(arg)?;
+        }
+        Ok(())
+    }
+
+    fn apply_subsections(&mut self, list: &syn::MetaList) -> syn::Result<()> {
+        if list.tokens.is_empty() {
+            return Err(syn::Error::new_spanned(list, "Expected builder(…)"));
+        }
+
+        let parser = syn::punctuated::Punctuated::<_, syn::token::Comma>::parse_terminated;
+        let exprs = parser.parse2(list.tokens.clone())?;
+        for expr in exprs {
+            self.apply_meta(expr)?;
+        }
+
+        Ok(())
     }
 }
