@@ -159,9 +159,25 @@ impl AttrArg {
         syn::Error::new_spanned(self, message)
     }
 
-    pub fn iter_if_sub<T: Parse>(self) -> syn::Result<impl IntoIterator<Item = T>> {
-        if let Self::Sub(sub) = self {
-            sub.args()
+    pub fn flag(self) -> syn::Result<Ident> {
+        if let Self::Flag(name) = self {
+            Ok(name)
+        } else {
+            Err(self.incorrect_type())
+        }
+    }
+
+    pub fn key_value(self) -> syn::Result<KeyValue> {
+        if let Self::KeyValue(key_value) = self {
+            Ok(key_value)
+        } else {
+            Err(self.incorrect_type())
+        }
+    }
+
+    pub fn sub_attr(self) -> syn::Result<SubAttr> {
+        if let Self::Sub(sub_attr) = self {
+            Ok(sub_attr)
         } else {
             Err(self.incorrect_type())
         }

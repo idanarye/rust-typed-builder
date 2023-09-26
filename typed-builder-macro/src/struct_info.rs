@@ -5,7 +5,7 @@ use syn::parse::Error;
 use crate::field_info::{FieldBuilderAttr, FieldInfo};
 use crate::util::{
     apply_subsections, empty_type, empty_type_tuple, expr_to_single_string, first_visibility, modify_types_generics_hack,
-    path_to_single_string, public_visibility, strip_raw_ident_prefix, type_tuple, AttrArg, KeyValue,
+    path_to_single_string, public_visibility, strip_raw_ident_prefix, type_tuple, AttrArg,
 };
 
 #[derive(Debug)]
@@ -692,15 +692,12 @@ impl<'a> TypeBuilderAttr<'a> {
         let name_str = name_str.as_str();
         match name_str {
             "crate_module_path" => {
-                if let AttrArg::KeyValue(KeyValue { value, .. }) = expr {
-                    if let syn::Expr::Path(crate_module_path) = &value {
-                        self.crate_module_path = crate_module_path.path.clone();
-                        Ok(())
-                    } else {
-                        Err(Error::new_spanned(value, "crate_module_path must be a path"))
-                    }
+                let value = expr.key_value()?.value;
+                if let syn::Expr::Path(crate_module_path) = value {
+                    self.crate_module_path = crate_module_path.path.clone();
+                    Ok(())
                 } else {
-                    Err(expr.incorrect_type())
+                    Err(Error::new_spanned(value, "crate_module_path must be a path"))
                 }
             }
             "builder_method_doc" => Err(Error::new_spanned(
@@ -716,33 +713,30 @@ impl<'a> TypeBuilderAttr<'a> {
                 "`build_method_doc` is deprecated - use `build_method(doc = \"...\")`",
             )),
             "doc" => {
-                if matches!(expr, AttrArg::Flag(..)) {
-                    self.doc = true;
-                    Ok(())
-                } else {
-                    Err(expr.incorrect_type())
-                }
+                expr.flag()?;
+                self.doc = true;
+                Ok(())
             }
             "field_defaults" => {
-                for arg in expr.iter_if_sub()? {
+                for arg in expr.sub_attr()?.args()? {
                     self.field_defaults.apply_meta(arg)?;
                 }
                 Ok(())
             }
             "builder_method" => {
-                for arg in expr.iter_if_sub()? {
+                for arg in expr.sub_attr()?.args()? {
                     self.builder_method.apply_meta(arg)?;
                 }
                 Ok(())
             }
             "builder_type" => {
-                for arg in expr.iter_if_sub()? {
+                for arg in expr.sub_attr()?.args()? {
                     self.builder_type.apply_meta(arg)?;
                 }
                 Ok(())
             }
             "build_method" => {
-                for arg in expr.iter_if_sub()? {
+                for arg in expr.sub_attr()?.args()? {
                     self.build_method.apply_meta(arg)?;
                 }
                 Ok(())
