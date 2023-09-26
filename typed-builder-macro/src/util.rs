@@ -1,4 +1,4 @@
-use proc_macro2::{Ident, TokenStream};
+use proc_macro2::{Ident, Span, TokenStream};
 use quote::ToTokens;
 use syn::{
     parenthesized,
@@ -175,12 +175,48 @@ impl AttrArg {
         }
     }
 
+    pub fn key_value_or_not(self) -> syn::Result<Option<KeyValue>> {
+        match self {
+            Self::KeyValue(key_value) => Ok(Some(key_value)),
+            Self::Not { .. } => Ok(None),
+            _ => Err(self.incorrect_type()),
+        }
+    }
+
     pub fn sub_attr(self) -> syn::Result<SubAttr> {
         if let Self::Sub(sub_attr) = self {
             Ok(sub_attr)
         } else {
             Err(self.incorrect_type())
         }
+    }
+
+    pub fn apply_flag_to_field(self, field: &mut Option<Span>, caption: &str) -> syn::Result<()> {
+        match self {
+            AttrArg::Flag(flag) => {
+                if field.is_none() {
+                    *field = Some(flag.span());
+                    Ok(())
+                } else {
+                    Err(Error::new(
+                        flag.span(),
+                        format!("Illegal setting - field is already {caption}"),
+                    ))
+                }
+            }
+            AttrArg::Not { .. } => {
+                *field = None;
+                Ok(())
+            }
+            _ => Err(self.incorrect_type()),
+        }
+        // if field {
+        // Err(Error::new(name.span(), concat!("Illegal setting - field is already ", $already)))
+        // } else {
+        // $checks;
+        // self.$field = Some(name.span());
+        // Ok(())
+        // }
     }
 }
 

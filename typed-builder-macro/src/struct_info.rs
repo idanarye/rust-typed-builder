@@ -687,10 +687,7 @@ impl<'a> TypeBuilderAttr<'a> {
     }
 
     fn apply_meta(&mut self, expr: AttrArg) -> Result<(), Error> {
-        let name = expr.name();
-        let name_str = name.to_string();
-        let name_str = name_str.as_str();
-        match name_str {
+        match expr.name().to_string().as_str() {
             "crate_module_path" => {
                 let value = expr.key_value()?.value;
                 if let syn::Expr::Path(crate_module_path) = value {
@@ -701,15 +698,15 @@ impl<'a> TypeBuilderAttr<'a> {
                 }
             }
             "builder_method_doc" => Err(Error::new_spanned(
-                name,
+                expr.name(),
                 "`builder_method_doc` is deprecated - use `builder_method(doc = \"...\")`",
             )),
             "builder_type_doc" => Err(Error::new_spanned(
-                name,
+                expr.name(),
                 "`builder_typemethod_doc` is deprecated - use `builder_type(doc = \"...\")`",
             )),
             "build_method_doc" => Err(Error::new_spanned(
-                name,
+                expr.name(),
                 "`build_method_doc` is deprecated - use `build_method(doc = \"...\")`",
             )),
             "doc" => {
@@ -741,7 +738,10 @@ impl<'a> TypeBuilderAttr<'a> {
                 }
                 Ok(())
             }
-            _ => Err(Error::new_spanned(name, format!("Unknown parameter {name_str:?}"))),
+            _ => Err(Error::new_spanned(
+                expr.name(),
+                format!("Unknown parameter {:?}", expr.name().to_string()),
+            )),
         }
     }
 }

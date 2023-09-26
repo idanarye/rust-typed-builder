@@ -1,5 +1,5 @@
 use proc_macro2::{Ident, Span, TokenStream};
-use quote::quote;
+use quote::quote_spanned;
 use syn::{parse::Error, spanned::Spanned, ItemFn};
 
 use crate::util::{apply_subsections, expr_to_lit_string, ident_to_type, path_to_single_string, strip_raw_ident_prefix, AttrArg};
@@ -166,55 +166,49 @@ impl<'a> FieldBuilderAttr<'a> {
         Ok(self)
     }
 
-    pub fn apply_meta(&mut self, arg: AttrArg) -> Result<(), Error> {
-        match arg {
-            AttrArg::KeyValue(kv) => match kv.name.to_string().as_str() {
-                "default" => {
-                    self.default = Some(kv.value);
+    pub fn apply_meta(&mut self, expr: AttrArg) -> Result<(), Error> {
+        match expr.name().to_string().as_str() {
+            "default" => match expr {
+                AttrArg::Flag(ident) => {
+                    self.default =
+                        Some(syn::parse2(quote_spanned!(ident.span() => ::core::default::Default::default())).unwrap());
                     Ok(())
                 }
-                "default_code" => {
-                    if let syn::Expr::Lit(syn::ExprLit {
-                        lit: syn::Lit::Str(code),
-                        ..
-                    }) = kv.value
-                    {
-                        use std::str::FromStr;
-                        let tokenized_code = TokenStream::from_str(&code.value())?;
-                        self.default = Some(syn::parse2(tokenized_code).map_err(|e| Error::new_spanned(code, format!("{}", e)))?);
-                    } else {
-                        return Err(Error::new_spanned(kv.value, "Expected string"));
-                    }
+                AttrArg::KeyValue(key_value) => {
+                    self.default = Some(key_value.value);
                     Ok(())
                 }
-                _ => Err(Error::new_spanned(&kv, format!("Unknown parameter {:?}", kv.name))),
-            },
-            AttrArg::Flag(name) => match name.to_string().as_str() {
-                "default" => {
-                    self.default = Some(syn::parse2(quote!(::core::default::Default::default())).unwrap());
-                    Ok(())
-                }
-                _ => Err(Error::new_spanned(&name, format!("Unknown parameter {:?}", name))),
-            },
-            AttrArg::Sub(sub) => match sub.name.to_string().as_ref() {
-                "setter" => {
-                    for arg in sub.args()? {
-                        self.setter.apply_meta(arg)?;
-                    }
-                    Ok(())
-                }
-                _ => Err(Error::new_spanned(
-                    &sub.name,
-                    format!("Illegal builder setting group name {}", sub.name),
-                )),
-            },
-            AttrArg::Not { name, .. } => match name.to_string().as_str() {
-                "default" => {
+                AttrArg::Not { .. } => {
                     self.default = None;
                     Ok(())
                 }
-                _ => Err(Error::new_spanned(name, "Unknown setting".to_owned())),
+                AttrArg::Sub(_) => Err(expr.incorrect_type()),
             },
+            "default_code" => {
+                let value = expr.key_value()?.value;
+                if let syn::Expr::Lit(syn::ExprLit {
+                    lit: syn::Lit::Str(code),
+                    ..
+                }) = value
+                {
+                    use std::str::FromStr;
+                    let tokenized_code = TokenStream::from_str(&code.value())?;
+                    self.default = Some(syn::parse2(tokenized_code).map_err(|e| Error::new_spanned(code, format!("{}", e)))?);
+                } else {
+                    return Err(Error::new_spanned(value, "Expected string"));
+                }
+                Ok(())
+            }
+            "setter" => {
+                for arg in expr.sub_attr()?.args()? {
+                    self.setter.apply_meta(arg)?;
+                }
+                Ok(())
+            }
+            _ => Err(Error::new_spanned(
+                expr.name(),
+                format!("Unknown parameter {:?}", expr.name().to_string()),
+            )),
         }
     }
 
@@ -257,79 +251,43 @@ impl<'a> FieldBuilderAttr<'a> {
 
 impl SetterSettings {
     fn apply_meta(&mut self, expr: AttrArg) -> Result<(), Error> {
-        match expr {
-            AttrArg::KeyValue(kv) => match kv.name.to_string().as_str() {
-                "doc" => {
-                    self.doc = Some(kv.value);
-                    Ok(())
-                }
-                "transform" => {
-                    self.transform = Some(parse_transform_closure(kv.name.span(), kv.value)?);
-                    Ok(())
-                }
-                "prefix" => {
-                    self.prefix = Some(expr_to_lit_string(&kv.value)?);
-                    Ok(())
-                }
-                "suffix" => {
-                    self.suffix = Some(expr_to_lit_string(&kv.value)?);
-                    Ok(())
-                }
-                _ => Err(Error::new_spanned(&kv, format!("Unknown parameter {:?}", kv.name))),
-            },
-            AttrArg::Flag(name) => {
-                macro_rules! handle_fields {
-                    ( $( $flag:expr, $field:ident, $already:expr, $checks:expr; )* ) => {
-                        match name.to_string().as_str() {
-                            $(
-                                $flag => {
-                                    if self.$field.is_some() {
-                                        Err(Error::new(name.span(), concat!("Illegal setting - field is already ", $already)))
-                                    } else {
-                                        $checks;
-                                        self.$field = Some(name.span());
-                                        Ok(())
-                                    }
-                                }
-                            )*
-                            _ => Err(Error::new_spanned(
-                                    &name,
-                                    format!("Unknown setter parameter {:?}", name),
-                            ))
-                        }
-                    }
-                }
-                handle_fields!(
-                    "skip", skip, "skipped", {};
-                    "into", auto_into, "calling into() on the argument", {};
-                    "strip_option", strip_option, "putting the argument in Some(...)", {};
-                    "strip_bool", strip_bool, "zero arguments setter, sets the field to true", {};
-                )
+        match expr.name().to_string().as_str() {
+            "doc" => {
+                self.doc = expr.key_value_or_not()?.map(|kv| kv.value);
+                Ok(())
             }
-            AttrArg::Not { name, .. } => match name.to_string().as_str() {
-                "doc" => {
-                    self.doc = None;
-                    Ok(())
-                }
-                "skip" => {
-                    self.skip = None;
-                    Ok(())
-                }
-                "auto_into" => {
-                    self.auto_into = None;
-                    Ok(())
-                }
-                "strip_option" => {
-                    self.strip_option = None;
-                    Ok(())
-                }
-                "strip_bool" => {
-                    self.strip_bool = None;
-                    Ok(())
-                }
-                _ => Err(Error::new_spanned(name, "Unknown setting".to_owned())),
-            },
-            _ => Err(Error::new_spanned(expr, "Expected (<...>=<...>)")),
+            "transform" => {
+                self.transform = if let Some(key_value) = expr.key_value_or_not()? {
+                    Some(parse_transform_closure(key_value.name.span(), key_value.value)?)
+                } else {
+                    None
+                };
+                Ok(())
+            }
+            "prefix" => {
+                self.prefix = if let Some(key_value) = expr.key_value_or_not()? {
+                    Some(expr_to_lit_string(&key_value.value)?)
+                } else {
+                    None
+                };
+                Ok(())
+            }
+            "suffix" => {
+                self.suffix = if let Some(key_value) = expr.key_value_or_not()? {
+                    Some(expr_to_lit_string(&key_value.value)?)
+                } else {
+                    None
+                };
+                Ok(())
+            }
+            "skip" => expr.apply_flag_to_field(&mut self.skip, "skipped"),
+            "into" => expr.apply_flag_to_field(&mut self.auto_into, "calling into() on the argument"),
+            "strip_option" => expr.apply_flag_to_field(&mut self.strip_option, "putting the argument in Some(...)"),
+            "strip_bool" => expr.apply_flag_to_field(&mut self.strip_bool, "zero arguments setter, sets the field to true"),
+            _ => Err(Error::new_spanned(
+                expr.name(),
+                format!("Unknown parameter {:?}", expr.name().to_string()),
+            )),
         }
     }
 }
