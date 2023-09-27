@@ -1,5 +1,5 @@
 use proc_macro2::{Ident, Span, TokenStream};
-use quote::{quote, ToTokens};
+use quote::{quote, quote_spanned, ToTokens};
 use syn::parse::Error;
 
 use crate::field_info::{FieldBuilderAttr, FieldInfo};
@@ -461,8 +461,8 @@ impl<'a> StructInfo<'a> {
         let assignments = self.fields.iter().map(|field| {
             let name = &field.name;
 
-            let maybe_mut = if field.builder_attr.mutable_during_default_resolution.is_some() {
-                quote!(mut)
+            let maybe_mut = if let Some(span) = field.builder_attr.mutable_during_default_resolution {
+                quote_spanned!(span => mut)
             } else {
                 quote!()
             };
