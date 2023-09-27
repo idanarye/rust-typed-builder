@@ -8,7 +8,7 @@ use syn::{
     parse_quote,
     punctuated::Punctuated,
     spanned::Spanned,
-    token, Error, Expr, FnArg, ItemFn, Pat, PatIdent, ReturnType, Signature, Token, Type,
+    token, Attribute, Error, Expr, FnArg, ItemFn, Pat, PatIdent, ReturnType, Signature, Token, Type,
 };
 
 pub fn path_to_single_string(path: &syn::Path) -> Option<String> {
@@ -306,6 +306,13 @@ pub trait ApplyMeta {
 
         Ok(())
     }
+
+    fn apply_attr(&mut self, attr: &Attribute) -> syn::Result<()> {
+        match &attr.meta {
+            syn::Meta::List(list) => self.apply_subsections(list),
+            meta => Err(Error::new_spanned(meta, "Expected builder(…)")),
+        }
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -314,37 +321,59 @@ pub struct Mutator {
     pub required_fields: HashSet<Ident>,
 }
 
+#[derive(Default)]
+struct MutatorAttribute {
+    requires: HashSet<Ident>,
+}
+
+impl ApplyMeta for MutatorAttribute {
+    fn apply_meta(&mut self, expr: AttrArg) -> Result<(), Error> {
+        if expr.name() != "requires" {
+            return Err(Error::new_spanned(expr.name(), "Only `requires` is supported"));
+        }
+
+        match expr.key_value()?.value {
+            Expr::Array(syn::ExprArray { elems, .. }) => self.requires.extend(
+                elems
+                    .into_iter()
+                    .map(|expr| match expr {
+                        Expr::Path(path) if path.path.get_ident().is_some() => {
+                            Ok(path.path.get_ident().cloned().expect("should be ident"))
+                        }
+                        expr => Err(Error::new_spanned(expr, "Expected field name")),
+                    })
+                    .collect::<Result<Vec<_>, _>>()?,
+            ),
+            expr => {
+                return Err(Error::new_spanned(
+                    expr,
+                    "Only list of field names [field1, field2, …] supported",
+                ))
+            }
+        }
+        Ok(())
+    }
+}
+
 impl Parse for Mutator {
     fn parse(input: ParseStream) -> syn::Result<Self> {
         let mut fun: ItemFn = input.parse()?;
 
-        // Parse receiver
-        let required_fields;
-        if let Some(FnArg::Receiver(receiver)) = fun.sig.inputs.first_mut() {
-            // If `: (...)` was specified, this will define the required fields
-            if receiver.colon_token.is_some() {
-                let fields = match &*receiver.ty {
-                    Type::Paren(ty) => {
-                        vec![&*ty.elem]
-                    }
-                    Type::Tuple(ty) => ty.elems.iter().collect(),
-                    ty => {
-                        return Err(syn::Error::new_spanned(
-                            ty,
-                            "expected (field, field2) to specify required fields",
-                        ))
-                    }
-                };
-                required_fields = fields
-                    .into_iter()
-                    .map(|field| match field {
-                        Type::Path(field) => field.path.require_ident().cloned(),
-                        other => Err(syn::Error::new_spanned(other, "expected field identifier")),
-                    })
-                    .collect::<Result<_, _>>()?;
+        let mut attribute = MutatorAttribute::default();
+
+        let mut i = 0;
+        while i < fun.attrs.len() {
+            let attr = &fun.attrs[i];
+            if attr.path().is_ident("mutator") {
+                attribute.apply_attr(attr)?;
+                fun.attrs.remove(i);
             } else {
-                required_fields = Default::default();
+                i += 1;
             }
+        }
+
+        // Ensure `&mut self` receiver
+        if let Some(FnArg::Receiver(receiver)) = fun.sig.inputs.first_mut() {
             *receiver = parse_quote!(&mut self);
         } else {
             // Error either on first argument or `()`
@@ -358,7 +387,10 @@ impl Parse for Mutator {
             ));
         };
 
-        Ok(Self { fun, required_fields })
+        Ok(Self {
+            fun,
+            required_fields: attribute.requires,
+        })
     }
 }
 
@@ -374,7 +406,6 @@ impl Mutator {
     /// Signature for Builder::<mutator> function
     pub fn outer_sig(&self, output: Type) -> Signature {
         let mut sig = self.fun.sig.clone();
-        *sig.inputs.first_mut().expect("should have receiver") = parse_quote!(self);
         sig.output = ReturnType::Type(Default::default(), output.into());
 
         sig.inputs = sig

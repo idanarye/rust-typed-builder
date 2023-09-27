@@ -843,10 +843,12 @@ fn test_preinitialized_fields() {
 fn test_mutators_item() {
     #[derive(Debug, PartialEq, TypedBuilder)]
     #[builder(mutators(
-        fn inc_x(self: (x)) {
+        #[mutator(requires = [x])]
+        fn inc_x(self) {
             self.x += 1;
         }
-        fn inc_x_by(self: (x), x: i32) {
+        #[mutator(requires = [x])]
+        fn inc_x_by(self, x: i32) {
             self.x += x;
         }
         fn inc_preset(self) {
@@ -854,7 +856,8 @@ fn test_mutators_item() {
             self.z += 1;
             self.w += 1;
         }
-        fn inc_y_by_x(self:(x)) {
+        #[mutator(requires = [x])]
+        fn inc_y_by_x(self) {
             self.y += self.x;
         }
     ))]
@@ -880,10 +883,11 @@ fn test_mutators_field() {
     #[builder(mutators())]
     struct Foo {
         #[builder(mutators(
-            fn inc_x(self: (x)) {
+            fn inc_x(self) {
                 self.x += 1;
             }
-            fn inc_y_by_x(self: (y)) {
+            #[mutator(requires = [y])]
+            fn inc_y_by_x(self) {
                 self.y += self.x;
             }
         ))]

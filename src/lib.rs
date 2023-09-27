@@ -54,7 +54,7 @@ use core::ops::FnOnce;
 ///
 /// # Customization with attributes
 ///
-/// In addition to putting `#[derive(TypedBuilder)]` on a type, you can specify a `#[builder(…)]`
+/// In addition to putting `#[derive(TypedBuilder)]` on a type, you can specify a `#[builder(...)]`
 /// attribute on the type, and on any fields in it.
 ///
 /// On the **type**, the following values are permitted:
@@ -78,9 +78,9 @@ use core::ops::FnOnce;
 ///   - `build_method(...)`: customize the final build method
 ///
 ///   All have the same fields:
-///   - `vis = "…"`: sets the visibility of the build method, default is `pub`
-///   - `name = …`: sets the fn name of the build method, default is `build`
-///   - `doc = "…"` replaces the default documentation that will be generated for the
+///   - `vis = "..."`: sets the visibility of the build method, default is `pub`
+///   - `name = ...`: sets the fn name of the build method, default is `build`
+///   - `doc = "..."` replaces the default documentation that will be generated for the
 ///     `build()` method of the builder type. Setting this implies `doc`.
 ///
 ///
@@ -130,9 +130,9 @@ use core::ops::FnOnce;
 /// - `default`: make the field optional, defaulting to `Default::default()`. This requires that
 ///   the field type implement `Default`. Mutually exclusive with any other form of default.
 ///
-/// - `default = …`: make the field optional, defaulting to the expression `…`.
+/// - `default = ...`: make the field optional, defaulting to the expression `...`.
 ///
-/// - `default_code = "…"`: make the field optional, defaulting to the expression `…`. Note that
+/// - `default_code = "..."`: make the field optional, defaulting to the expression `...`. Note that
 ///    you need to enclose it in quotes, which allows you to use it together with other custom
 ///    derive proc-macro crates that complain about "expected literal".
 ///    Note that if `...` contains a string, you can use raw string literals to avoid escaping the
@@ -141,7 +141,7 @@ use core::ops::FnOnce;
 /// - `via_mutators`: initialize the field when constructing the builder, useful in combination
 ///   with [mutators](#mutators).
 ///
-/// - `via_mutators = …` or `via_mutators(init = …)`: initialies the field with the expression `…`
+/// - `via_mutators = ...` or `via_mutators(init = ...)`: initialies the field with the expression `...`
 ///   when constructing the builder, useful in combination with [mutators](#mutators).
 ///
 /// - `mutators(...)` takes functions, that can mutate fields inside of the builder.
@@ -149,7 +149,7 @@ use core::ops::FnOnce;
 ///
 /// - `setter(...)`: settings for the field setters. The following values are permitted inside:
 ///
-///   - `doc = "…"`: sets the documentation for the field's setter on the builder type. This will be
+///   - `doc = "..."`: sets the documentation for the field's setter on the builder type. This will be
 ///     of no value unless you enable docs for the builder type with `#[builder(doc)]` or similar on
 ///     the type.
 ///
@@ -190,32 +190,31 @@ use core::ops::FnOnce;
 /// # Mutators
 /// Set fields can be mutated using mutators, these can be defind via `mutators(...)`.
 ///
-/// Fields annotated with `#[builder(via_mutators)]` are always available to mutators. Additional
-/// fields can be specified via `self: (field1, field2)` in the mutator's function signature.
-/// Mutators that require non `via_mutators` fields, will only be availible if these fields are set.
+/// Fields annotated with `#[builder(via_mutators)]` are always available to mutators. Additional fields,
+/// that the mutator accesses need to be delcared using `#[mutator(requires = [field1, field2, ...])]`.
+/// The mutator will only be availible to call when they are set.
 ///
-/// Mutators on a field, result in them automatically making the field required, i.e., its setter
-/// needs to be executed or it needs to be marked as `via_mutators`. Appart from that, they behave
-/// identically.
+/// Mutators on a field, result in them automatically making the field required, i.e., it needs to be
+/// marked as `via_mutators`, or its setter be called. Appart from that, they behave identically.
 ///
 /// ```
 /// use typed_builder::TypedBuilder;
 ///
 /// #[derive(PartialEq, Debug, TypedBuilder)]
 /// #[builder(mutators(
-///     // &mut is optional
+///     // Mutator has only acces to fields marked as `via_mutators`.
 ///     fn inc_a(&mut self, a: i32){
 ///         self.a += a;
 ///     }
-///     // (x) defines what fields to require
-///     // &mut cannot be used in combination with :(field)
-///     fn x_into_b(self: (x)) {
+///     // Mutator has access to `x` additionally.
+///     #[mutator(requires = [x])]
+///     fn x_into_b(&mut self) {
 ///         self.b.push(self.x)
 ///     }
 /// ))]
 /// struct Struct {
-///     // Does not require `self: (x)`, due to always
-//      // requiring, the field the mutator is specifed on.
+///     // Does not require explicit `requires = [x]`, as the field
+///     // the mutator is specifed on, is required implicitly.
 ///     #[builder(mutators(
 ///         fn x_into_b_field(self) {
 ///             self.b.push(self.x)
