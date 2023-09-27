@@ -460,15 +460,23 @@ impl<'a> StructInfo<'a> {
         // reordering based on that, but for now this much simpler thing is a reasonable approach.
         let assignments = self.fields.iter().map(|field| {
             let name = &field.name;
+
+            let maybe_mut = if field.builder_attr.mutable_during_default_resolution.is_some() {
+                quote!(mut)
+            } else {
+                quote!()
+            };
+
             if let Some(ref default) = field.builder_attr.default {
                 if field.builder_attr.setter.skip.is_some() {
-                    quote!(let #name = #default;)
+                    quote!(let #maybe_mut #name = #default;)
                 } else {
                     let crate_module_path = &self.builder_attr.crate_module_path;
-                    quote!(let #name = #crate_module_path::Optional::into_value(#name, || #default);)
+
+                    quote!(let #maybe_mut #name = #crate_module_path::Optional::into_value(#name, || #default);)
                 }
             } else {
-                quote!(let #name = #name.0;)
+                quote!(let #maybe_mut #name = #name.0;)
             }
         });
         let field_names = self.fields.iter().map(|field| field.name);

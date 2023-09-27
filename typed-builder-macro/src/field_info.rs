@@ -115,6 +115,7 @@ pub struct FieldBuilderAttr<'a> {
     pub deprecated: Option<&'a syn::Attribute>,
     pub setter: SetterSettings,
     pub mutators: Vec<ItemFn>,
+    pub mutable_during_default_resolution: Option<Span>,
 }
 
 #[derive(Debug, Default, Clone)]
@@ -238,6 +239,10 @@ impl ApplyMeta for FieldBuilderAttr<'_> {
                 Ok(())
             }
             "setter" => self.setter.apply_sub_attr(expr),
+            "mutable_during_default_resolution" => expr.apply_flag_to_field(
+                &mut self.mutable_during_default_resolution,
+                "made mutable during default resolution",
+            ),
             _ => Err(Error::new_spanned(
                 expr.name(),
                 format!("Unknown parameter {:?}", expr.name().to_string()),
