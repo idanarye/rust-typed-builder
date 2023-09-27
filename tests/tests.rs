@@ -800,3 +800,23 @@ fn test_issue_118() {
 
     let _ = Foo::<u32>::builder().build();
 }
+
+#[test]
+fn test_mutable_defaults() {
+    #[derive(TypedBuilder, PartialEq, Debug)]
+    struct Foo {
+        #[builder(default, mutable_during_default_resolution, setter(strip_option))]
+        x: Option<i32>,
+        #[builder(default = if let Some(x) = x.as_mut() {
+            *x *= 2;
+            *x
+        } else {
+            Default::default() 
+        })]
+        y: i32,
+    }
+
+    let foo = Foo::builder().x(5).build();
+
+    assert_eq!(foo, Foo { x: Some(10), y: 10 });
+}

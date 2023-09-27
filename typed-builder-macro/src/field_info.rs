@@ -116,6 +116,7 @@ pub struct FieldBuilderAttr<'a> {
     pub default: Option<syn::Expr>,
     pub deprecated: Option<&'a syn::Attribute>,
     pub setter: SetterSettings,
+    pub mutable_during_default_resolution: bool,
 }
 
 #[derive(Debug, Default, Clone)]
@@ -200,6 +201,10 @@ impl<'a> FieldBuilderAttr<'a> {
                 match name.as_str() {
                     "default" => {
                         self.default = Some(syn::parse2(quote!(::core::default::Default::default())).unwrap());
+                        Ok(())
+                    }
+                    "mutable_during_default_resolution" => {
+                        self.mutable_during_default_resolution = true;
                         Ok(())
                     }
                     _ => Err(Error::new_spanned(&path, format!("Unknown parameter {:?}", name))),

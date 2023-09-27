@@ -168,6 +168,10 @@ use core::ops::FnOnce;
 ///   - `suffix = "..."` appends the setter method with the specified suffix. For example, setting
 ///     `suffix = "_value"` results in setters like `x_value` or `y_value`. This option is combinable
 ///     with `prefix = "..."`.
+///
+///   - `mutable_during_default_resolution`: when expressions in `default = ...` field attributes
+///     are evaluated, this field will be mutable, allowing earlier-defined fields to be mutated by
+///     later-defined fields.
 pub use typed_builder_macro::TypedBuilder;
 
 #[doc(hidden)]
