@@ -4,8 +4,8 @@ use syn::parse::Error;
 
 use crate::field_info::{FieldBuilderAttr, FieldInfo};
 use crate::util::{
-    apply_subsections, empty_type, empty_type_tuple, expr_to_single_string, first_visibility, modify_types_generics_hack,
-    path_to_single_string, public_visibility, strip_raw_ident_prefix, type_tuple,
+    empty_type, empty_type_tuple, first_visibility, modify_types_generics_hack, path_to_single_string, public_visibility,
+    strip_raw_ident_prefix, type_tuple, ApplyMeta, AttrArg,
 };
 
 #[derive(Debug)]
@@ -545,39 +545,37 @@ pub struct CommonDeclarationSettings {
     pub name: Option<syn::Expr>,
     pub doc: Option<syn::Expr>,
 }
-impl CommonDeclarationSettings {
-    fn apply_meta(&mut self, expr: syn::Expr) -> Result<(), Error> {
-        match expr {
-            syn::Expr::Assign(assign) => {
-                let name =
-                    expr_to_single_string(&assign.left).ok_or_else(|| Error::new_spanned(&assign.left, "Expected identifier"))?;
-                match name.as_str() {
-                    "vis" => {
-                        if let syn::Expr::Lit(expr_lit) = &*assign.right {
-                            if let syn::Lit::Str(ref s) = expr_lit.lit {
-                                self.vis = Some(syn::parse_str(&s.value()).expect("invalid visibility found"));
-                            }
-                        }
-                        if self.vis.is_none() {
-                            panic!("invalid visibility found")
-                        }
-                        Ok(())
-                    }
-                    "name" => {
-                        self.name = Some(*assign.right);
-                        Ok(())
-                    }
-                    "doc" => {
-                        self.doc = Some(*assign.right);
-                        Ok(())
-                    }
-                    _ => Err(Error::new_spanned(&assign, format!("Unknown parameter {:?}", name))),
-                }
+impl ApplyMeta for CommonDeclarationSettings {
+    fn apply_meta(&mut self, expr: AttrArg) -> Result<(), Error> {
+        match expr.name().to_string().as_str() {
+            "vis" => {
+                let value = expr.key_value()?.value;
+                let syn::Expr::Lit(expr_lit) = value else {
+                    return Err(Error::new_spanned(value, "invalid visibility found"));
+                };
+                let syn::Lit::Str(expr_str) = expr_lit.lit else {
+                    return Err(Error::new_spanned(expr_lit, "invalid visibility found"));
+                };
+                self.vis = Some(syn::parse_str(&expr_str.value())?);
+                Ok(())
             }
-            _ => Err(Error::new_spanned(expr, "Expected (<...>=<...>)")),
+            "name" => {
+                self.name = Some(expr.key_value()?.value);
+                Ok(())
+            }
+            "doc" => {
+                self.doc = Some(expr.key_value()?.value);
+                Ok(())
+            }
+            _ => Err(Error::new_spanned(
+                expr.name(),
+                format!("Unknown parameter {:?}", expr.name().to_string()),
+            )),
         }
     }
+}
 
+impl CommonDeclarationSettings {
     fn get_name(&self) -> Option<TokenStream> {
         self.name.as_ref().map(|name| name.to_token_stream())
     }
@@ -617,32 +615,24 @@ pub struct BuildMethodSettings {
     pub into: IntoSetting,
 }
 
-impl BuildMethodSettings {
-    fn apply_meta(&mut self, expr: syn::Expr) -> Result<(), Error> {
-        match &expr {
-            syn::Expr::Assign(assign) => {
-                let name =
-                    expr_to_single_string(&assign.left).ok_or_else(|| Error::new_spanned(&assign.left, "Expected identifier"))?;
-                if name.as_str() == "into" {
-                    let expr_path = match assign.right.as_ref() {
+impl ApplyMeta for BuildMethodSettings {
+    fn apply_meta(&mut self, expr: AttrArg) -> Result<(), Error> {
+        match expr.name().to_string().as_str() {
+            "into" => match expr {
+                AttrArg::Flag(_) => {
+                    self.into = IntoSetting::GenericConversion;
+                    Ok(())
+                }
+                AttrArg::KeyValue(key_value) => {
+                    let expr_path = match key_value.value {
                         syn::Expr::Path(expr_path) => expr_path,
-                        _ => return Err(Error::new_spanned(&assign.right, "Expected path expression type")),
+                        _ => return Err(Error::new_spanned(&key_value.value, "Expected path expression type")),
                     };
                     self.into = IntoSetting::TypeConversionToSpecificType(expr_path.clone());
                     Ok(())
-                } else {
-                    self.common.apply_meta(expr)
                 }
-            }
-            syn::Expr::Path(path) => {
-                let name = path_to_single_string(&path.path).ok_or_else(|| Error::new_spanned(path, "Expected identifier"))?;
-                if name.as_str() == "into" {
-                    self.into = IntoSetting::GenericConversion;
-                    Ok(())
-                } else {
-                    self.common.apply_meta(expr)
-                }
-            }
+                _ => Err(expr.incorrect_type()),
+            },
             _ => self.common.apply_meta(expr),
         }
     }
@@ -696,7 +686,7 @@ impl<'a> TypeBuilderAttr<'a> {
                 _ => continue,
             };
 
-            apply_subsections(list, |expr| result.apply_meta(expr))?;
+            result.apply_subsections(list)?;
         }
 
         if result.builder_type.doc.is_some() || result.build_method.common.doc.is_some() {
@@ -705,90 +695,45 @@ impl<'a> TypeBuilderAttr<'a> {
 
         Ok(result)
     }
+}
 
-    fn apply_meta(&mut self, expr: syn::Expr) -> Result<(), Error> {
-        match expr {
-            syn::Expr::Assign(assign) => {
-                let name =
-                    expr_to_single_string(&assign.left).ok_or_else(|| Error::new_spanned(&assign.left, "Expected identifier"))?;
-
-                let gen_structure_depracation_error = |put_under: &str, new_name: &str| {
-                    Error::new_spanned(
-                        &assign.left,
-                        format!(
-                            "`{} = \"...\"` is deprecated - use `{}({} = \"...\")` instead",
-                            name, put_under, new_name
-                        ),
-                    )
-                };
-                match name.as_str() {
-                    "crate_module_path" => {
-                        if let syn::Expr::Path(crate_module_path) = assign.right.as_ref() {
-                            self.crate_module_path = crate_module_path.path.clone();
-                            Ok(())
-                        } else {
-                            Err(Error::new_spanned(&assign.right, "crate_module_path must be a path"))
-                        }
-                    }
-                    "builder_method_doc" => Err(gen_structure_depracation_error("builder_method", "doc")),
-                    "builder_type_doc" => Err(gen_structure_depracation_error("builder_type", "doc")),
-                    "build_method_doc" => Err(gen_structure_depracation_error("build_method", "doc")),
-                    _ => Err(Error::new_spanned(&assign, format!("Unknown parameter {:?}", name))),
-                }
-            }
-            syn::Expr::Path(path) => {
-                let name = path_to_single_string(&path.path).ok_or_else(|| Error::new_spanned(&path, "Expected identifier"))?;
-                match name.as_str() {
-                    "doc" => {
-                        self.doc = true;
-                        Ok(())
-                    }
-                    _ => Err(Error::new_spanned(&path, format!("Unknown parameter {:?}", name))),
-                }
-            }
-            syn::Expr::Call(call) => {
-                let subsetting_name = if let syn::Expr::Path(path) = &*call.func {
-                    path_to_single_string(&path.path)
+impl ApplyMeta for TypeBuilderAttr<'_> {
+    fn apply_meta(&mut self, expr: AttrArg) -> Result<(), Error> {
+        match expr.name().to_string().as_str() {
+            "crate_module_path" => {
+                let value = expr.key_value()?.value;
+                if let syn::Expr::Path(crate_module_path) = value {
+                    self.crate_module_path = crate_module_path.path.clone();
+                    Ok(())
                 } else {
-                    None
-                }
-                .ok_or_else(|| {
-                    let call_func = &call.func;
-                    let call_func = call_func.to_token_stream();
-                    Error::new_spanned(&call.func, format!("Illegal builder setting group {}", call_func))
-                })?;
-                match subsetting_name.as_str() {
-                    "field_defaults" => {
-                        for arg in call.args {
-                            self.field_defaults.apply_meta(arg)?;
-                        }
-                        Ok(())
-                    }
-                    "builder_method" => {
-                        for arg in call.args {
-                            self.builder_method.apply_meta(arg)?;
-                        }
-                        Ok(())
-                    }
-                    "builder_type" => {
-                        for arg in call.args {
-                            self.builder_type.apply_meta(arg)?;
-                        }
-                        Ok(())
-                    }
-                    "build_method" => {
-                        for arg in call.args {
-                            self.build_method.apply_meta(arg)?;
-                        }
-                        Ok(())
-                    }
-                    _ => Err(Error::new_spanned(
-                        &call.func,
-                        format!("Illegal builder setting group name {}", subsetting_name),
-                    )),
+                    Err(Error::new_spanned(value, "crate_module_path must be a path"))
                 }
             }
-            _ => Err(Error::new_spanned(expr, "Expected (<...>=<...>)")),
+            "builder_method_doc" => Err(Error::new_spanned(
+                expr.name(),
+                "`builder_method_doc` is deprecated - use `builder_method(doc = \"...\")`",
+            )),
+            "builder_type_doc" => Err(Error::new_spanned(
+                expr.name(),
+                "`builder_typemethod_doc` is deprecated - use `builder_type(doc = \"...\")`",
+            )),
+            "build_method_doc" => Err(Error::new_spanned(
+                expr.name(),
+                "`build_method_doc` is deprecated - use `build_method(doc = \"...\")`",
+            )),
+            "doc" => {
+                expr.flag()?;
+                self.doc = true;
+                Ok(())
+            }
+            "field_defaults" => self.field_defaults.apply_sub_attr(expr),
+            "builder_method" => self.builder_method.apply_sub_attr(expr),
+            "builder_type" => self.builder_type.apply_sub_attr(expr),
+            "build_method" => self.build_method.apply_sub_attr(expr),
+            _ => Err(Error::new_spanned(
+                expr.name(),
+                format!("Unknown parameter {:?}", expr.name().to_string()),
+            )),
         }
     }
 }

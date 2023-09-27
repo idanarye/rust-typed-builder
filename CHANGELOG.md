@@ -6,6 +6,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+### Changed
+- Internal refactor of attribute parsing - results in better error messages and
+  easier proces for adding new settings.
+
 ## 0.16.2 - 2023-09-22
 ### Fixed
 - Use generics with the constructor in `build` method (see issue #118)

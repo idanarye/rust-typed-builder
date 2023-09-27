@@ -1,4 +1,5 @@
 #![warn(clippy::pedantic)]
+#![allow(clippy::disallowed_names, clippy::type_complexity)]
 
 use typed_builder::TypedBuilder;
 
@@ -751,7 +752,7 @@ fn test_prefix() {
     }
 
     let foo = Foo::builder().with_x(1).with_y(2).build();
-    assert_eq!(foo, Foo { x: 1, y: 2 })
+    assert_eq!(foo, Foo { x: 1, y: 2 });
 }
 
 #[test]
@@ -764,7 +765,7 @@ fn test_suffix() {
     }
 
     let foo = Foo::builder().x_value(1).y_value(2).build();
-    assert_eq!(foo, Foo { x: 1, y: 2 })
+    assert_eq!(foo, Foo { x: 1, y: 2 });
 }
 
 #[test]
@@ -777,7 +778,7 @@ fn test_prefix_and_suffix() {
     }
 
     let foo = Foo::builder().with_x_value(1).with_y_value(2).build();
-    assert_eq!(foo, Foo { x: 1, y: 2 })
+    assert_eq!(foo, Foo { x: 1, y: 2 });
 }
 
 #[test]
