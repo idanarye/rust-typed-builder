@@ -172,6 +172,8 @@ use core::ops::FnOnce;
 ///   - `mutable_during_default_resolution`: when expressions in `default = ...` field attributes
 ///     are evaluated, this field will be mutable, allowing earlier-defined fields to be mutated by
 ///     later-defined fields.
+///     **Warning** - Use this feature with care! If the field that mutates the previous field in
+///     its `default` expression is set via a setter, that mutation will not happen.
 pub use typed_builder_macro::TypedBuilder;
 
 #[doc(hidden)]
