@@ -812,7 +812,7 @@ fn test_mutable_defaults() {
             *x *= 2;
             *x
         } else {
-            Default::default() 
+            Default::default()
         })]
         y: i32,
     }
