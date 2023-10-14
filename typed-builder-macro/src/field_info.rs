@@ -222,7 +222,7 @@ impl ApplyMeta for FieldBuilderAttr<'_> {
                     Ok(())
                 }
                 AttrArg::KeyValue(key_value) => {
-                    self.default = Some(key_value.value);
+                    self.default = Some(key_value.value.unwrap_left());
                     Ok(())
                 }
                 AttrArg::Not { .. } => {
@@ -233,10 +233,10 @@ impl ApplyMeta for FieldBuilderAttr<'_> {
             },
             "default_code" => {
                 let value = expr.key_value()?.value;
-                if let syn::Expr::Lit(syn::ExprLit {
+                if let Either::Left(syn::Expr::Lit(syn::ExprLit {
                     lit: syn::Lit::Str(code),
                     ..
-                }) = value
+                })) = value
                 {
                     use std::str::FromStr;
                     let tokenized_code = TokenStream::from_str(&code.value())?;
@@ -293,12 +293,12 @@ impl ApplyMeta for SetterSettings {
     fn apply_meta(&mut self, expr: AttrArg) -> Result<(), Error> {
         match expr.name().to_string().as_str() {
             "doc" => {
-                self.doc = expr.key_value_or_not()?.map(|kv| kv.value);
+                self.doc = expr.key_value_or_not()?.map(|kv| kv.value.unwrap_left());
                 Ok(())
             }
             "transform" => {
                 self.transform = if let Some(key_value) = expr.key_value_or_not()? {
-                    Some(parse_transform_closure(key_value.name.span(), key_value.value)?)
+                    Some(parse_transform_closure(key_value.name.span(), key_value.value.unwrap_left())?)
                 } else {
                     None
                 };
@@ -306,7 +306,7 @@ impl ApplyMeta for SetterSettings {
             }
             "prefix" => {
                 self.prefix = if let Some(key_value) = expr.key_value_or_not()? {
-                    Some(expr_to_lit_string(&key_value.value)?)
+                    Some(expr_to_lit_string(&key_value.value.unwrap_left())?)
                 } else {
                     None
                 };
@@ -314,7 +314,7 @@ impl ApplyMeta for SetterSettings {
             }
             "suffix" => {
                 self.suffix = if let Some(key_value) = expr.key_value_or_not()? {
-                    Some(expr_to_lit_string(&key_value.value)?)
+                    Some(expr_to_lit_string(&key_value.value.unwrap_left())?)
                 } else {
                     None
                 };

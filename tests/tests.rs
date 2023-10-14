@@ -720,6 +720,18 @@ fn test_into_set_generic_impl_from() {
 }
 
 #[test]
+fn test_into_angle_bracket_type() {
+    #[derive(Debug, PartialEq, TypedBuilder)]
+    #[builder(build_method(into = std::sync::Arc<Foo>))]
+    struct Foo {
+        value: i32,
+    }
+
+    let foo: std::sync::Arc<Foo> = Foo::builder().value(42).build();
+    assert_eq!(*foo, Foo { value: 42 });
+}
+
+#[test]
 fn test_into_set_generic_impl_into() {
     #[derive(TypedBuilder)]
     #[builder(build_method(into))]

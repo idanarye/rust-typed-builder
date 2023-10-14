@@ -192,10 +192,54 @@ impl AttrArg {
     }
 }
 
+#[derive(Clone, Debug)]
+pub enum Either<L, R> {
+    Left(L),
+    Right(R),
+}
+
+impl<L, R> Either<L, R> {
+    pub fn unwrap_left(self) -> L {
+        match self {
+            Self::Left(left) => left,
+            Self::Right(..) => panic!(),
+        }
+    }
+}
+
+impl<L, R> Parse for Either<L, R>
+where
+    L: Parse,
+    R: Parse,
+{
+    fn parse(input: syn::parse::ParseStream) -> syn::Result<Self> {
+        let fork = input.fork();
+        if let Ok(left) = fork.parse::<L>() {
+            input.advance_to(&fork);
+            Ok(Either::Left(left))
+        } else {
+            R::parse(input).map(Either::Right)
+        }
+    }
+}
+
+impl<L, R> ToTokens for Either<L, R>
+where
+    L: ToTokens,
+    R: ToTokens,
+{
+    fn to_tokens(&self, tokens: &mut TokenStream) {
+        match self {
+            Self::Left(left) => left.to_tokens(tokens),
+            Self::Right(right) => right.to_tokens(tokens),
+        }
+    }
+}
+
 pub struct KeyValue {
     pub name: Ident,
     pub eq: Token![=],
-    pub value: Expr,
+    pub value: Either<Expr, Type>,
 }
 
 impl ToTokens for KeyValue {
