@@ -1,4 +1,5 @@
 use std::cell::OnceCell;
+use std::rc::Rc;
 
 use proc_macro2::{Ident, Span, TokenStream};
 use quote::{format_ident, quote, quote_spanned, ToTokens};
@@ -86,7 +87,7 @@ impl<'a> StructInfo<'a> {
                 empty_type()
             }
         }));
-        let builder_method_const = std::rc::Rc::new(OnceCell::new());
+        let builder_method_const = Rc::new(OnceCell::new());
         let init_fields_expr = self
             .included_fields()
             .map({
@@ -105,7 +106,8 @@ impl<'a> StructInfo<'a> {
                 }
             })
             .collect::<Box<[_]>>();
-        let builder_method_const = builder_method_const.get_or_init(|| quote!(const));
+        let builder_method_const = Rc::into_inner(builder_method_const).unwrap();
+        let builder_method_const = OnceCell::into_inner(builder_method_const).unwrap_or_else(|| quote!(const));
         let mut all_fields_param_type: syn::TypeParam =
             syn::Ident::new("TypedBuilderFields", proc_macro2::Span::call_site()).into();
         let all_fields_param = syn::GenericParam::Type(all_fields_param_type.clone());
