@@ -1,11 +1,13 @@
 use proc_macro2::{Ident, Span, TokenStream};
-use quote::{quote, quote_spanned, ToTokens};
+use quote::{format_ident, quote, quote_spanned, ToTokens};
 use syn::parse::Error;
+use syn::punctuated::Punctuated;
+use syn::{parse_quote, GenericArgument, ItemFn, Token};
 
 use crate::field_info::{FieldBuilderAttr, FieldInfo};
 use crate::util::{
     empty_type, empty_type_tuple, first_visibility, modify_types_generics_hack, path_to_single_string, public_visibility,
-    strip_raw_ident_prefix, type_tuple, ApplyMeta, AttrArg,
+    strip_raw_ident_prefix, type_tuple, ApplyMeta, AttrArg, Mutator,
 };
 
 #[derive(Debug)]
@@ -23,6 +25,27 @@ pub struct StructInfo<'a> {
 impl<'a> StructInfo<'a> {
     pub fn included_fields(&self) -> impl Iterator<Item = &FieldInfo<'a>> {
         self.fields.iter().filter(|f| f.builder_attr.setter.skip.is_none())
+    }
+    pub fn setter_fields(&self) -> impl Iterator<Item = &FieldInfo<'a>> {
+        self.included_fields().filter(|f| f.builder_attr.via_mutators.is_none())
+    }
+
+    pub fn generic_argumnents(&self) -> Punctuated<GenericArgument, Token![,]> {
+        self.generics
+            .params
+            .iter()
+            .map(|generic_param| match generic_param {
+                syn::GenericParam::Type(type_param) => {
+                    let ident = type_param.ident.to_token_stream();
+                    syn::parse2(ident).unwrap()
+                }
+                syn::GenericParam::Lifetime(lifetime_def) => syn::GenericArgument::Lifetime(lifetime_def.lifetime.clone()),
+                syn::GenericParam::Const(const_param) => {
+                    let ident = const_param.ident.to_token_stream();
+                    syn::parse2(ident).unwrap()
+                }
+            })
+            .collect()
     }
 
     pub fn new(ast: &'a syn::DeriveInput, fields: impl Iterator<Item = &'a syn::Field>) -> Result<StructInfo<'a>, Error> {
@@ -54,18 +77,30 @@ impl<'a> StructInfo<'a> {
             ..
         } = *self;
         let (impl_generics, ty_generics, where_clause) = self.generics.split_for_impl();
-        let empties_tuple = type_tuple(self.included_fields().map(|_| empty_type()));
+        let init_fields_type = type_tuple(self.included_fields().map(|f| {
+            if f.builder_attr.via_mutators.is_some() {
+                f.tuplized_type_ty_param()
+            } else {
+                empty_type()
+            }
+        }));
+        let init_fields_expr = self.included_fields().map(|f| {
+            f.builder_attr
+                .via_mutators
+                .as_ref()
+                .map_or_else(|| quote!(()), |i| quote!((#i,)))
+        });
         let mut all_fields_param_type: syn::TypeParam =
             syn::Ident::new("TypedBuilderFields", proc_macro2::Span::call_site()).into();
         let all_fields_param = syn::GenericParam::Type(all_fields_param_type.clone());
-        all_fields_param_type.default = Some(syn::Type::Tuple(empties_tuple.clone()));
+        all_fields_param_type.default = Some(syn::Type::Tuple(init_fields_type.clone()));
         let b_generics = {
             let mut generics = self.generics.clone();
             generics.params.push(syn::GenericParam::Type(all_fields_param_type));
             generics
         };
         let generics_with_empty = modify_types_generics_hack(&ty_generics, |args| {
-            args.push(syn::GenericArgument::Type(empties_tuple.clone().into()));
+            args.push(syn::GenericArgument::Type(init_fields_type.clone().into()));
         });
         let phantom_generics = self.generics.params.iter().filter_map(|param| match param {
             syn::GenericParam::Lifetime(lifetime) => {
@@ -96,7 +131,7 @@ impl<'a> StructInfo<'a> {
                 setters = {
                     let mut result = String::new();
                     let mut is_first = true;
-                    for field in self.included_fields() {
+                    for field in self.setter_fields() {
                         use std::fmt::Write;
                         if is_first {
                             is_first = false;
@@ -140,7 +175,7 @@ impl<'a> StructInfo<'a> {
                 #[allow(dead_code, clippy::default_trait_access)]
                 #builder_method_visibility fn #builder_method_name() -> #builder_name #generics_with_empty {
                     #builder_name {
-                        fields: #empties_tuple,
+                        fields: (#(#init_fields_expr,)*),
                         phantom: ::core::default::Default::default(),
                     }
                 }
@@ -185,22 +220,7 @@ impl<'a> StructInfo<'a> {
             ty: field_type,
             ..
         } = field;
-        let mut ty_generics: Vec<syn::GenericArgument> = self
-            .generics
-            .params
-            .iter()
-            .map(|generic_param| match generic_param {
-                syn::GenericParam::Type(type_param) => {
-                    let ident = type_param.ident.to_token_stream();
-                    syn::parse2(ident).unwrap()
-                }
-                syn::GenericParam::Lifetime(lifetime_def) => syn::GenericArgument::Lifetime(lifetime_def.lifetime.clone()),
-                syn::GenericParam::Const(const_param) => {
-                    let ident = const_param.ident.to_token_stream();
-                    syn::parse2(ident).unwrap()
-                }
-            })
-            .collect();
+        let mut ty_generics = self.generic_argumnents();
         let mut target_generics_tuple = empty_type_tuple();
         let mut ty_generics_tuple = empty_type_tuple();
         let generics = {
@@ -269,11 +289,11 @@ impl<'a> StructInfo<'a> {
         Ok(quote! {
             #[allow(dead_code, non_camel_case_types, missing_docs)]
             #[automatically_derived]
-            impl #impl_generics #builder_name < #( #ty_generics ),* > #where_clause {
+            impl #impl_generics #builder_name <#ty_generics> #where_clause {
                 #deprecated
                 #doc
                 #[allow(clippy::used_underscore_binding)]
-                pub fn #method_name (self, #param_list) -> #builder_name <#( #target_generics ),*> {
+                pub fn #method_name (self, #param_list) -> #builder_name <#target_generics> {
                     let #field_name = (#arg_expr,);
                     let ( #(#descructuring,)* ) = self.fields;
                     #builder_name {
@@ -289,11 +309,11 @@ impl<'a> StructInfo<'a> {
             #[doc(hidden)]
             #[allow(dead_code, non_camel_case_types, missing_docs)]
             #[automatically_derived]
-            impl #impl_generics #builder_name < #( #target_generics ),* > #where_clause {
+            impl #impl_generics #builder_name <#target_generics> #where_clause {
                 #[deprecated(
                     note = #repeated_fields_error_message
                 )]
-                pub fn #method_name (self, _: #repeated_fields_error_type_name) -> #builder_name <#( #target_generics ),*> {
+                pub fn #method_name (self, _: #repeated_fields_error_type_name) -> #builder_name <#target_generics> {
                     self
                 }
             }
@@ -326,7 +346,7 @@ impl<'a> StructInfo<'a> {
         let generics = {
             let mut generics = self.generics.clone();
             for f in self.included_fields() {
-                if f.builder_attr.default.is_some() {
+                if f.builder_attr.default.is_some() || f.builder_attr.via_mutators.is_some() {
                     // `f` is not mandatory - it does not have it's own fake `build` method, so `field` will need
                     // to warn about missing `field` whether or not `f` is set.
                     assert!(
@@ -388,6 +408,84 @@ impl<'a> StructInfo<'a> {
                 }
             }
         }
+    }
+
+    pub fn mutator_impl(
+        &self,
+        mutator @ Mutator {
+            fun: mutator_fn,
+            required_fields,
+        }: &Mutator,
+    ) -> syn::Result<TokenStream> {
+        let StructInfo { ref builder_name, .. } = *self;
+
+        let mut required_fields = required_fields.clone();
+
+        let mut ty_generics = self.generic_argumnents();
+        let mut destructuring = TokenStream::new();
+        let mut ty_generics_tuple = empty_type_tuple();
+        let mut generics = self.generics.clone();
+        let mut mutator_ty_fields = Punctuated::<_, Token![,]>::new();
+        let mut mutator_destructure_fields = Punctuated::<_, Token![,]>::new();
+        for f @ FieldInfo { name, ty, .. } in self.included_fields() {
+            if f.builder_attr.via_mutators.is_some() || required_fields.remove(f.name) {
+                ty_generics_tuple.elems.push(f.tuplized_type_ty_param());
+                mutator_ty_fields.push(quote!(#name: #ty));
+                mutator_destructure_fields.push(name);
+                quote!((#name,),).to_tokens(&mut destructuring);
+            } else {
+                generics.params.push(f.generic_ty_param());
+                let generic_argument: syn::Type = f.type_ident();
+                ty_generics_tuple.elems.push(generic_argument.clone());
+                quote!(#name,).to_tokens(&mut destructuring);
+            }
+        }
+        ty_generics.push(syn::GenericArgument::Type(ty_generics_tuple.into()));
+        let (impl_generics, _, where_clause) = generics.split_for_impl();
+
+        let mutator_struct_name = format_ident!("TypedBuilderFieldMutator");
+
+        let ItemFn { attrs, vis, .. } = mutator_fn;
+        let sig = mutator.outer_sig(parse_quote!(#builder_name <#ty_generics>));
+        let fn_name = &sig.ident;
+        let mutator_args = mutator.arguments();
+
+        Ok(quote! {
+            #[allow(dead_code, non_camel_case_types, missing_docs)]
+            #[automatically_derived]
+            impl #impl_generics #builder_name <#ty_generics> #where_clause {
+                #(#attrs)*
+                #[allow(clippy::used_underscore_binding)]
+                #vis #sig {
+                    struct #mutator_struct_name {
+                        #mutator_ty_fields
+                    }
+                    impl #mutator_struct_name {
+                        #mutator_fn
+                    }
+
+                    let __args = (#mutator_args);
+
+                    let ( #destructuring ) = self.fields;
+                    let mut __mutator = #mutator_struct_name{ #mutator_destructure_fields };
+
+                    // This dance is required to keep mutator args and destrucutre fields from interfering.
+                    {
+                        let (#mutator_args) = __args;
+                        __mutator.#fn_name(#mutator_args);
+                    }
+
+                    let #mutator_struct_name {
+                        #mutator_destructure_fields
+                    } = __mutator;
+
+                    #builder_name {
+                        fields: ( #destructuring ),
+                        phantom: self.phantom,
+                    }
+                }
+            }
+        })
     }
 
     fn build_method_name(&self) -> TokenStream {
@@ -643,6 +741,9 @@ pub struct TypeBuilderAttr<'a> {
     pub field_defaults: FieldBuilderAttr<'a>,
 
     pub crate_module_path: syn::Path,
+
+    /// Functions that are able to mutate fields in the builder that are already set
+    pub mutators: Vec<Mutator>,
 }
 
 impl Default for TypeBuilderAttr<'_> {
@@ -654,6 +755,7 @@ impl Default for TypeBuilderAttr<'_> {
             build_method: Default::default(),
             field_defaults: Default::default(),
             crate_module_path: syn::parse_quote!(::typed_builder),
+            mutators: Default::default(),
         }
     }
 }
@@ -714,6 +816,7 @@ impl ApplyMeta for TypeBuilderAttr<'_> {
                 self.doc = true;
                 Ok(())
             }
+            "mutators" => expr.sub_attr()?.undelimited().map(|fns| self.mutators.extend(fns)),
             "field_defaults" => self.field_defaults.apply_sub_attr(expr),
             "builder_method" => self.builder_method.apply_sub_attr(expr),
             "builder_type" => self.builder_type.apply_sub_attr(expr),

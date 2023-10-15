@@ -1,8 +1,10 @@
 use proc_macro2::{Ident, Span, TokenStream};
 use quote::quote_spanned;
-use syn::{parse::Error, spanned::Spanned, ItemFn};
+use syn::{parse::Error, spanned::Spanned};
 
-use crate::util::{expr_to_lit_string, ident_to_type, path_to_single_string, strip_raw_ident_prefix, ApplyMeta, AttrArg};
+use crate::util::{
+    expr_to_lit_string, ident_to_type, path_to_single_string, strip_raw_ident_prefix, ApplyMeta, AttrArg, KeyValue, Mutator,
+};
 
 #[derive(Debug)]
 pub struct FieldInfo<'a> {
@@ -21,7 +23,7 @@ impl<'a> FieldInfo<'a> {
                 name,
                 generic_ident: syn::Ident::new(&format!("__{}", strip_raw_ident_prefix(name.to_string())), Span::call_site()),
                 ty: &field.ty,
-                builder_attr: field_defaults.with(&field.attrs)?,
+                builder_attr: field_defaults.with(&field.attrs, name)?,
             }
             .post_process()
         } else {
@@ -112,9 +114,11 @@ impl<'a> FieldInfo<'a> {
 #[derive(Debug, Default, Clone)]
 pub struct FieldBuilderAttr<'a> {
     pub default: Option<syn::Expr>,
+    pub via_mutators: Option<syn::Expr>,
     pub deprecated: Option<&'a syn::Attribute>,
     pub setter: SetterSettings,
-    pub mutators: Vec<ItemFn>,
+    /// Functions that are able to mutate fields in the builder that are already set
+    pub mutators: Vec<Mutator>,
     pub mutable_during_default_resolution: Option<Span>,
 }
 
@@ -131,7 +135,7 @@ pub struct SetterSettings {
 }
 
 impl<'a> FieldBuilderAttr<'a> {
-    pub fn with(mut self, attrs: &'a [syn::Attribute]) -> Result<Self, Error> {
+    pub fn with(mut self, attrs: &'a [syn::Attribute], name: &Ident) -> Result<Self, Error> {
         for attr in attrs {
             let list = match &attr.meta {
                 syn::Meta::List(list) => {
@@ -160,6 +164,10 @@ impl<'a> FieldBuilderAttr<'a> {
             };
 
             self.apply_subsections(list)?;
+        }
+
+        for mutator in self.mutators.iter_mut() {
+            mutator.required_fields.insert(name.clone());
         }
 
         self.inter_fields_conflicts()?;
@@ -243,6 +251,36 @@ impl ApplyMeta for FieldBuilderAttr<'_> {
                 &mut self.mutable_during_default_resolution,
                 "made mutable during default resolution",
             ),
+            "via_mutators" => {
+                match expr {
+                    AttrArg::Flag(ident) => {
+                        self.via_mutators =
+                            Some(syn::parse2(quote_spanned!(ident.span() => ::core::default::Default::default())).unwrap());
+                    }
+                    AttrArg::KeyValue(key_value) => {
+                        self.via_mutators = Some(key_value.value);
+                    }
+                    AttrArg::Not { .. } => {
+                        self.via_mutators = None;
+                    }
+                    AttrArg::Sub(sub) => {
+                        let paren_span = sub.paren.span.span();
+                        let mut args = sub.args()?.into_iter();
+                        let Some(KeyValue { name, value, .. }) = args.next() else {
+                            return Err(Error::new(paren_span, "Expected `init = ...`"));
+                        };
+                        if name != "init" {
+                            return Err(Error::new_spanned(name, "Expected `init`"));
+                        }
+                        if let Some(remaining) = args.next() {
+                            return Err(Error::new_spanned(remaining, "Expected only one argument (`init = ...`)"));
+                        }
+                        self.via_mutators = Some(value);
+                    }
+                }
+                Ok(())
+            }
+            "mutators" => expr.sub_attr()?.undelimited().map(|fns| self.mutators.extend(fns)),
             _ => Err(Error::new_spanned(
                 expr.name(),
                 format!("Unknown parameter {:?}", expr.name().to_string()),

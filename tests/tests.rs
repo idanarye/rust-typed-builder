@@ -821,3 +821,92 @@ fn test_mutable_defaults() {
 
     assert_eq!(foo, Foo { x: Some(10), y: 10 });
 }
+
+#[test]
+fn test_preinitialized_fields() {
+    #[derive(Debug, PartialEq, TypedBuilder)]
+    struct Foo {
+        x: i32,
+        #[builder(via_mutators)]
+        y: i32,
+        #[builder(via_mutators = 2)]
+        z: i32,
+        #[builder(via_mutators(init = 2))]
+        w: i32,
+    }
+
+    let foo = Foo::builder().x(1).build();
+    assert_eq!(foo, Foo { x: 1, y: 0, z: 2, w: 2 });
+}
+
+#[test]
+fn test_mutators_item() {
+    #[derive(Debug, PartialEq, TypedBuilder)]
+    #[builder(mutators(
+        #[mutator(requires = [x])]
+        fn inc_x(self) {
+            self.x += 1;
+        }
+        #[mutator(requires = [x])]
+        fn inc_x_by(self, x: i32) {
+            self.x += x;
+        }
+        fn inc_preset(self) {
+            self.y += 1;
+            self.z += 1;
+            self.w += 1;
+        }
+        #[mutator(requires = [x])]
+        fn inc_y_by_x(self) {
+            self.y += self.x;
+        }
+    ))]
+    struct Foo {
+        x: i32,
+        #[builder(via_mutators)]
+        y: i32,
+        #[builder(via_mutators = 2)]
+        z: i32,
+        #[builder(via_mutators(init = 2))]
+        w: i32,
+    }
+
+    let foo = Foo::builder().x(1).inc_x().inc_preset().build();
+    assert_eq!(foo, Foo { x: 2, y: 1, z: 3, w: 3 });
+    let foo = Foo::builder().x(1).inc_x_by(4).inc_y_by_x().build();
+    assert_eq!(foo, Foo { x: 5, y: 5, z: 2, w: 2 });
+}
+
+#[test]
+fn test_mutators_field() {
+    #[derive(Debug, PartialEq, TypedBuilder)]
+    #[builder(mutators())]
+    struct Foo {
+        #[builder(mutators(
+            fn inc_x(self) {
+                self.x += 1;
+            }
+            #[mutator(requires = [y])]
+            fn inc_y_by_x(self) {
+                self.y += self.x;
+            }
+        ))]
+        x: i32,
+        #[builder(default)]
+        y: i32,
+        #[builder(via_mutators = 2, mutators(
+            fn inc_preset(self) {
+                self.z += 1;
+                self.w += 1;
+            }
+        ))]
+        z: i32,
+        #[builder(via_mutators(init = 2))]
+        w: i32,
+    }
+
+    let foo = Foo::builder().x(1).inc_x().inc_preset().build();
+    assert_eq!(foo, Foo { x: 2, y: 0, z: 3, w: 3 });
+    let foo = Foo::builder().x(1).y(1).inc_y_by_x().build();
+    assert_eq!(foo, Foo { x: 1, y: 2, z: 2, w: 2 });
+}
