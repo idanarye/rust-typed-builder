@@ -274,7 +274,10 @@ impl ApplyMeta for FieldBuilderAttr<'_> {
                 }
                 Ok(())
             }
-            "mutators" => expr.sub_attr()?.undelimited().map(|fns| self.mutators.extend(fns)),
+            "mutators" => {
+                self.mutators.extend(expr.sub_attr()?.undelimited()?);
+                Ok(())
+            }
             _ => Err(Error::new_spanned(
                 expr.name(),
                 format!("Unknown parameter {:?}", expr.name().to_string()),

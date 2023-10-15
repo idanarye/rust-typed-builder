@@ -804,7 +804,10 @@ impl ApplyMeta for TypeBuilderAttr<'_> {
                 self.doc = true;
                 Ok(())
             }
-            "mutators" => expr.sub_attr()?.undelimited().map(|fns| self.mutators.extend(fns)),
+            "mutators" => {
+                self.mutators.extend(expr.sub_attr()?.undelimited()?);
+                Ok(())
+            }
             "field_defaults" => self.field_defaults.apply_sub_attr(expr),
             "builder_method" => self.builder_method.apply_sub_attr(expr),
             "builder_type" => self.builder_type.apply_sub_attr(expr),
