@@ -706,7 +706,7 @@ impl ApplyMeta for BuildMethodSettings {
                 }
                 AttrArg::KeyValue(key_value) => {
                     let type_path = key_value.parse_value::<syn::TypePath>()?;
-                    self.into = IntoSetting::TypeConversionToSpecificType(type_path.clone());
+                    self.into = IntoSetting::TypeConversionToSpecificType(type_path);
                     Ok(())
                 }
                 _ => Err(expr.incorrect_type()),
@@ -784,7 +784,7 @@ impl ApplyMeta for TypeBuilderAttr<'_> {
         match expr.name().to_string().as_str() {
             "crate_module_path" => {
                 let crate_module_path = expr.key_value()?.parse_value::<syn::ExprPath>()?;
-                self.crate_module_path = crate_module_path.path.clone();
+                self.crate_module_path = crate_module_path.path;
                 Ok(())
             }
             "builder_method_doc" => Err(Error::new_spanned(

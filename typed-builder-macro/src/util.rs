@@ -338,7 +338,7 @@ impl ApplyMeta for MutatorAttribute {
             return Err(Error::new_spanned(expr.name(), "Only `requires` is supported"));
         }
 
-        match expr.key_value()?.value {
+        match expr.key_value()?.parse_value()? {
             Expr::Array(syn::ExprArray { elems, .. }) => self.requires.extend(
                 elems
                     .into_iter()

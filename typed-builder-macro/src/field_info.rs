@@ -252,7 +252,7 @@ impl ApplyMeta for FieldBuilderAttr<'_> {
                             Some(syn::parse2(quote_spanned!(ident.span() => ::core::default::Default::default())).unwrap());
                     }
                     AttrArg::KeyValue(key_value) => {
-                        self.via_mutators = Some(key_value.value);
+                        self.via_mutators = Some(key_value.parse_value()?);
                     }
                     AttrArg::Not { .. } => {
                         self.via_mutators = None;
@@ -260,16 +260,16 @@ impl ApplyMeta for FieldBuilderAttr<'_> {
                     AttrArg::Sub(sub) => {
                         let paren_span = sub.paren.span.span();
                         let mut args = sub.args()?.into_iter();
-                        let Some(KeyValue { name, value, .. }) = args.next() else {
+                        let Some(key_value): Option<KeyValue> = args.next() else {
                             return Err(Error::new(paren_span, "Expected `init = ...`"));
                         };
-                        if name != "init" {
-                            return Err(Error::new_spanned(name, "Expected `init`"));
+                        if key_value.name != "init" {
+                            return Err(Error::new_spanned(key_value.name, "Expected `init`"));
                         }
                         if let Some(remaining) = args.next() {
                             return Err(Error::new_spanned(remaining, "Expected only one argument (`init = ...`)"));
                         }
-                        self.via_mutators = Some(value);
+                        self.via_mutators = Some(key_value.parse_value()?);
                     }
                 }
                 Ok(())
