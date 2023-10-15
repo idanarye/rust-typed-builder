@@ -5,6 +5,8 @@ The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+
+## 0.17.0 - 2023-10-15
 ### Changed
 - Internal refactor of attribute parsing - results in better error messages and
   easier proces for adding new settings.
