@@ -5,18 +5,19 @@ The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
-### Added
-- `#[builder(mutators(...))]` to generate functions on builder to mutate fields
-- `#[builder(via_mutator)]` on fields to allow defining fields initialized 
-  during `::builder()` for use with `mutators`
-
 ### Changed
 - Internal refactor of attribute parsing - results in better error messages and
   easier proces for adding new settings.
 
 ### Added
+- `#[builder(mutators(...))]` to generate functions on builder to mutate fields
+- `#[builder(via_mutator)]` on fields to allow defining fields initialized 
+  during `::builder()` for use with `mutators`
 - `mutable_during_default_resolution` to allow `default` expression mutate
   previous fields.
+
+### Fixed
+- Add support for paths with angle brackets (see PR #122 )
 
 ## 0.16.2 - 2023-09-22
 ### Fixed
