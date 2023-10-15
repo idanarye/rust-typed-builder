@@ -244,18 +244,28 @@ impl ToTokens for SubAttr {
     }
 }
 
-fn take_until_comma(input: ParseStream) -> syn::Result<TokenStream> {
-    let mut stream = TokenStream::new();
-    while !input.is_empty() {
-        if input.peek(Token![,]) {
-            break;
-        }
-
-        let token = input.parse::<TokenTree>()?;
-        stream.extend(Some(token));
+fn get_cursor_after_parsing<P: Parse + Spanned>(input: syn::parse::ParseBuffer) -> syn::Result<syn::buffer::Cursor> {
+    let parse_attempt: P = input.parse()?;
+    let cursor = input.cursor();
+    if cursor.eof() || input.peek(Token![,]) {
+        Ok(cursor)
+    } else {
+        Err(syn::Error::new(
+            parse_attempt.span(),
+            "does not end with comma or end of section",
+        ))
     }
+}
 
-    Ok(stream)
+fn get_token_stream_up_to_cursor(input: syn::parse::ParseStream, cursor: syn::buffer::Cursor) -> syn::Result<TokenStream> {
+    Ok(core::iter::from_fn(|| {
+        if input.cursor() < cursor {
+            input.parse::<TokenTree>().ok()
+        } else {
+            None
+        }
+    })
+    .collect())
 }
 
 impl Parse for AttrArg {
@@ -277,10 +287,16 @@ impl Parse for AttrArg {
                     args: args.parse()?,
                 }))
             } else if input.peek(Token![=]) {
+                // Try parsing as a type first, because it _should_ be simpler
+
                 Ok(Self::KeyValue(KeyValue {
                     name,
                     eq: input.parse()?,
-                    value: take_until_comma(input)?,
+                    value: {
+                        let cursor = get_cursor_after_parsing::<syn::Type>(input.fork())
+                            .or_else(|_| get_cursor_after_parsing::<syn::Expr>(input.fork()))?;
+                        get_token_stream_up_to_cursor(input, cursor)?
+                    },
                 }))
             } else {
                 Err(input.error("expected !<ident>, <ident>=<value> or <ident>(…)"))
