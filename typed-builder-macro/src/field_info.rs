@@ -3,7 +3,7 @@ use quote::quote_spanned;
 use syn::{parse::Error, spanned::Spanned};
 
 use crate::util::{
-    expr_to_lit_string, ident_to_type, path_to_single_string, strip_raw_ident_prefix, ApplyMeta, AttrArg, KeyValue, Mutator,
+    expr_to_lit_string, ident_to_type, path_to_single_string, strip_raw_ident_prefix, ApplyMeta, AttrArg, Mutator,
 };
 
 #[derive(Debug)]
@@ -114,7 +114,7 @@ impl<'a> FieldInfo<'a> {
 #[derive(Debug, Default, Clone)]
 pub struct FieldBuilderAttr<'a> {
     pub default: Option<syn::Expr>,
-    pub via_mutators: Option<syn::Expr>,
+    pub via_mutators: Option<ViaMutators>,
     pub deprecated: Option<&'a syn::Attribute>,
     pub setter: SetterSettings,
     /// Functions that are able to mutate fields in the builder that are already set
@@ -240,7 +240,7 @@ impl ApplyMeta for FieldBuilderAttr<'_> {
 
                 Ok(())
             }
-            "setter" => self.setter.apply_sub_attr(expr),
+            "setter" => self.setter.apply_sub_attr(expr.sub_attr()?),
             "mutable_during_default_resolution" => expr.apply_flag_to_field(
                 &mut self.mutable_during_default_resolution,
                 "made mutable during default resolution",
@@ -248,28 +248,34 @@ impl ApplyMeta for FieldBuilderAttr<'_> {
             "via_mutators" => {
                 match expr {
                     AttrArg::Flag(ident) => {
-                        self.via_mutators =
-                            Some(syn::parse2(quote_spanned!(ident.span() => ::core::default::Default::default())).unwrap());
+                        self.via_mutators = Some(ViaMutators {
+                            span: ident.span(),
+                            init: syn::parse2(quote_spanned!(ident.span() => ::core::default::Default::default())).unwrap(),
+                        });
                     }
                     AttrArg::KeyValue(key_value) => {
-                        self.via_mutators = Some(key_value.parse_value()?);
+                        self.via_mutators = Some(ViaMutators {
+                            span: key_value.span(),
+                            init: key_value.parse_value()?,
+                        });
                     }
                     AttrArg::Not { .. } => {
                         self.via_mutators = None;
                     }
                     AttrArg::Sub(sub) => {
-                        let paren_span = sub.paren.span.span();
-                        let mut args = sub.args()?.into_iter();
-                        let Some(key_value): Option<KeyValue> = args.next() else {
-                            return Err(Error::new(paren_span, "Expected `init = ...`"));
-                        };
-                        if key_value.name != "init" {
-                            return Err(Error::new_spanned(key_value.name, "Expected `init`"));
+                        if let Some(via_mutators) = self.via_mutators.as_mut() {
+                            if let Some(joined_span) = via_mutators.span.join(sub.span()) {
+                                via_mutators.span = joined_span;
+                            } else {
+                                // Shouldn't happen, but whatever
+                                via_mutators.span = sub.span();
+                            };
+                            via_mutators.apply_sub_attr(sub)?;
+                        } else {
+                            let mut via_mutators = ViaMutators::empty_spanned(sub.span());
+                            via_mutators.apply_sub_attr(sub)?;
+                            self.via_mutators = Some(via_mutators);
                         }
-                        if let Some(remaining) = args.next() {
-                            return Err(Error::new_spanned(remaining, "Expected only one argument (`init = ...`)"));
-                        }
-                        self.via_mutators = Some(key_value.parse_value()?);
                     }
                 }
                 Ok(())
@@ -362,4 +368,34 @@ fn parse_transform_closure(span: Span, expr: syn::Expr) -> Result<Transform, Err
         body: *closure.body,
         span,
     })
+}
+
+#[derive(Debug, Clone)]
+pub struct ViaMutators {
+    pub span: Span,
+    pub init: syn::Expr,
+}
+
+impl ViaMutators {
+    fn empty_spanned(span: Span) -> Self {
+        Self {
+            span,
+            init: syn::parse2(quote_spanned!(span => ::core::default::Default::default())).unwrap(),
+        }
+    }
+}
+
+impl ApplyMeta for ViaMutators {
+    fn apply_meta(&mut self, expr: AttrArg) -> Result<(), Error> {
+        match expr.name().to_string().as_str() {
+            "init" => {
+                self.init = expr.key_value()?.parse_value()?;
+                Ok(())
+            }
+            _ => Err(Error::new_spanned(
+                expr.name(),
+                format!("Unknown parameter {:?}", expr.name().to_string()),
+            )),
+        }
+    }
 }

@@ -85,10 +85,13 @@ impl<'a> StructInfo<'a> {
             }
         }));
         let init_fields_expr = self.included_fields().map(|f| {
-            f.builder_attr
-                .via_mutators
-                .as_ref()
-                .map_or_else(|| quote!(()), |i| quote!((#i,)))
+            f.builder_attr.via_mutators.as_ref().map_or_else(
+                || quote!(()),
+                |via_mutators| {
+                    let init = &via_mutators.init;
+                    quote!((#init,))
+                },
+            )
         });
         let mut all_fields_param_type: syn::TypeParam =
             syn::Ident::new("TypedBuilderFields", proc_macro2::Span::call_site()).into();
@@ -808,10 +811,10 @@ impl ApplyMeta for TypeBuilderAttr<'_> {
                 self.mutators.extend(expr.sub_attr()?.undelimited()?);
                 Ok(())
             }
-            "field_defaults" => self.field_defaults.apply_sub_attr(expr),
-            "builder_method" => self.builder_method.apply_sub_attr(expr),
-            "builder_type" => self.builder_type.apply_sub_attr(expr),
-            "build_method" => self.build_method.apply_sub_attr(expr),
+            "field_defaults" => self.field_defaults.apply_sub_attr(expr.sub_attr()?),
+            "builder_method" => self.builder_method.apply_sub_attr(expr.sub_attr()?),
+            "builder_type" => self.builder_type.apply_sub_attr(expr.sub_attr()?),
+            "build_method" => self.build_method.apply_sub_attr(expr.sub_attr()?),
             _ => Err(Error::new_spanned(
                 expr.name(),
                 format!("Unknown parameter {:?}", expr.name().to_string()),

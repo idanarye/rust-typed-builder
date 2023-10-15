@@ -322,8 +322,8 @@ impl ToTokens for AttrArg {
 pub trait ApplyMeta {
     fn apply_meta(&mut self, expr: AttrArg) -> Result<(), Error>;
 
-    fn apply_sub_attr(&mut self, attr_arg: AttrArg) -> syn::Result<()> {
-        for arg in attr_arg.sub_attr()?.args()? {
+    fn apply_sub_attr(&mut self, sub_attr: SubAttr) -> syn::Result<()> {
+        for arg in sub_attr.args()? {
             self.apply_meta(arg)?;
         }
         Ok(())
