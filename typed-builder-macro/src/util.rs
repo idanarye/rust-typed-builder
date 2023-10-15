@@ -1,6 +1,6 @@
 use std::{collections::HashSet, iter};
 
-use proc_macro2::{Ident, Span, TokenStream};
+use proc_macro2::{Ident, Span, TokenStream, TokenTree};
 use quote::{format_ident, ToTokens};
 use syn::{
     parenthesized,
@@ -195,7 +195,13 @@ impl AttrArg {
 pub struct KeyValue {
     pub name: Ident,
     pub eq: Token![=],
-    pub value: Expr,
+    pub value: TokenStream,
+}
+
+impl KeyValue {
+    pub fn parse_value<T: Parse>(self) -> syn::Result<T> {
+        syn::parse2(self.value)
+    }
 }
 
 impl ToTokens for KeyValue {
@@ -238,6 +244,20 @@ impl ToTokens for SubAttr {
     }
 }
 
+fn take_until_comma(input: ParseStream) -> syn::Result<TokenStream> {
+    let mut stream = TokenStream::new();
+    while !input.is_empty() {
+        if input.peek(Token![,]) {
+            break;
+        }
+
+        let token = input.parse::<TokenTree>()?;
+        stream.extend(Some(token));
+    }
+
+    Ok(stream)
+}
+
 impl Parse for AttrArg {
     fn parse(input: syn::parse::ParseStream) -> syn::Result<Self> {
         if input.peek(Token![!]) {
@@ -260,7 +280,7 @@ impl Parse for AttrArg {
                 Ok(Self::KeyValue(KeyValue {
                     name,
                     eq: input.parse()?,
-                    value: input.parse()?,
+                    value: take_until_comma(input)?,
                 }))
             } else {
                 Err(input.error("expected !<ident>, <ident>=<value> or <ident>(…)"))
@@ -332,7 +352,7 @@ impl ApplyMeta for MutatorAttribute {
             return Err(Error::new_spanned(expr.name(), "Only `requires` is supported"));
         }
 
-        match expr.key_value()?.value {
+        match expr.key_value()?.parse_value()? {
             Expr::Array(syn::ExprArray { elems, .. }) => self.requires.extend(
                 elems
                     .into_iter()
