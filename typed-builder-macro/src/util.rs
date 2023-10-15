@@ -192,54 +192,16 @@ impl AttrArg {
     }
 }
 
-#[derive(Clone, Debug)]
-pub enum Either<L, R> {
-    Left(L),
-    Right(R),
-}
-
-impl<L, R> Either<L, R> {
-    pub fn unwrap_left(self) -> L {
-        match self {
-            Self::Left(left) => left,
-            Self::Right(..) => panic!(),
-        }
-    }
-}
-
-impl<L, R> Parse for Either<L, R>
-where
-    L: Parse,
-    R: Parse,
-{
-    fn parse(input: syn::parse::ParseStream) -> syn::Result<Self> {
-        let fork = input.fork();
-        if let Ok(left) = fork.parse::<L>() {
-            input.advance_to(&fork);
-            Ok(Either::Left(left))
-        } else {
-            R::parse(input).map(Either::Right)
-        }
-    }
-}
-
-impl<L, R> ToTokens for Either<L, R>
-where
-    L: ToTokens,
-    R: ToTokens,
-{
-    fn to_tokens(&self, tokens: &mut TokenStream) {
-        match self {
-            Self::Left(left) => left.to_tokens(tokens),
-            Self::Right(right) => right.to_tokens(tokens),
-        }
-    }
-}
-
 pub struct KeyValue {
     pub name: Ident,
     pub eq: Token![=],
-    pub value: Either<Expr, Type>,
+    pub value: TokenStream,
+}
+
+impl KeyValue {
+    pub fn parse_value<T: Parse>(self) -> syn::Result<T> {
+        syn::parse2(self.value)
+    }
 }
 
 impl ToTokens for KeyValue {
@@ -304,7 +266,7 @@ impl Parse for AttrArg {
                 Ok(Self::KeyValue(KeyValue {
                     name,
                     eq: input.parse()?,
-                    value: input.parse()?,
+                    value: input.parse()?, // This thing consumes beyond the punctuation separated boundaries?
                 }))
             } else {
                 Err(input.error("expected !<ident>, <ident>=<value> or <ident>(…)"))

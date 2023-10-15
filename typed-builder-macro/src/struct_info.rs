@@ -631,26 +631,21 @@ pub struct CommonDeclarationSettings {
     pub name: Option<syn::Expr>,
     pub doc: Option<syn::Expr>,
 }
+
 impl ApplyMeta for CommonDeclarationSettings {
     fn apply_meta(&mut self, expr: AttrArg) -> Result<(), Error> {
         match expr.name().to_string().as_str() {
             "vis" => {
-                let value = expr.key_value()?.value;
-                let Either::Left(syn::Expr::Lit(expr_lit)) = value else {
-                    return Err(Error::new_spanned(value, "invalid visibility found"));
-                };
-                let syn::Lit::Str(expr_str) = expr_lit.lit else {
-                    return Err(Error::new_spanned(expr_lit, "invalid visibility found"));
-                };
-                self.vis = Some(syn::parse_str(&expr_str.value())?);
+                let expr_str = expr.key_value()?.parse_value::<syn::LitStr>()?.value();
+                self.vis = Some(syn::parse_str(&expr_str)?);
                 Ok(())
             }
             "name" => {
-                self.name = Some(expr.key_value()?.value.unwrap_left());
+                self.name = Some(expr.key_value()?.parse_value()?);
                 Ok(())
             }
             "doc" => {
-                self.doc = Some(expr.key_value()?.value.unwrap_left());
+                self.doc = Some(expr.key_value()?.parse_value()?);
                 Ok(())
             }
             _ => Err(Error::new_spanned(
@@ -684,7 +679,7 @@ pub enum IntoSetting {
     /// Convert the build value into the generic parameter passed to the `build` method.
     GenericConversion,
     /// Convert the build value into a specific type specified in the attribute.
-    TypeConversionToSpecificType(Either<syn::ExprPath, syn::TypePath>),
+    TypeConversionToSpecificType(syn::TypePath),
 }
 
 impl Default for IntoSetting {
@@ -710,11 +705,7 @@ impl ApplyMeta for BuildMethodSettings {
                     Ok(())
                 }
                 AttrArg::KeyValue(key_value) => {
-                    let type_path = match key_value.value {
-                        Either::Left(syn::Expr::Path(expr_path)) => Either::Left(expr_path),
-                        Either::Right(syn::Type::Path(type_path)) => Either::Right(type_path),
-                        _ => return Err(Error::new_spanned(&key_value.value, "Expected path type")),
-                    };
+                    let type_path = key_value.parse_value::<syn::TypePath>()?;
                     self.into = IntoSetting::TypeConversionToSpecificType(type_path.clone());
                     Ok(())
                 }
@@ -792,13 +783,9 @@ impl ApplyMeta for TypeBuilderAttr<'_> {
     fn apply_meta(&mut self, expr: AttrArg) -> Result<(), Error> {
         match expr.name().to_string().as_str() {
             "crate_module_path" => {
-                let value = expr.key_value()?.value;
-                if let Either::Left(syn::Expr::Path(crate_module_path)) = value {
-                    self.crate_module_path = crate_module_path.path.clone();
-                    Ok(())
-                } else {
-                    Err(Error::new_spanned(value, "crate_module_path must be a path"))
-                }
+                let crate_module_path = expr.key_value()?.parse_value::<syn::ExprPath>()?;
+                self.crate_module_path = crate_module_path.path.clone();
+                Ok(())
             }
             "builder_method_doc" => Err(Error::new_spanned(
                 expr.name(),

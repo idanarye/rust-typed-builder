@@ -222,7 +222,7 @@ impl ApplyMeta for FieldBuilderAttr<'_> {
                     Ok(())
                 }
                 AttrArg::KeyValue(key_value) => {
-                    self.default = Some(key_value.value.unwrap_left());
+                    self.default = Some(key_value.parse_value()?);
                     Ok(())
                 }
                 AttrArg::Not { .. } => {
@@ -232,18 +232,12 @@ impl ApplyMeta for FieldBuilderAttr<'_> {
                 AttrArg::Sub(_) => Err(expr.incorrect_type()),
             },
             "default_code" => {
-                let value = expr.key_value()?.value;
-                if let Either::Left(syn::Expr::Lit(syn::ExprLit {
-                    lit: syn::Lit::Str(code),
-                    ..
-                })) = value
-                {
-                    use std::str::FromStr;
-                    let tokenized_code = TokenStream::from_str(&code.value())?;
-                    self.default = Some(syn::parse2(tokenized_code).map_err(|e| Error::new_spanned(code, format!("{}", e)))?);
-                } else {
-                    return Err(Error::new_spanned(value, "Expected string"));
-                }
+                use std::str::FromStr;
+
+                let code = expr.key_value()?.parse_value::<syn::LitStr>()?;
+                let tokenized_code = TokenStream::from_str(&code.value())?;
+                self.default = Some(syn::parse2(tokenized_code).map_err(|e| Error::new_spanned(code, format!("{}", e)))?);
+
                 Ok(())
             }
             "setter" => self.setter.apply_sub_attr(expr),
@@ -293,12 +287,12 @@ impl ApplyMeta for SetterSettings {
     fn apply_meta(&mut self, expr: AttrArg) -> Result<(), Error> {
         match expr.name().to_string().as_str() {
             "doc" => {
-                self.doc = expr.key_value_or_not()?.map(|kv| kv.value.unwrap_left());
+                self.doc = expr.key_value_or_not()?.map(|kv| kv.parse_value()).transpose()?;
                 Ok(())
             }
             "transform" => {
                 self.transform = if let Some(key_value) = expr.key_value_or_not()? {
-                    Some(parse_transform_closure(key_value.name.span(), key_value.value.unwrap_left())?)
+                    Some(parse_transform_closure(key_value.name.span(), key_value.parse_value()?)?)
                 } else {
                     None
                 };
@@ -306,7 +300,7 @@ impl ApplyMeta for SetterSettings {
             }
             "prefix" => {
                 self.prefix = if let Some(key_value) = expr.key_value_or_not()? {
-                    Some(expr_to_lit_string(&key_value.value.unwrap_left())?)
+                    Some(expr_to_lit_string(&key_value.parse_value()?)?)
                 } else {
                     None
                 };
@@ -314,7 +308,7 @@ impl ApplyMeta for SetterSettings {
             }
             "suffix" => {
                 self.suffix = if let Some(key_value) = expr.key_value_or_not()? {
-                    Some(expr_to_lit_string(&key_value.value.unwrap_left())?)
+                    Some(expr_to_lit_string(&key_value.parse_value()?)?)
                 } else {
                     None
                 };
