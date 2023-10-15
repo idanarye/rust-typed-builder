@@ -1,3 +1,5 @@
+use std::cell::OnceCell;
+
 use proc_macro2::{Ident, Span, TokenStream};
 use quote::{format_ident, quote, quote_spanned, ToTokens};
 use syn::punctuated::Punctuated;
@@ -84,15 +86,26 @@ impl<'a> StructInfo<'a> {
                 empty_type()
             }
         }));
-        let init_fields_expr = self.included_fields().map(|f| {
-            f.builder_attr.via_mutators.as_ref().map_or_else(
-                || quote!(()),
-                |via_mutators| {
-                    let init = &via_mutators.init;
-                    quote!((#init,))
-                },
-            )
-        });
+        let builder_method_const = std::rc::Rc::new(OnceCell::new());
+        let init_fields_expr = self
+            .included_fields()
+            .map({
+                let builder_method_const = builder_method_const.clone();
+                move |f| {
+                    f.builder_attr.via_mutators.as_ref().map_or_else(
+                        || quote!(()),
+                        |via_mutators| {
+                            let init = &via_mutators.init;
+                            if !matches!(init, syn::Expr::Lit(_)) {
+                                _ = builder_method_const.set(quote!());
+                            }
+                            quote!((#init,))
+                        },
+                    )
+                }
+            })
+            .collect::<Box<[_]>>();
+        let builder_method_const = builder_method_const.get_or_init(|| quote!(const));
         let mut all_fields_param_type: syn::TypeParam =
             syn::Ident::new("TypedBuilderFields", proc_macro2::Span::call_site()).into();
         let all_fields_param = syn::GenericParam::Type(all_fields_param_type.clone());
@@ -176,7 +189,7 @@ impl<'a> StructInfo<'a> {
             impl #impl_generics #name #ty_generics #where_clause {
                 #builder_method_doc
                 #[allow(dead_code, clippy::default_trait_access)]
-                #builder_method_visibility const fn #builder_method_name() -> #builder_name #generics_with_empty {
+                #builder_method_visibility #builder_method_const fn #builder_method_name() -> #builder_name #generics_with_empty {
                     #builder_name {
                         fields: (#(#init_fields_expr,)*),
                         phantom: ::core::marker::PhantomData,
