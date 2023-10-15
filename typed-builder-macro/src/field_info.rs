@@ -23,7 +23,7 @@ impl<'a> FieldInfo<'a> {
                 name,
                 generic_ident: syn::Ident::new(&format!("__{}", strip_raw_ident_prefix(name.to_string())), Span::call_site()),
                 ty: &field.ty,
-                builder_attr: field_defaults.with(&field.attrs, name)?,
+                builder_attr: field_defaults.with(name, &field.attrs)?,
             }
             .post_process()
         } else {
@@ -135,7 +135,7 @@ pub struct SetterSettings {
 }
 
 impl<'a> FieldBuilderAttr<'a> {
-    pub fn with(mut self, attrs: &'a [syn::Attribute], name: &Ident) -> Result<Self, Error> {
+    pub fn with(mut self, name: &Ident, attrs: &'a [syn::Attribute]) -> Result<Self, Error> {
         for attr in attrs {
             let list = match &attr.meta {
                 syn::Meta::List(list) => {
