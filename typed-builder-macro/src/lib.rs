@@ -3,6 +3,7 @@ use quote::quote;
 use syn::{parse::Error, parse_macro_input, spanned::Spanned, DeriveInput};
 
 mod field_info;
+mod mutator;
 mod struct_info;
 mod util;
 

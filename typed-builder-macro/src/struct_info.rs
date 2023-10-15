@@ -5,9 +5,10 @@ use syn::punctuated::Punctuated;
 use syn::{parse_quote, GenericArgument, ItemFn, Token};
 
 use crate::field_info::{FieldBuilderAttr, FieldInfo};
+use crate::mutator::Mutator;
 use crate::util::{
     empty_type, empty_type_tuple, first_visibility, modify_types_generics_hack, path_to_single_string, public_visibility,
-    strip_raw_ident_prefix, type_tuple, ApplyMeta, AttrArg, Mutator,
+    strip_raw_ident_prefix, type_tuple, ApplyMeta, AttrArg,
 };
 
 #[derive(Debug)]

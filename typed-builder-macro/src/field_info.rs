@@ -2,9 +2,8 @@ use proc_macro2::{Ident, Span, TokenStream};
 use quote::quote_spanned;
 use syn::{parse::Error, spanned::Spanned};
 
-use crate::util::{
-    expr_to_lit_string, ident_to_type, path_to_single_string, strip_raw_ident_prefix, ApplyMeta, AttrArg, Mutator,
-};
+use crate::mutator::Mutator;
+use crate::util::{expr_to_lit_string, ident_to_type, path_to_single_string, strip_raw_ident_prefix, ApplyMeta, AttrArg};
 
 #[derive(Debug)]
 pub struct FieldInfo<'a> {
