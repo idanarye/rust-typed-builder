@@ -1,8 +1,7 @@
 use proc_macro2::{Ident, Span, TokenStream};
 use quote::{format_ident, quote, quote_spanned, ToTokens};
-use syn::parse::Error;
 use syn::punctuated::Punctuated;
-use syn::{parse_quote, GenericArgument, ItemFn, Token};
+use syn::{parse_quote, Error, GenericArgument, ItemFn, Token};
 
 use crate::field_info::{FieldBuilderAttr, FieldInfo};
 use crate::mutator::Mutator;
@@ -49,7 +48,7 @@ impl<'a> StructInfo<'a> {
             .collect()
     }
 
-    pub fn new(ast: &'a syn::DeriveInput, fields: impl Iterator<Item = &'a syn::Field>) -> Result<StructInfo<'a>, Error> {
+    pub fn new(ast: &'a syn::DeriveInput, fields: impl Iterator<Item = &'a syn::Field>) -> syn::Result<Self> {
         let builder_attr = TypeBuilderAttr::new(&ast.attrs)?;
         let builder_name = builder_attr
             .builder_type
@@ -70,7 +69,7 @@ impl<'a> StructInfo<'a> {
         })
     }
 
-    pub fn builder_creation_impl(&self) -> Result<TokenStream, Error> {
+    pub fn builder_creation_impl(&self) -> syn::Result<TokenStream> {
         let StructInfo {
             vis,
             ref name,
@@ -177,10 +176,10 @@ impl<'a> StructInfo<'a> {
             impl #impl_generics #name #ty_generics #where_clause {
                 #builder_method_doc
                 #[allow(dead_code, clippy::default_trait_access)]
-                #builder_method_visibility fn #builder_method_name() -> #builder_name #generics_with_empty {
+                #builder_method_visibility const fn #builder_method_name() -> #builder_name #generics_with_empty {
                     #builder_name {
                         fields: (#(#init_fields_expr,)*),
-                        phantom: ::core::default::Default::default(),
+                        phantom: ::core::marker::PhantomData,
                     }
                 }
             }
@@ -206,7 +205,7 @@ impl<'a> StructInfo<'a> {
         })
     }
 
-    pub fn field_impl(&self, field: &FieldInfo) -> Result<TokenStream, Error> {
+    pub fn field_impl(&self, field: &FieldInfo<'_>) -> syn::Result<TokenStream> {
         let StructInfo { ref builder_name, .. } = *self;
 
         let descructuring = self.included_fields().map(|f| {
@@ -324,12 +323,10 @@ impl<'a> StructInfo<'a> {
         })
     }
 
-    pub fn required_field_impl(&self, field: &FieldInfo) -> TokenStream {
-        let StructInfo { ref builder_name, .. } = self;
+    pub fn required_field_impl(&self, field: &FieldInfo<'_>) -> TokenStream {
+        let StructInfo { builder_name, .. } = self;
 
-        let FieldInfo {
-            name: ref field_name, ..
-        } = field;
+        let FieldInfo { name: field_name, .. } = *field;
         let mut builder_generics: Vec<syn::GenericArgument> = self
             .generics
             .params
@@ -637,7 +634,7 @@ pub struct CommonDeclarationSettings {
 }
 
 impl ApplyMeta for CommonDeclarationSettings {
-    fn apply_meta(&mut self, expr: AttrArg) -> Result<(), Error> {
+    fn apply_meta(&mut self, expr: AttrArg) -> syn::Result<()> {
         match expr.name().to_string().as_str() {
             "vis" => {
                 let expr_str = expr.key_value()?.parse_value::<syn::LitStr>()?.value();
@@ -701,7 +698,7 @@ pub struct BuildMethodSettings {
 }
 
 impl ApplyMeta for BuildMethodSettings {
-    fn apply_meta(&mut self, expr: AttrArg) -> Result<(), Error> {
+    fn apply_meta(&mut self, expr: AttrArg) -> syn::Result<()> {
         match expr.name().to_string().as_str() {
             "into" => match expr {
                 AttrArg::Flag(_) => {
@@ -756,8 +753,8 @@ impl Default for TypeBuilderAttr<'_> {
     }
 }
 
-impl<'a> TypeBuilderAttr<'a> {
-    pub fn new(attrs: &[syn::Attribute]) -> Result<Self, Error> {
+impl TypeBuilderAttr<'_> {
+    pub fn new(attrs: &[syn::Attribute]) -> syn::Result<Self> {
         let mut result = Self::default();
 
         for attr in attrs {
@@ -784,7 +781,7 @@ impl<'a> TypeBuilderAttr<'a> {
 }
 
 impl ApplyMeta for TypeBuilderAttr<'_> {
-    fn apply_meta(&mut self, expr: AttrArg) -> Result<(), Error> {
+    fn apply_meta(&mut self, expr: AttrArg) -> syn::Result<()> {
         match expr.name().to_string().as_str() {
             "crate_module_path" => {
                 let crate_module_path = expr.key_value()?.parse_value::<syn::ExprPath>()?;
