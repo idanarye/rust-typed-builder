@@ -30,7 +30,7 @@ impl<'a> StructInfo<'a> {
         self.included_fields().filter(|f| f.builder_attr.via_mutators.is_none())
     }
 
-    pub fn generic_argumnents(&self) -> Punctuated<GenericArgument, Token![,]> {
+    pub fn generic_arguments(&self) -> Punctuated<GenericArgument, Token![,]> {
         self.generics
             .params
             .iter()
@@ -220,7 +220,7 @@ impl<'a> StructInfo<'a> {
             ty: field_type,
             ..
         } = field;
-        let mut ty_generics = self.generic_argumnents();
+        let mut ty_generics = self.generic_arguments();
         let mut target_generics_tuple = empty_type_tuple();
         let mut ty_generics_tuple = empty_type_tuple();
         let generics = {
@@ -421,7 +421,7 @@ impl<'a> StructInfo<'a> {
 
         let mut required_fields = required_fields.clone();
 
-        let mut ty_generics = self.generic_argumnents();
+        let mut ty_generics = self.generic_arguments();
         let mut destructuring = TokenStream::new();
         let mut ty_generics_tuple = empty_type_tuple();
         let mut generics = self.generics.clone();
