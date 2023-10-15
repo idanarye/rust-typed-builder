@@ -1,6 +1,6 @@
 use std::{collections::HashSet, iter};
 
-use proc_macro2::{Ident, Span, TokenStream};
+use proc_macro2::{Ident, Span, TokenStream, TokenTree};
 use quote::{format_ident, ToTokens};
 use syn::{
     parenthesized,
@@ -244,6 +244,20 @@ impl ToTokens for SubAttr {
     }
 }
 
+fn take_until_comma(input: ParseStream) -> syn::Result<TokenStream> {
+    let mut stream = TokenStream::new();
+    while !input.is_empty() {
+        if input.peek(Token![,]) {
+            break;
+        }
+
+        let token = input.parse::<TokenTree>()?;
+        stream.extend(Some(token));
+    }
+
+    Ok(stream)
+}
+
 impl Parse for AttrArg {
     fn parse(input: syn::parse::ParseStream) -> syn::Result<Self> {
         if input.peek(Token![!]) {
@@ -266,7 +280,7 @@ impl Parse for AttrArg {
                 Ok(Self::KeyValue(KeyValue {
                     name,
                     eq: input.parse()?,
-                    value: input.parse()?, // This thing consumes beyond the punctuation separated boundaries?
+                    value: take_until_comma(input)?,
                 }))
             } else {
                 Err(input.error("expected !<ident>, <ident>=<value> or <ident>(…)"))
