@@ -18,7 +18,7 @@ pub struct StructInfo<'a> {
     pub vis: &'a syn::Visibility,
     pub name: &'a syn::Ident,
     pub generics: &'a syn::Generics,
-    pub fields: Vec<FieldInfo<'a>>,
+    pub fields: Box<[FieldInfo<'a>]>,
 
     pub builder_attr: TypeBuilderAttr<'a>,
     pub builder_name: syn::Ident,
