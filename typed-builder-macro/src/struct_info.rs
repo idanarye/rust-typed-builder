@@ -188,9 +188,9 @@ impl<'a> StructInfo<'a> {
             #[must_use]
             #builder_type_doc
             #[allow(dead_code, non_camel_case_types, non_snake_case)]
-            #builder_type_visibility struct #builder_name #b_generics {
+            #builder_type_visibility struct #builder_name #b_generics #b_generics_where_extras_predicates {
                 fields: #all_fields_param,
-                phantom: ::core::marker::PhantomData<(#( #phantom_generics ),*)>,
+                phantom: (#( ::core::marker::PhantomData<#phantom_generics> ),*),
             }
 
             #[automatically_derived]
@@ -199,7 +199,7 @@ impl<'a> StructInfo<'a> {
                 fn clone(&self) -> Self {
                     Self {
                         fields: self.fields.clone(),
-                        phantom: ::core::marker::PhantomData,
+                        phantom: ::core::default::Default::default(),
                     }
                 }
             }
