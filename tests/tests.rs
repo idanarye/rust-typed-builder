@@ -613,6 +613,20 @@ fn test_builder_on_struct_with_keywords_prefix_suffix() {
 }
 
 #[test]
+fn test_unsized_generic_params() {
+    use std::marker::PhantomData;
+
+    #[derive(TypedBuilder)]
+    struct GenericStructure<K, V>
+    where
+        K: ?Sized,
+    {
+        key: PhantomData<K>,
+        value: PhantomData<V>,
+    }
+}
+
+#[test]
 fn test_field_setter_transform() {
     #[derive(PartialEq)]
     struct Point {
