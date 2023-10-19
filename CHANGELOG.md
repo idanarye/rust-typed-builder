@@ -6,6 +6,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+## 0.18.0 - 2023-10-19
+### Fixed
+- `?Sized` generic parameters are now supported.
+
 ## 0.17.0 - 2023-10-15
 ### Changed
 - Internal refactor of attribute parsing - results in better error messages and
