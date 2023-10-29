@@ -1,37 +1,35 @@
 use proc_macro2::{Ident, Span, TokenStream};
 use quote::{format_ident, quote, quote_spanned, ToTokens};
-use syn::parse::Error;
-use syn::punctuated::Punctuated;
-use syn::{parse_quote, GenericArgument, ItemFn, Token};
+use syn::{parse::Error, parse_quote, punctuated::Punctuated, GenericArgument, ItemFn, Token};
 
-use crate::field_info::{FieldBuilderAttr, FieldInfo};
+use crate::builder_attr::{IntoSetting, TypeBuilderAttr};
+use crate::field_info::FieldInfo;
 use crate::mutator::Mutator;
 use crate::util::{
-    empty_type, empty_type_tuple, first_visibility, modify_types_generics_hack, path_to_single_string, public_visibility,
-    strip_raw_ident_prefix, type_tuple, ApplyMeta, AttrArg,
+    empty_type, empty_type_tuple, first_visibility, modify_types_generics_hack, public_visibility, strip_raw_ident_prefix,
+    type_tuple,
 };
 
 #[derive(Debug)]
 pub struct StructInfo<'a> {
-    pub vis: &'a syn::Visibility,
-    pub name: &'a syn::Ident,
-    pub generics: &'a syn::Generics,
-    pub fields: Vec<FieldInfo<'a>>,
+    vis: &'a syn::Visibility,
+    name: &'a syn::Ident,
+    generics: &'a syn::Generics,
+    fields: Vec<FieldInfo<'a>>,
 
-    pub builder_attr: TypeBuilderAttr<'a>,
-    pub builder_name: syn::Ident,
-    pub core: syn::Ident,
+    builder_attr: TypeBuilderAttr<'a>,
+    builder_name: syn::Ident,
 }
 
 impl<'a> StructInfo<'a> {
-    pub fn included_fields(&self) -> impl Iterator<Item = &FieldInfo<'a>> {
+    fn included_fields(&self) -> impl Iterator<Item = &FieldInfo<'a>> {
         self.fields.iter().filter(|f| f.builder_attr.setter.skip.is_none())
     }
-    pub fn setter_fields(&self) -> impl Iterator<Item = &FieldInfo<'a>> {
+    fn setter_fields(&self) -> impl Iterator<Item = &FieldInfo<'a>> {
         self.included_fields().filter(|f| f.builder_attr.via_mutators.is_none())
     }
 
-    pub fn generic_arguments(&self) -> Punctuated<GenericArgument, Token![,]> {
+    fn generic_arguments(&self) -> Punctuated<GenericArgument, Token![,]> {
         self.generics
             .params
             .iter()
@@ -49,7 +47,7 @@ impl<'a> StructInfo<'a> {
             .collect()
     }
 
-    pub fn new(ast: &'a syn::DeriveInput, fields: impl Iterator<Item = &'a syn::Field>) -> Result<StructInfo<'a>, Error> {
+    pub fn new(ast: &'a syn::DeriveInput, fields: impl Iterator<Item = &'a syn::Field>) -> syn::Result<StructInfo<'a>> {
         let builder_attr = TypeBuilderAttr::new(&ast.attrs)?;
         let builder_name = builder_attr
             .builder_type
@@ -66,11 +64,10 @@ impl<'a> StructInfo<'a> {
                 .collect::<Result<_, _>>()?,
             builder_attr,
             builder_name: syn::Ident::new(&builder_name, proc_macro2::Span::call_site()),
-            core: syn::Ident::new(&format!("{}_core", builder_name), proc_macro2::Span::call_site()),
         })
     }
 
-    pub fn builder_creation_impl(&self) -> Result<TokenStream, Error> {
+    fn builder_creation_impl(&self) -> syn::Result<TokenStream> {
         let StructInfo {
             vis,
             ref name,
@@ -212,7 +209,7 @@ impl<'a> StructInfo<'a> {
         })
     }
 
-    pub fn field_impl(&self, field: &FieldInfo) -> Result<TokenStream, Error> {
+    fn field_impl(&self, field: &FieldInfo) -> syn::Result<TokenStream> {
         let StructInfo { ref builder_name, .. } = *self;
 
         let descructuring = self.included_fields().map(|f| {
@@ -330,7 +327,7 @@ impl<'a> StructInfo<'a> {
         })
     }
 
-    pub fn required_field_impl(&self, field: &FieldInfo) -> TokenStream {
+    fn required_field_impl(&self, field: &FieldInfo) -> TokenStream {
         let StructInfo { ref builder_name, .. } = self;
 
         let FieldInfo {
@@ -420,7 +417,7 @@ impl<'a> StructInfo<'a> {
         }
     }
 
-    pub fn mutator_impl(
+    fn mutator_impl(
         &self,
         mutator @ Mutator {
             fun: mutator_fn,
@@ -506,7 +503,7 @@ impl<'a> StructInfo<'a> {
         first_visibility(&[self.builder_attr.build_method.common.vis.as_ref(), Some(&public_visibility())])
     }
 
-    pub fn build_method_impl(&self) -> TokenStream {
+    fn build_method_impl(&self) -> TokenStream {
         let StructInfo {
             ref name,
             ref builder_name,
@@ -633,199 +630,32 @@ impl<'a> StructInfo<'a> {
             }
         )
     }
-}
 
-#[derive(Debug, Default, Clone)]
-pub struct CommonDeclarationSettings {
-    pub vis: Option<syn::Visibility>,
-    pub name: Option<syn::Expr>,
-    pub doc: Option<syn::Expr>,
-}
+    pub fn derive(&self) -> syn::Result<TokenStream> {
+        let builder_creation = self.builder_creation_impl()?;
+        let fields = self
+            .setter_fields()
+            .map(|f| self.field_impl(f))
+            .collect::<Result<TokenStream, _>>()?;
+        let required_fields = self
+            .setter_fields()
+            .filter(|f| f.builder_attr.default.is_none())
+            .map(|f| self.required_field_impl(f));
+        let mutators = self
+            .fields
+            .iter()
+            .flat_map(|f| &f.builder_attr.mutators)
+            .chain(&self.builder_attr.mutators)
+            .map(|m| self.mutator_impl(m))
+            .collect::<Result<TokenStream, _>>()?;
+        let build_method = self.build_method_impl();
 
-impl ApplyMeta for CommonDeclarationSettings {
-    fn apply_meta(&mut self, expr: AttrArg) -> Result<(), Error> {
-        match expr.name().to_string().as_str() {
-            "vis" => {
-                let expr_str = expr.key_value()?.parse_value::<syn::LitStr>()?.value();
-                self.vis = Some(syn::parse_str(&expr_str)?);
-                Ok(())
-            }
-            "name" => {
-                self.name = Some(expr.key_value()?.parse_value()?);
-                Ok(())
-            }
-            "doc" => {
-                self.doc = Some(expr.key_value()?.parse_value()?);
-                Ok(())
-            }
-            _ => Err(Error::new_spanned(
-                expr.name(),
-                format!("Unknown parameter {:?}", expr.name().to_string()),
-            )),
-        }
-    }
-}
-
-impl CommonDeclarationSettings {
-    fn get_name(&self) -> Option<TokenStream> {
-        self.name.as_ref().map(|name| name.to_token_stream())
-    }
-
-    fn get_doc_or(&self, gen_doc: impl FnOnce() -> String) -> TokenStream {
-        if let Some(ref doc) = self.doc {
-            quote!(#[doc = #doc])
-        } else {
-            let doc = gen_doc();
-            quote!(#[doc = #doc])
-        }
-    }
-}
-
-/// Setting of the `into` argument.
-#[derive(Debug, Clone)]
-pub enum IntoSetting {
-    /// Do not run any conversion on the built value.
-    NoConversion,
-    /// Convert the build value into the generic parameter passed to the `build` method.
-    GenericConversion,
-    /// Convert the build value into a specific type specified in the attribute.
-    TypeConversionToSpecificType(syn::TypePath),
-}
-
-impl Default for IntoSetting {
-    fn default() -> Self {
-        Self::NoConversion
-    }
-}
-
-#[derive(Debug, Default, Clone)]
-pub struct BuildMethodSettings {
-    pub common: CommonDeclarationSettings,
-
-    /// Whether to convert the built type into another while finishing the build.
-    pub into: IntoSetting,
-}
-
-impl ApplyMeta for BuildMethodSettings {
-    fn apply_meta(&mut self, expr: AttrArg) -> Result<(), Error> {
-        match expr.name().to_string().as_str() {
-            "into" => match expr {
-                AttrArg::Flag(_) => {
-                    self.into = IntoSetting::GenericConversion;
-                    Ok(())
-                }
-                AttrArg::KeyValue(key_value) => {
-                    let type_path = key_value.parse_value::<syn::TypePath>()?;
-                    self.into = IntoSetting::TypeConversionToSpecificType(type_path);
-                    Ok(())
-                }
-                _ => Err(expr.incorrect_type()),
-            },
-            _ => self.common.apply_meta(expr),
-        }
-    }
-}
-
-#[derive(Debug)]
-pub struct TypeBuilderAttr<'a> {
-    /// Whether to show docs for the `TypeBuilder` type (rather than hiding them).
-    pub doc: bool,
-
-    /// Customize builder method, ex. visibility, name
-    pub builder_method: CommonDeclarationSettings,
-
-    /// Customize builder type, ex. visibility, name
-    pub builder_type: CommonDeclarationSettings,
-
-    /// Customize build method, ex. visibility, name
-    pub build_method: BuildMethodSettings,
-
-    pub field_defaults: FieldBuilderAttr<'a>,
-
-    pub crate_module_path: syn::Path,
-
-    /// Functions that are able to mutate fields in the builder that are already set
-    pub mutators: Vec<Mutator>,
-}
-
-impl Default for TypeBuilderAttr<'_> {
-    fn default() -> Self {
-        Self {
-            doc: Default::default(),
-            builder_method: Default::default(),
-            builder_type: Default::default(),
-            build_method: Default::default(),
-            field_defaults: Default::default(),
-            crate_module_path: syn::parse_quote!(::typed_builder),
-            mutators: Default::default(),
-        }
-    }
-}
-
-impl<'a> TypeBuilderAttr<'a> {
-    pub fn new(attrs: &[syn::Attribute]) -> Result<Self, Error> {
-        let mut result = Self::default();
-
-        for attr in attrs {
-            let list = match &attr.meta {
-                syn::Meta::List(list) => {
-                    if path_to_single_string(&list.path).as_deref() != Some("builder") {
-                        continue;
-                    }
-
-                    list
-                }
-                _ => continue,
-            };
-
-            result.apply_subsections(list)?;
-        }
-
-        if result.builder_type.doc.is_some() || result.build_method.common.doc.is_some() {
-            result.doc = true;
-        }
-
-        Ok(result)
-    }
-}
-
-impl ApplyMeta for TypeBuilderAttr<'_> {
-    fn apply_meta(&mut self, expr: AttrArg) -> Result<(), Error> {
-        match expr.name().to_string().as_str() {
-            "crate_module_path" => {
-                let crate_module_path = expr.key_value()?.parse_value::<syn::ExprPath>()?;
-                self.crate_module_path = crate_module_path.path;
-                Ok(())
-            }
-            "builder_method_doc" => Err(Error::new_spanned(
-                expr.name(),
-                "`builder_method_doc` is deprecated - use `builder_method(doc = \"...\")`",
-            )),
-            "builder_type_doc" => Err(Error::new_spanned(
-                expr.name(),
-                "`builder_typemethod_doc` is deprecated - use `builder_type(doc = \"...\")`",
-            )),
-            "build_method_doc" => Err(Error::new_spanned(
-                expr.name(),
-                "`build_method_doc` is deprecated - use `build_method(doc = \"...\")`",
-            )),
-            "doc" => {
-                expr.flag()?;
-                self.doc = true;
-                Ok(())
-            }
-            "mutators" => {
-                self.mutators.extend(expr.sub_attr()?.undelimited()?);
-                Ok(())
-            }
-            "field_defaults" => self.field_defaults.apply_sub_attr(expr.sub_attr()?),
-            "builder_method" => self.builder_method.apply_sub_attr(expr.sub_attr()?),
-            "builder_type" => self.builder_type.apply_sub_attr(expr.sub_attr()?),
-            "build_method" => self.build_method.apply_sub_attr(expr.sub_attr()?),
-            _ => Err(Error::new_spanned(
-                expr.name(),
-                format!("Unknown parameter {:?}", expr.name().to_string()),
-            )),
-        }
+        Ok(quote! {
+            #builder_creation
+            #fields
+            #(#required_fields)*
+            #mutators
+            #build_method
+        })
     }
 }

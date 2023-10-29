@@ -1,7 +1,7 @@
 use proc_macro2::TokenStream;
-use quote::quote;
 use syn::{parse::Error, parse_macro_input, spanned::Spanned, DeriveInput};
 
+mod builder_attr;
 mod field_info;
 mod mutator;
 mod struct_info;
@@ -19,34 +19,7 @@ pub fn derive_typed_builder(input: proc_macro::TokenStream) -> proc_macro::Token
 fn impl_my_derive(ast: &syn::DeriveInput) -> Result<TokenStream, Error> {
     let data = match &ast.data {
         syn::Data::Struct(data) => match &data.fields {
-            syn::Fields::Named(fields) => {
-                let struct_info = struct_info::StructInfo::new(ast, fields.named.iter())?;
-                let builder_creation = struct_info.builder_creation_impl()?;
-                let fields = struct_info
-                    .setter_fields()
-                    .map(|f| struct_info.field_impl(f))
-                    .collect::<Result<TokenStream, _>>()?;
-                let required_fields = struct_info
-                    .setter_fields()
-                    .filter(|f| f.builder_attr.default.is_none())
-                    .map(|f| struct_info.required_field_impl(f));
-                let mutators = struct_info
-                    .fields
-                    .iter()
-                    .flat_map(|f| &f.builder_attr.mutators)
-                    .chain(&struct_info.builder_attr.mutators)
-                    .map(|m| struct_info.mutator_impl(m))
-                    .collect::<Result<TokenStream, _>>()?;
-                let build_method = struct_info.build_method_impl();
-
-                quote! {
-                    #builder_creation
-                    #fields
-                    #(#required_fields)*
-                    #mutators
-                    #build_method
-                }
-            }
+            syn::Fields::Named(fields) => struct_info::StructInfo::new(ast, fields.named.iter())?.derive()?,
             syn::Fields::Unnamed(_) => return Err(Error::new(ast.span(), "TypedBuilder is not supported for tuple structs")),
             syn::Fields::Unit => return Err(Error::new(ast.span(), "TypedBuilder is not supported for unit structs")),
         },
