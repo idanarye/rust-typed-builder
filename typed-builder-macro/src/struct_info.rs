@@ -129,9 +129,10 @@ impl<'a> StructInfo<'a> {
                 "
                 Create a builder for building `{name}`.
                 On the builder, call {setters} to set the values of the fields.
-                Finally, call `.build()` to create the instance of `{name}`.
+                Finally, call `.{build_method_name}()` to create the instance of `{name}`.
                 ",
                 name = self.name,
+                build_method_name = self.build_method_name(),
                 setters = {
                     let mut result = String::new();
                     let mut is_first = true;
@@ -156,8 +157,13 @@ impl<'a> StructInfo<'a> {
         let builder_type_doc = if self.builder_attr.doc {
             self.builder_attr.builder_type.get_doc_or(|| {
                 format!(
-                    "Builder for [`{name}`] instances.\n\nSee [`{name}::builder()`] for more info.",
-                    name = name
+                    "
+                    Builder for [`{name}`] instances.
+
+                    See [`{name}::{builder_method_name}()`] for more info.
+                    ",
+                    name = name,
+                    builder_method_name = builder_method_name
                 )
             })
         } else {
