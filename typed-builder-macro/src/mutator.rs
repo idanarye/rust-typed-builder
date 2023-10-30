@@ -52,7 +52,7 @@ impl ApplyMeta for MutatorAttribute {
 }
 
 impl Parse for Mutator {
-    fn parse(input: ParseStream) -> syn::Result<Self> {
+    fn parse(input: ParseStream<'_>) -> syn::Result<Self> {
         let mut fun: ItemFn = input.parse()?;
 
         let mut attribute = MutatorAttribute::default();

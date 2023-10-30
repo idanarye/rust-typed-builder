@@ -1,3 +1,5 @@
+#![forbid(rust_2018_idioms)]
+
 use proc_macro2::TokenStream;
 use quote::quote;
 use syn::{parse::Error, parse_macro_input, spanned::Spanned, DeriveInput};

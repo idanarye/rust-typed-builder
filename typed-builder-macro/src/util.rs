@@ -64,7 +64,7 @@ pub fn empty_type_tuple() -> syn::TypeTuple {
     }
 }
 
-pub fn modify_types_generics_hack<F>(ty_generics: &syn::TypeGenerics, mut mutator: F) -> syn::AngleBracketedGenericArguments
+pub fn modify_types_generics_hack<F>(ty_generics: &syn::TypeGenerics<'_>, mut mutator: F) -> syn::AngleBracketedGenericArguments
 where
     F: FnMut(&mut syn::punctuated::Punctuated<syn::GenericArgument, syn::token::Comma>),
 {
@@ -212,7 +212,7 @@ impl ToTokens for KeyValue {
 }
 
 impl Parse for KeyValue {
-    fn parse(input: syn::parse::ParseStream) -> syn::Result<Self> {
+    fn parse(input: syn::parse::ParseStream<'_>) -> syn::Result<Self> {
         Ok(Self {
             name: input.parse()?,
             eq: input.parse()?,
@@ -232,7 +232,8 @@ impl SubAttr {
         Punctuated::<T, Token![,]>::parse_terminated.parse2(self.args)
     }
     pub fn undelimited<T: Parse>(self) -> syn::Result<impl IntoIterator<Item = T>> {
-        (|p: ParseStream| iter::from_fn(|| (!p.is_empty()).then(|| p.parse())).collect::<syn::Result<Vec<T>>>()).parse2(self.args)
+        (|p: ParseStream<'_>| iter::from_fn(|| (!p.is_empty()).then(|| p.parse())).collect::<syn::Result<Vec<T>>>())
+            .parse2(self.args)
     }
 }
 
@@ -243,7 +244,7 @@ impl ToTokens for SubAttr {
     }
 }
 
-fn get_cursor_after_parsing<P: Parse + Spanned>(input: syn::parse::ParseBuffer) -> syn::Result<syn::buffer::Cursor> {
+fn get_cursor_after_parsing<P: Parse + Spanned>(input: syn::parse::ParseBuffer<'_>) -> syn::Result<syn::buffer::Cursor<'_>> {
     let parse_attempt: P = input.parse()?;
     let cursor = input.cursor();
     if cursor.eof() || input.peek(Token![,]) {
@@ -256,7 +257,10 @@ fn get_cursor_after_parsing<P: Parse + Spanned>(input: syn::parse::ParseBuffer) 
     }
 }
 
-fn get_token_stream_up_to_cursor(input: syn::parse::ParseStream, cursor: syn::buffer::Cursor) -> syn::Result<TokenStream> {
+fn get_token_stream_up_to_cursor(
+    input: syn::parse::ParseStream<'_>,
+    cursor: syn::buffer::Cursor<'_>,
+) -> syn::Result<TokenStream> {
     Ok(core::iter::from_fn(|| {
         if input.cursor() < cursor {
             input.parse::<TokenTree>().ok()
@@ -268,7 +272,7 @@ fn get_token_stream_up_to_cursor(input: syn::parse::ParseStream, cursor: syn::bu
 }
 
 impl Parse for AttrArg {
-    fn parse(input: syn::parse::ParseStream) -> syn::Result<Self> {
+    fn parse(input: syn::parse::ParseStream<'_>) -> syn::Result<Self> {
         if input.peek(Token![!]) {
             Ok(Self::Not {
                 not: input.parse()?,
