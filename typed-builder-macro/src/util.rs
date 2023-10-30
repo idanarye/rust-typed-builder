@@ -79,13 +79,6 @@ where
     abga
 }
 
-pub fn strip_raw_ident_prefix(mut name: String) -> String {
-    if name.starts_with("r#") {
-        name.replace_range(0..2, "");
-    }
-    name
-}
-
 pub fn first_visibility(visibilities: &[Option<&syn::Visibility>]) -> proc_macro2::TokenStream {
     let vis = visibilities
         .iter()
