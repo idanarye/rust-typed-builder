@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Fixed
 - Add `#[allow(clippy::no_effect_underscore_binding)]` to generated methods
   that need to destructure intermediate builder state.
+- Use a proper `OR` syntax for the dual license.
 
 ## 0.18.0 - 2023-10-19
 ### Fixed
