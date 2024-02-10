@@ -162,7 +162,7 @@ jobs:
         run: |-
           chmod --recursive +r target/doc
       - name: Upload artifact
-        uses: actions/upload-pages-artifact@v1
+        uses: actions/upload-pages-artifact@v3
         with:
           path: target/doc
   deploy-ghpages:
