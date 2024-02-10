@@ -38,7 +38,7 @@ jobs:
         if: matrix.os == 'ubuntu-latest'
         run: sudo chown -R $(whoami):$(id -ng) ~/.cargo/
       - name: Cache cargo
-        uses: actions/cache@v1
+        uses: actions/cache@v4
         id: cache
         with:
           path: ~/.cargo
@@ -68,7 +68,7 @@ jobs:
         if: matrix.os == 'ubuntu-latest'
         run: sudo chown -R $(whoami):$(id -ng) ~/.cargo/
       - name: Cache cargo
-        uses: actions/cache@v1
+        uses: actions/cache@v4
         id: cache
         with:
           path: ~/.cargo
@@ -109,7 +109,7 @@ jobs:
           override: true
           components: clippy
       - name: Cache cargo
-        uses: actions/cache@v1
+        uses: actions/cache@v4
         id: cache
         with:
           path: ~/.cargo
@@ -130,7 +130,7 @@ jobs:
           toolchain: nightly
           override: true
       - name: Cache cargo
-        uses: actions/cache@v1
+        uses: actions/cache@v4
         id: cache
         with:
           path: ~/.cargo
