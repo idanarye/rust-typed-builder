@@ -5,10 +5,7 @@ use syn::{parse::Error, parse_quote, punctuated::Punctuated, GenericArgument, It
 use crate::builder_attr::{IntoSetting, TypeBuilderAttr};
 use crate::field_info::FieldInfo;
 use crate::mutator::Mutator;
-use crate::util::{
-    empty_type, empty_type_tuple, first_visibility, modify_types_generics_hack, public_visibility, strip_raw_ident_prefix,
-    type_tuple,
-};
+use crate::util::{empty_type, empty_type_tuple, first_visibility, modify_types_generics_hack, public_visibility, type_tuple};
 
 #[derive(Debug)]
 pub struct StructInfo<'a> {
@@ -52,8 +49,8 @@ impl<'a> StructInfo<'a> {
         let builder_name = builder_attr
             .builder_type
             .get_name()
-            .map(|name| strip_raw_ident_prefix(name.to_string()))
-            .unwrap_or_else(|| strip_raw_ident_prefix(format!("{}Builder", ast.ident)));
+            .map(|name| format_ident!("{}", name.to_string()))
+            .unwrap_or_else(|| format_ident!("{}Builder", ast.ident));
         Ok(StructInfo {
             vis: &ast.vis,
             name: &ast.ident,
@@ -63,7 +60,7 @@ impl<'a> StructInfo<'a> {
                 .map(|(i, f)| FieldInfo::new(i, f, builder_attr.field_defaults.clone()))
                 .collect::<Result<_, _>>()?,
             builder_attr,
-            builder_name: syn::Ident::new(&builder_name, proc_macro2::Span::call_site()),
+            builder_name,
         })
     }
 
@@ -281,14 +278,7 @@ impl<'a> StructInfo<'a> {
             (quote!(#field_name: #arg_type), arg_expr)
         };
 
-        let repeated_fields_error_type_name = syn::Ident::new(
-            &format!(
-                "{}_Error_Repeated_field_{}",
-                builder_name,
-                strip_raw_ident_prefix(field_name.to_string())
-            ),
-            proc_macro2::Span::call_site(),
-        );
+        let repeated_fields_error_type_name = format_ident!("{}_Error_Repeated_field_{}", builder_name, field_name);
         let repeated_fields_error_message = format!("Repeated field {}", field_name);
 
         let method_name = field.setter_method_name();
@@ -385,14 +375,7 @@ impl<'a> StructInfo<'a> {
         builder_generics.push(syn::GenericArgument::Type(builder_generics_tuple.into()));
         let (impl_generics, _, where_clause) = generics.split_for_impl();
 
-        let early_build_error_type_name = syn::Ident::new(
-            &format!(
-                "{}_Error_Missing_required_field_{}",
-                builder_name,
-                strip_raw_ident_prefix(field_name.to_string())
-            ),
-            proc_macro2::Span::call_site(),
-        );
+        let early_build_error_type_name = format_ident!("{}_Error_Missing_required_field_{}", builder_name, field_name);
         let early_build_error_message = format!("Missing required field {}", field_name);
 
         let build_method_name = self.build_method_name();

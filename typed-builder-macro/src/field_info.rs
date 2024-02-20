@@ -1,9 +1,9 @@
 use proc_macro2::{Ident, Span, TokenStream};
-use quote::quote_spanned;
+use quote::{format_ident, quote_spanned};
 use syn::{parse::Error, spanned::Spanned};
 
 use crate::mutator::Mutator;
-use crate::util::{expr_to_lit_string, ident_to_type, path_to_single_string, strip_raw_ident_prefix, ApplyMeta, AttrArg};
+use crate::util::{expr_to_lit_string, ident_to_type, path_to_single_string, ApplyMeta, AttrArg};
 
 #[derive(Debug)]
 pub struct FieldInfo<'a> {
@@ -20,7 +20,7 @@ impl<'a> FieldInfo<'a> {
             FieldInfo {
                 ordinal,
                 name,
-                generic_ident: syn::Ident::new(&format!("__{}", strip_raw_ident_prefix(name.to_string())), Span::call_site()),
+                generic_ident: format_ident!("__{}", name),
                 ty: &field.ty,
                 builder_attr: field_defaults.with(name, &field.attrs)?,
             }
@@ -75,14 +75,12 @@ impl<'a> FieldInfo<'a> {
     }
 
     pub fn setter_method_name(&self) -> Ident {
-        let name = strip_raw_ident_prefix(self.name.to_string());
-
         if let (Some(prefix), Some(suffix)) = (&self.builder_attr.setter.prefix, &self.builder_attr.setter.suffix) {
-            Ident::new(&format!("{}{}{}", prefix, name, suffix), Span::call_site())
+            format_ident!("{}{}{}", prefix, self.name, suffix)
         } else if let Some(prefix) = &self.builder_attr.setter.prefix {
-            Ident::new(&format!("{}{}", prefix, name), Span::call_site())
+            format_ident!("{}{}", prefix, self.name)
         } else if let Some(suffix) = &self.builder_attr.setter.suffix {
-            Ident::new(&format!("{}{}", name, suffix), Span::call_site())
+            format_ident!("{}{}", self.name, suffix)
         } else {
             self.name.clone()
         }
