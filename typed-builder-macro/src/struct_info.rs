@@ -17,8 +17,8 @@ pub struct StructInfo<'a> {
     generics: &'a syn::Generics,
     fields: Vec<FieldInfo<'a>>,
 
-    builder_attr: TypeBuilderAttr<'a>,
-    builder_name: syn::Ident,
+    pub builder_attr: TypeBuilderAttr<'a>,
+    pub builder_name: syn::Ident,
 }
 
 impl<'a> StructInfo<'a> {
@@ -65,6 +65,36 @@ impl<'a> StructInfo<'a> {
             builder_attr,
             builder_name: syn::Ident::new(&builder_name, proc_macro2::Span::call_site()),
         })
+    }
+
+    pub fn builder_method_setters_doc(&self) -> String {
+        let mut result = String::new();
+        let mut is_first = true;
+        for field in self.setter_fields() {
+            use std::fmt::Write;
+            if is_first {
+                is_first = false;
+            } else {
+                write!(&mut result, ", ").unwrap();
+            }
+            write!(&mut result, "`.{}(...)`", field.name).unwrap();
+            if field.builder_attr.default.is_some() {
+                write!(&mut result, "(optional)").unwrap();
+            }
+        }
+        result
+    }
+
+    pub fn builder_method_name(&self) -> TokenStream {
+        self.builder_attr.builder_method.get_name().unwrap_or_else(|| quote!(builder))
+    }
+
+    pub fn builder_method_visibility(&self) -> TokenStream {
+        first_visibility(&[
+            self.builder_attr.builder_method.vis.as_ref(),
+            self.builder_attr.builder_type.vis.as_ref(),
+            Some(self.vis),
+        ])
     }
 
     fn builder_creation_impl(&self) -> syn::Result<TokenStream> {
@@ -115,12 +145,8 @@ impl<'a> StructInfo<'a> {
             syn::GenericParam::Const(_cnst) => None,
         });
 
-        let builder_method_name = self.builder_attr.builder_method.get_name().unwrap_or_else(|| quote!(builder));
-        let builder_method_visibility = first_visibility(&[
-            self.builder_attr.builder_method.vis.as_ref(),
-            self.builder_attr.builder_type.vis.as_ref(),
-            Some(vis),
-        ]);
+        let builder_method_name = self.builder_method_name();
+        let builder_method_visibility = self.builder_method_visibility();
         let builder_method_doc = self.builder_attr.builder_method.get_doc_or(|| {
             format!(
                 "
@@ -130,23 +156,7 @@ impl<'a> StructInfo<'a> {
                 ",
                 name = self.name,
                 build_method_name = self.build_method_name(),
-                setters = {
-                    let mut result = String::new();
-                    let mut is_first = true;
-                    for field in self.setter_fields() {
-                        use std::fmt::Write;
-                        if is_first {
-                            is_first = false;
-                        } else {
-                            write!(&mut result, ", ").unwrap();
-                        }
-                        write!(&mut result, "`.{}(...)`", field.name).unwrap();
-                        if field.builder_attr.default.is_some() {
-                            write!(&mut result, "(optional)").unwrap();
-                        }
-                    }
-                    result
-                }
+                setters = self.builder_method_setters_doc(),
             )
         });
 
@@ -495,7 +505,7 @@ impl<'a> StructInfo<'a> {
         })
     }
 
-    fn build_method_name(&self) -> TokenStream {
+    pub fn build_method_name(&self) -> TokenStream {
         self.builder_attr.build_method.common.get_name().unwrap_or(quote!(build))
     }
 

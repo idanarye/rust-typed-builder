@@ -232,6 +232,44 @@ use core::ops::FnOnce;
 ///     Struct::builder().x(2).x_into_b().x_into_b().x_into_b_field().inc_a(2).build(),
 ///     Struct {x: 2, a: 3, b: vec![2, 2, 2]});
 /// ```
+///
+/// # Enum
+/// `TypedBuilder` also supports deriving builder of enums.
+/// By default (inconfigurable though), `TypedBuilder` generates builder methods with
+/// the name of "snake_case" of variant names.
+/// For example, the builder of `Foo::BarQux` is created by `Foo::bar_qux()`.
+/// Note that it does not support enums with generics or lifetime.
+///
+/// You can specify `#[builder(...)]` on enums, on variants, and on any fields.
+/// But since `TypedBuilder` internally generates a builder struct each enum variant,
+/// some subsections are prohibited; you cannot specify `builder_method(name=...)`,
+/// `builder_type(name=...)`, `build_method(into=...)` on enums.
+/// ```
+/// use typed_builder::TypedBuilder;
+///
+/// #[derive(PartialEq, TypedBuilder)]
+/// #[builder(field_defaults(setter(into)))]
+/// enum Foo {
+///     Bar {
+///         x: i32,
+///     },
+///     // builder method is `.baz_qux()`, "snake_case" of variant names
+///     #[builder(field_defaults(setter(prefix = "with_")))]
+///     BazQux {
+///         #[builder(default, setter(strip_option))]
+///         y: Option<i32>,
+///         z: String,
+///     },
+/// }
+///
+/// assert!(
+///     Foo::bar().x(1).build()
+///     == Foo::Bar { x: 1 });
+///
+/// assert!(
+///     Foo::baz_qux().with_y(1).with_z("bar").build()
+///     == Foo::BazQux { y: Some(1), z: "bar".to_owned() });
+/// ```
 pub use typed_builder_macro::TypedBuilder;
 
 #[doc(hidden)]
@@ -347,4 +385,114 @@ impl<T> Optional<T> for (T,) {
 /// #[deny(deprecated)]
 /// Foo::builder().value(42).build();
 ///```
-fn _compile_fail_tests() {}
+fn _struct_compile_fail_tests() {}
+
+#[doc(hidden)]
+/// Enum with generics:
+///
+/// ```compile_fail
+/// use typed_builder::TypedBuilder;
+///
+/// #[derive(TypedBuilder)]
+/// enum Foo<T> {
+///     Bar { value: T },
+/// }
+/// ```
+///
+/// Enum with lifetime:
+///
+/// ```compile_fail
+/// use typed_builder::TypedBuilder;
+///
+/// #[derive(TypedBuilder)]
+/// enum Foo<'a> {
+///     Bar { value: &'a i32 },
+/// }
+/// ```
+///
+/// Enum with builder_method(...):
+///
+/// ```compile_fail
+/// use typed_builder::TypedBuilder;
+///
+/// #[derive(TypedBuilder)]
+/// #[builder(builder_method(name=builder))]
+/// enum Foo {
+///     Bar { value: i32 },
+/// }
+/// ```
+///
+/// But for variant:
+///
+/// ```
+/// use typed_builder::TypedBuilder;
+///
+/// #[derive(TypedBuilder)]
+/// enum Foo {
+///     #[builder(builder_method(name=builder))]
+///     Bar { value: i32 },
+/// }
+///
+/// let _ = Foo::builder().value(0).build();
+/// ```
+///
+/// Enum with builder_type(...):
+///
+/// ```compile_fail
+/// use typed_builder::TypedBuilder;
+///
+/// #[derive(TypedBuilder)]
+/// #[builder(builder_type(name=FooBuilder))]
+/// enum Foo {
+///     Bar { value: i32 },
+/// }
+/// ```
+///
+/// But for variant:
+///
+/// ```
+/// use typed_builder::TypedBuilder;
+///
+/// #[derive(TypedBuilder)]
+/// enum Foo {
+///     #[builder(builder_type(name=CustomBuilder))]
+///     Bar { value: i32 },
+/// }
+///
+/// let _: CustomBuilder = Foo::bar();
+/// ```
+///
+/// Enum with build_method(into):
+///
+/// ```compile_fail
+/// use typed_builder::TypedBuilder;
+///
+/// #[derive(TypedBuilder)]
+/// #[builder(build_method(into))]
+/// enum Foo {
+///     Bar { value: i32 },
+/// }
+/// ```
+///
+/// Enum with tuple variants:
+///
+/// ```compile_fail
+/// use typed_builder::TypedBuilder;
+///
+/// #[derive(TypedBuilder)]
+/// enum Foo {
+///     Bar(i32),
+/// }
+/// ```
+///
+/// Enum with unit variants:
+///
+/// ```compile_fail
+/// use typed_builder::TypedBuilder;
+///
+/// #[derive(TypedBuilder)]
+/// enum Foo {
+///     Bar,
+/// }
+/// ```
+fn _enum_compile_fail_tests() {}

@@ -2,6 +2,7 @@ use proc_macro2::TokenStream;
 use syn::{parse::Error, parse_macro_input, spanned::Spanned, DeriveInput};
 
 mod builder_attr;
+mod enum_info;
 mod field_info;
 mod mutator;
 mod struct_info;
@@ -23,7 +24,7 @@ fn impl_my_derive(ast: &syn::DeriveInput) -> Result<TokenStream, Error> {
             syn::Fields::Unnamed(_) => return Err(Error::new(ast.span(), "TypedBuilder is not supported for tuple structs")),
             syn::Fields::Unit => return Err(Error::new(ast.span(), "TypedBuilder is not supported for unit structs")),
         },
-        syn::Data::Enum(_) => return Err(Error::new(ast.span(), "TypedBuilder is not supported for enums")),
+        syn::Data::Enum(data) => enum_info::EnumInfo::new(ast, data.variants.iter())?.derive()?,
         syn::Data::Union(_) => return Err(Error::new(ast.span(), "TypedBuilder is not supported for unions")),
     };
     Ok(data)
