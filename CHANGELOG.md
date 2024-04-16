@@ -6,6 +6,9 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+### Fixed
+- Also add the licenses to the macro crate.
+
 ## 0.18.1 - 2024-01-17
 ### Fixed
 - Add `#[allow(clippy::no_effect_underscore_binding)]` to generated methods
