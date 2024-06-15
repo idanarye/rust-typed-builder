@@ -256,6 +256,19 @@ impl<T> Optional<T> for (T,) {
 // crate is all we can use.
 
 #[doc(hidden)]
+/// When a property is non-default, you can't ignore it:
+///
+/// ```compile_fail
+/// use typed_builder::TypedBuilder;
+///
+/// #[derive(TypedBuilder)]
+/// struct Foo {
+///     x: i8,
+/// }
+///
+/// let _ = Foo::builder().build();
+/// ```
+///
 /// When a property is skipped, you can't set it:
 /// (“method `y` not found for this”)
 ///
