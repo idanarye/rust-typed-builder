@@ -6,6 +6,11 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+## 0.19.0 - 2024-06-15
+### Added
+- Use fields' doc comments for the setters.
+
+## 0.18.2 - 2024-04-16
 ### Fixed
 - Also add the licenses to the macro crate.
 
