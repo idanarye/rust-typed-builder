@@ -2,12 +2,17 @@ use typed_builder::TypedBuilder;
 
 #[derive(Debug, PartialEq, TypedBuilder)]
 struct Foo {
-    // Mandatory Field:
+    /// `x` value.
+    ///
+    /// This field is mandatory.
     x: i32,
 
     // #[builder(default)] without parameter - use the type's default
     // #[builder(setter(strip_option))] - wrap the setter argument with `Some(...)`
-    #[builder(default, setter(strip_option))]
+    #[builder(
+        default,
+        setter(strip_option, doc = "Set `y`. If you don't specify a value it'll default to no value.",)
+    )]
     y: Option<i32>,
 
     // Or you can set the default
