@@ -12,6 +12,7 @@ struct Foo {
     x: i32,
 }
 
+#[allow(unused)]
 pub struct Bar(Foo);
 
 impl Bar {
