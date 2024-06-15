@@ -115,6 +115,7 @@ pub struct FieldBuilderAttr<'a> {
     pub default: Option<syn::Expr>,
     pub via_mutators: Option<ViaMutators>,
     pub deprecated: Option<&'a syn::Attribute>,
+    pub doc_comments: Vec<&'a syn::Expr>,
     pub setter: SetterSettings,
     /// Functions that are able to mutate fields in the builder that are already set
     pub mutators: Vec<Mutator>,
@@ -153,10 +154,20 @@ impl<'a> FieldBuilderAttr<'a> {
 
                     list
                 }
-                syn::Meta::Path(path) | syn::Meta::NameValue(syn::MetaNameValue { path, .. }) => {
-                    if path_to_single_string(path).as_deref() == Some("deprecated") {
-                        self.deprecated = Some(attr);
-                    };
+                syn::Meta::NameValue(syn::MetaNameValue { path, value, .. }) => {
+                    match path_to_single_string(path).as_deref() {
+                        Some("deprecated") => self.deprecated = Some(attr),
+                        Some("doc") => self.doc_comments.push(value),
+                        _ => continue,
+                    }
+
+                    continue;
+                }
+                syn::Meta::Path(path) => {
+                    match path_to_single_string(path).as_deref() {
+                        Some("deprecated") => self.deprecated = Some(attr),
+                        _ => continue,
+                    }
 
                     continue;
                 }

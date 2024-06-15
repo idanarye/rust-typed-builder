@@ -251,11 +251,25 @@ impl<'a> StructInfo<'a> {
         target_generics.push(syn::GenericArgument::Type(target_generics_tuple.into()));
         ty_generics.push(syn::GenericArgument::Type(ty_generics_tuple.into()));
         let (impl_generics, _, where_clause) = generics.split_for_impl();
-        let doc = field.builder_attr.setter.doc.as_ref().map(|doc| quote!(#[doc = #doc]));
+        let doc = if let Some(doc) = field.builder_attr.setter.doc.as_ref() {
+            Some(quote!(#[doc = #doc]))
+        } else if !field.builder_attr.doc_comments.is_empty() {
+            Some(
+                field
+                    .builder_attr
+                    .doc_comments
+                    .iter()
+                    .map(|&line| quote!(#[doc = #line]))
+                    .collect(),
+            )
+        } else {
+            None
+        };
+
         let deprecated = &field.builder_attr.deprecated;
 
         // NOTE: both auto_into and strip_option affect `arg_type` and `arg_expr`, but the order of
-        // nesting is different so we have to do this little dance.
+        // nesting is different, so we have to do this little dance.
         let arg_type = if field.builder_attr.setter.strip_option.is_some() && field.builder_attr.setter.transform.is_none() {
             field
                 .type_from_inside_option()
@@ -320,6 +334,7 @@ impl<'a> StructInfo<'a> {
                 #[deprecated(
                     note = #repeated_fields_error_message
                 )]
+                #doc
                 pub fn #method_name (self, _: #repeated_fields_error_type_name) -> #builder_name <#target_generics> {
                     self
                 }
@@ -354,8 +369,8 @@ impl<'a> StructInfo<'a> {
             let mut generics = self.generics.clone();
             for f in self.included_fields() {
                 if f.builder_attr.default.is_some() || f.builder_attr.via_mutators.is_some() {
-                    // `f` is not mandatory - it does not have it's own fake `build` method, so `field` will need
-                    // to warn about missing `field` whether or not `f` is set.
+                    // `f` is not mandatory - it does not have its own fake `build` method, so `field` will need
+                    // to warn about missing `field` regardless of whether `f` is set.
                     assert!(
                         f.ordinal != field.ordinal,
                         "`required_field_impl` called for optional field {}",

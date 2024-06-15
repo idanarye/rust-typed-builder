@@ -52,10 +52,13 @@ fn test_into() {
 fn test_default() {
     #[derive(PartialEq, TypedBuilder)]
     struct Foo {
+        /// x value.
         #[builder(default, setter(strip_option))]
         x: Option<i32>,
         #[builder(default = 10)]
+        /// y value.
         y: i32,
+        /// z value.
         #[builder(default = [20, 30, 40])]
         z: [i32; 3],
     }
