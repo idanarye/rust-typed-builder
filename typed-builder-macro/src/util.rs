@@ -1,7 +1,7 @@
 use std::iter;
 
 use proc_macro2::{Ident, Span, TokenStream, TokenTree};
-use quote::{format_ident, ToTokens};
+use quote::{format_ident, quote, ToTokens};
 use syn::{
     parenthesized,
     parse::{Parse, ParseStream, Parser},
@@ -356,4 +356,19 @@ pub fn pat_to_ident(i: usize, pat: &Pat) -> Ident {
     } else {
         format_ident!("__{i}", span = pat.span())
     }
+}
+
+pub fn phantom_data_for_generics(generics: &syn::Generics) -> proc_macro2::TokenStream {
+    let phantom_generics = generics.params.iter().filter_map(|param| match param {
+        syn::GenericParam::Lifetime(lifetime) => {
+            let lifetime = &lifetime.lifetime;
+            Some(quote!(&#lifetime ()))
+        }
+        syn::GenericParam::Type(ty) => {
+            let ty = &ty.ident;
+            Some(ty.to_token_stream())
+        }
+        syn::GenericParam::Const(_cnst) => None,
+    });
+    quote!(::core::marker::PhantomData<(#( ::core::marker::PhantomData<#phantom_generics> ),*)>)
 }

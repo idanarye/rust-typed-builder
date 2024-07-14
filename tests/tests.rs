@@ -936,3 +936,21 @@ fn test_mutators_field() {
     let foo = Foo::builder().x(1).y(1).inc_y_by_x().build();
     assert_eq!(foo, Foo { x: 1, y: 2, z: 2, w: 2 });
 }
+
+#[test]
+fn test_mutators_for_generic_fields() {
+    use core::ops::AddAssign;
+
+    #[derive(Debug, PartialEq, TypedBuilder)]
+    struct Foo<S: Default + AddAssign, T: Default + AddAssign> {
+        #[builder(via_mutators, mutators(
+            fn x_plus(self, plus: S) {
+                self.x += plus;
+            }
+        ))]
+        x: S,
+        y: T,
+    }
+
+    assert_eq!(Foo::builder().x_plus(1).y(2).build(), Foo { x: 1, y: 2 });
+}

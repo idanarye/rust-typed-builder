@@ -6,8 +6,8 @@ use crate::builder_attr::{IntoSetting, TypeBuilderAttr};
 use crate::field_info::FieldInfo;
 use crate::mutator::Mutator;
 use crate::util::{
-    empty_type, empty_type_tuple, first_visibility, modify_types_generics_hack, public_visibility, strip_raw_ident_prefix,
-    type_tuple,
+    empty_type, empty_type_tuple, first_visibility, modify_types_generics_hack, phantom_data_for_generics, public_visibility,
+    strip_raw_ident_prefix, type_tuple,
 };
 
 #[derive(Debug)]
@@ -103,17 +103,7 @@ impl<'a> StructInfo<'a> {
         let generics_with_empty = modify_types_generics_hack(&ty_generics, |args| {
             args.push(syn::GenericArgument::Type(init_fields_type.clone().into()));
         });
-        let phantom_generics = self.generics.params.iter().filter_map(|param| match param {
-            syn::GenericParam::Lifetime(lifetime) => {
-                let lifetime = &lifetime.lifetime;
-                Some(quote!(&#lifetime ()))
-            }
-            syn::GenericParam::Type(ty) => {
-                let ty = &ty.ident;
-                Some(ty.to_token_stream())
-            }
-            syn::GenericParam::Const(_cnst) => None,
-        });
+        let phantom_data = phantom_data_for_generics(self.generics);
 
         let builder_method_name = self.builder_attr.builder_method.get_name().unwrap_or_else(|| quote!(builder));
         let builder_method_visibility = first_visibility(&[
@@ -193,7 +183,7 @@ impl<'a> StructInfo<'a> {
             #[allow(dead_code, non_camel_case_types, non_snake_case)]
             #builder_type_visibility struct #builder_name #b_generics #b_generics_where_extras_predicates {
                 fields: #all_fields_param,
-                phantom: ::core::marker::PhantomData<(#( ::core::marker::PhantomData<#phantom_generics> ),*)>,
+                phantom: #phantom_data,
             }
 
             #[automatically_derived]
@@ -472,6 +462,11 @@ impl<'a> StructInfo<'a> {
         let fn_name = &sig.ident;
         let mutator_args = mutator.arguments();
 
+        // Generics for the mutator - should be similar to the struct's generics
+        let m_generics = &self.generics;
+        let (m_impl_generics, m_ty_generics, m_where_clause) = m_generics.split_for_impl();
+        let m_phantom = phantom_data_for_generics(self.generics);
+
         Ok(quote! {
             #[allow(dead_code, non_camel_case_types, missing_docs)]
             #[automatically_derived]
@@ -479,17 +474,21 @@ impl<'a> StructInfo<'a> {
                 #(#attrs)*
                 #[allow(clippy::used_underscore_binding, clippy::no_effect_underscore_binding)]
                 #vis #sig {
-                    struct #mutator_struct_name {
+                    struct #mutator_struct_name #m_generics #m_where_clause {
+                        __phantom: #m_phantom,
                         #mutator_ty_fields
                     }
-                    impl #mutator_struct_name {
+                    impl #m_impl_generics #mutator_struct_name #m_ty_generics #m_where_clause {
                         #mutator_fn
                     }
 
                     let __args = (#mutator_args);
 
                     let ( #destructuring ) = self.fields;
-                    let mut __mutator = #mutator_struct_name{ #mutator_destructure_fields };
+                    let mut __mutator: #mutator_struct_name #m_ty_generics = #mutator_struct_name {
+                        __phantom: ::core::default::Default::default(),
+                        #mutator_destructure_fields
+                    };
 
                     // This dance is required to keep mutator args and destrucutre fields from interfering.
                     {
@@ -498,6 +497,7 @@ impl<'a> StructInfo<'a> {
                     }
 
                     let #mutator_struct_name {
+                        __phantom,
                         #mutator_destructure_fields
                     } = __mutator;
 
