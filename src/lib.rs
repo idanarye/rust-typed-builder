@@ -165,6 +165,12 @@ use core::ops::FnOnce;
 ///     one cannot set the field to `None` with the setter - so the only way to get it to be `None`
 ///     is by using `#[builder(default)]` and not calling the field's setter.
 ///
+///   - `strip_option(fallback = "field_opt")`: for `Option<...>` fields only. As above this
+///      still wraps the argument with `Some(...)`. The name given to the fallback method adds
+///      another method to the builder without wrapping the argument in `Some`. This is useful
+///      when the codebase sometimes needs to pass in optional values. You can now call with
+///      `field_opt(Some(...))` instead of `field(...)`.
+///
 ///   - `strip_bool`: for `bool` fields only, this makes the setter receive no arguments and simply
 ///     set the field's value to `true`. When used, the `default` is automatically set to `false`.
 ///
@@ -359,5 +365,41 @@ impl<T> Optional<T> for (T,) {
 ///
 /// #[deny(deprecated)]
 /// Foo::builder().value(42).build();
-///```
+/// ```
+///
+/// Handling invalid property for `strip_option`
+///
+/// ```compile_fail
+/// use typed_builder::TypedBuilder;
+///
+/// #[derive(TypedBuilder)]
+/// struct Foo {
+///     #[builder(setter(strip_option(invalid_field = "should_fail")))]
+///     value: Option<i32>,
+/// }
+/// ```
+///
+/// Handling multiple properties for `strip_option`
+///
+/// ```compile_fail
+/// use typed_builder::TypedBuilder;
+///
+/// #[derive(TypedBuilder)]
+/// struct Foo {
+///     #[builder(setter(strip_option(fallback= "value_opt", fallback="value_opt2")))]
+///     value: Option<i32>,
+/// }
+/// ```
+///
+/// Handling empty properties for `strip_option`
+///
+/// ```compile_fail
+/// use typed_builder::TypedBuilder;
+///
+/// #[derive(TypedBuilder)]
+/// struct Foo {
+///     #[builder(setter(strip_option()))]
+///     value: Option<i32>,
+/// }
+/// ```
 fn _compile_fail_tests() {}

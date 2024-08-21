@@ -3,7 +3,7 @@ use quote::{format_ident, quote, quote_spanned, ToTokens};
 use syn::{parse::Error, parse_quote, punctuated::Punctuated, GenericArgument, ItemFn, Token};
 
 use crate::builder_attr::{IntoSetting, TypeBuilderAttr};
-use crate::field_info::FieldInfo;
+use crate::field_info::{FieldInfo, StripOption};
 use crate::mutator::Mutator;
 use crate::util::{
     empty_type, empty_type_tuple, first_visibility, modify_types_generics_hack, phantom_data_for_generics, public_visibility,
@@ -202,15 +202,18 @@ impl<'a> StructInfo<'a> {
     fn field_impl(&self, field: &FieldInfo) -> syn::Result<TokenStream> {
         let StructInfo { ref builder_name, .. } = *self;
 
-        let descructuring = self.included_fields().map(|f| {
-            if f.ordinal == field.ordinal {
-                quote!(())
-            } else {
-                let name = f.name;
-                name.to_token_stream()
-            }
-        });
-        let reconstructing = self.included_fields().map(|f| f.name);
+        let destructuring = self
+            .included_fields()
+            .map(|f| {
+                if f.ordinal == field.ordinal {
+                    quote!(())
+                } else {
+                    let name = f.name;
+                    name.to_token_stream()
+                }
+            })
+            .collect::<Vec<_>>();
+        let reconstructing = self.included_fields().map(|f| f.name).collect::<Vec<_>>();
 
         let &FieldInfo {
             name: field_name,
@@ -273,13 +276,22 @@ impl<'a> StructInfo<'a> {
             (arg_type.to_token_stream(), field_name.to_token_stream())
         };
 
+        let mut strip_option_fallback: Option<(Ident, TokenStream, TokenStream)> = None;
         let (param_list, arg_expr) = if field.builder_attr.setter.strip_bool.is_some() {
             (quote!(), quote!(true))
         } else if let Some(transform) = &field.builder_attr.setter.transform {
             let params = transform.params.iter().map(|(pat, ty)| quote!(#pat: #ty));
             let body = &transform.body;
             (quote!(#(#params),*), quote!({ #body }))
-        } else if field.builder_attr.setter.strip_option.is_some() {
+        } else if let Some(ref strip_option) = field.builder_attr.setter.strip_option {
+            if let StripOption::WithFallback(_, fallback_name) = strip_option {
+                strip_option_fallback = Some((
+                    syn::parse_str(fallback_name)?,
+                    quote!(#field_name: #field_type),
+                    quote!(#arg_expr),
+                ));
+            }
+
             (quote!(#field_name: #arg_type), quote!(Some(#arg_expr)))
         } else {
             (quote!(#field_name: #arg_type), arg_expr)
@@ -297,6 +309,24 @@ impl<'a> StructInfo<'a> {
 
         let method_name = field.setter_method_name();
 
+        let fallback_method = if let Some((method_name, param_list, arg_expr)) = strip_option_fallback {
+            Some(quote! {
+                #deprecated
+                #doc
+                #[allow(clippy::used_underscore_binding, clippy::no_effect_underscore_binding)]
+                pub fn #method_name (self, #param_list) -> #builder_name <#target_generics> {
+                    let #field_name = (#arg_expr,);
+                    let ( #(#destructuring,)* ) = self.fields;
+                    #builder_name {
+                        fields: ( #(#reconstructing,)* ),
+                        phantom: self.phantom,
+                    }
+                }
+            })
+        } else {
+            None
+        };
+
         Ok(quote! {
             #[allow(dead_code, non_camel_case_types, missing_docs)]
             #[automatically_derived]
@@ -306,12 +336,13 @@ impl<'a> StructInfo<'a> {
                 #[allow(clippy::used_underscore_binding, clippy::no_effect_underscore_binding)]
                 pub fn #method_name (self, #param_list) -> #builder_name <#target_generics> {
                     let #field_name = (#arg_expr,);
-                    let ( #(#descructuring,)* ) = self.fields;
+                    let ( #(#destructuring,)* ) = self.fields;
                     #builder_name {
                         fields: ( #(#reconstructing,)* ),
                         phantom: self.phantom,
                     }
                 }
+                #fallback_method
             }
             #[doc(hidden)]
             #[allow(dead_code, non_camel_case_types, non_snake_case)]
@@ -571,7 +602,7 @@ impl<'a> StructInfo<'a> {
             ));
         });
 
-        let descructuring = self.included_fields().map(|f| f.name);
+        let destructuring = self.included_fields().map(|f| f.name);
 
         // The default of a field can refer to earlier-defined fields, which we handle by
         // writing out a bunch of `let` statements first, which can each refer to earlier ones.
@@ -634,7 +665,7 @@ impl<'a> StructInfo<'a> {
                 #build_method_doc
                 #[allow(clippy::default_trait_access, clippy::used_underscore_binding, clippy::no_effect_underscore_binding)]
                 #build_method_visibility fn #build_method_name #build_method_generic (self) -> #output_type #build_method_where_clause {
-                    let ( #(#descructuring,)* ) = self.fields;
+                    let ( #(#destructuring,)* ) = self.fields;
                     #( #assignments )*
 
                     #[allow(deprecated)]
