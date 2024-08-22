@@ -144,6 +144,30 @@ fn test_into_with_strip_option() {
 }
 
 #[test]
+fn test_strip_option_with_fallback() {
+    #[derive(PartialEq, TypedBuilder)]
+    struct Foo {
+        #[builder(setter(strip_option(fallback = x_opt)))]
+        x: Option<i32>,
+    }
+
+    assert!(Foo::builder().x(1).build() == Foo { x: Some(1) });
+    assert!(Foo::builder().x_opt(Some(1)).build() == Foo { x: Some(1) });
+}
+
+#[test]
+fn test_into_with_strip_option_with_fallback() {
+    #[derive(PartialEq, TypedBuilder)]
+    struct Foo {
+        #[builder(setter(into, strip_option(fallback = x_opt)))]
+        x: Option<i32>,
+    }
+
+    assert!(Foo::builder().x(1_u8).build() == Foo { x: Some(1) });
+    assert!(Foo::builder().x_opt(Some(1)).build() == Foo { x: Some(1) });
+}
+
+#[test]
 fn test_strip_bool() {
     #[derive(PartialEq, TypedBuilder)]
     struct Foo {

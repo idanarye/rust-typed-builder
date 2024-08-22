@@ -127,7 +127,7 @@ pub struct SetterSettings {
     pub doc: Option<syn::Expr>,
     pub skip: Option<Span>,
     pub auto_into: Option<Span>,
-    pub strip_option: Option<Span>,
+    pub strip_option: Option<Strip>,
     pub strip_bool: Option<Span>,
     pub transform: Option<Transform>,
     pub prefix: Option<String>,
@@ -195,7 +195,7 @@ impl<'a> FieldBuilderAttr<'a> {
 
         let conflicting_transformations = [
             ("transform", self.setter.transform.as_ref().map(|t| &t.span)),
-            ("strip_option", self.setter.strip_option.as_ref()),
+            ("strip_option", self.setter.strip_option.as_ref().map(|s| &s.span)),
             ("strip_bool", self.setter.strip_bool.as_ref()),
         ];
         let mut conflicting_transformations = conflicting_transformations
@@ -335,11 +335,80 @@ impl ApplyMeta for SetterSettings {
             }
             "skip" => expr.apply_flag_to_field(&mut self.skip, "skipped"),
             "into" => expr.apply_flag_to_field(&mut self.auto_into, "calling into() on the argument"),
-            "strip_option" => expr.apply_flag_to_field(&mut self.strip_option, "putting the argument in Some(...)"),
+            "strip_option" => {
+                let caption = "putting the argument in Some(...)";
+
+                match expr {
+                    AttrArg::Sub(sub) => {
+                        let span = sub.span();
+
+                        if self.strip_option.is_none() {
+                            let mut strip_option = Strip::new(span);
+                            strip_option.apply_sub_attr(sub)?;
+                            self.strip_option = Some(strip_option);
+
+                            Ok(())
+                        } else {
+                            Err(Error::new(span, format!("Illegal setting - field is already {caption}")))
+                        }
+                    }
+                    AttrArg::Flag(flag) => {
+                        if self.strip_option.is_none() {
+                            self.strip_option = Some(Strip::new(flag.span()));
+                            Ok(())
+                        } else {
+                            Err(Error::new(
+                                flag.span(),
+                                format!("Illegal setting - field is already {caption}"),
+                            ))
+                        }
+                    }
+                    AttrArg::Not { .. } => {
+                        self.strip_option = None;
+                        Ok(())
+                    }
+                    _ => Err(expr.incorrect_type()),
+                }
+            }
             "strip_bool" => expr.apply_flag_to_field(&mut self.strip_bool, "zero arguments setter, sets the field to true"),
             _ => Err(Error::new_spanned(
                 expr.name(),
                 format!("Unknown parameter {:?}", expr.name().to_string()),
+            )),
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct Strip {
+    pub fallback: Option<syn::Ident>,
+    span: Span,
+}
+
+impl Strip {
+    fn new(span: Span) -> Self {
+        Self { fallback: None, span }
+    }
+}
+
+impl ApplyMeta for Strip {
+    fn apply_meta(&mut self, expr: AttrArg) -> Result<(), Error> {
+        match expr.name().to_string().as_str() {
+            "fallback" => {
+                if self.fallback.is_some() {
+                    return Err(Error::new_spanned(
+                        expr.name(),
+                        format!("Duplicate fallback parameter {:?}", expr.name().to_string()),
+                    ));
+                }
+
+                let ident: syn::Ident = expr.key_value().map(|kv| kv.parse_value())??;
+                self.fallback = Some(ident);
+                Ok(())
+            }
+            _ => Err(Error::new_spanned(
+                expr.name(),
+                format!("Invalid parameter used {:?}", expr.name().to_string()),
             )),
         }
     }
