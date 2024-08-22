@@ -89,10 +89,10 @@ impl<'a> FieldInfo<'a> {
     }
 
     fn post_process(mut self) -> Result<Self, Error> {
-        if let Some(ref strip_bool_span) = self.builder_attr.setter.strip_bool {
+        if let Some(ref strip_bool) = self.builder_attr.setter.strip_bool {
             if let Some(default_span) = self.builder_attr.default.as_ref().map(Spanned::span) {
                 let mut error = Error::new(
-                    *strip_bool_span,
+                    strip_bool.span,
                     "cannot set both strip_bool and default - default is assumed to be false",
                 );
                 error.combine(Error::new(default_span, "default set here"));
@@ -102,7 +102,7 @@ impl<'a> FieldInfo<'a> {
                 attrs: Default::default(),
                 lit: syn::Lit::Bool(syn::LitBool {
                     value: false,
-                    span: *strip_bool_span,
+                    span: strip_bool.span,
                 }),
             }));
         }
@@ -128,7 +128,7 @@ pub struct SetterSettings {
     pub skip: Option<Span>,
     pub auto_into: Option<Span>,
     pub strip_option: Option<Strip>,
-    pub strip_bool: Option<Span>,
+    pub strip_bool: Option<Strip>,
     pub transform: Option<Transform>,
     pub prefix: Option<String>,
     pub suffix: Option<String>,
@@ -196,7 +196,7 @@ impl<'a> FieldBuilderAttr<'a> {
         let conflicting_transformations = [
             ("transform", self.setter.transform.as_ref().map(|t| &t.span)),
             ("strip_option", self.setter.strip_option.as_ref().map(|s| &s.span)),
-            ("strip_bool", self.setter.strip_bool.as_ref()),
+            ("strip_bool", self.setter.strip_bool.as_ref().map(|s| &s.span)),
         ];
         let mut conflicting_transformations = conflicting_transformations
             .iter()
@@ -370,7 +370,40 @@ impl ApplyMeta for SetterSettings {
                     _ => Err(expr.incorrect_type()),
                 }
             }
-            "strip_bool" => expr.apply_flag_to_field(&mut self.strip_bool, "zero arguments setter, sets the field to true"),
+            "strip_bool" => {
+                let caption = "zero arguments setter, sets the field to true";
+
+                match expr {
+                    AttrArg::Sub(sub) => {
+                        let span = sub.span();
+
+                        if self.strip_bool.is_none() {
+                            let mut strip_bool = Strip::new(span);
+                            strip_bool.apply_sub_attr(sub)?;
+                            self.strip_bool = Some(strip_bool);
+                            Ok(())
+                        } else {
+                            Err(Error::new(span, format!("Illegal setting - field is already {caption}")))
+                        }
+                    }
+                    AttrArg::Flag(flag) => {
+                        if self.strip_bool.is_none() {
+                            self.strip_bool = Some(Strip::new(flag.span()));
+                            Ok(())
+                        } else {
+                            Err(Error::new(
+                                flag.span(),
+                                format!("Illegal setting - field is already {caption}"),
+                            ))
+                        }
+                    }
+                    AttrArg::Not { .. } => {
+                        self.strip_bool = None;
+                        Ok(())
+                    }
+                    _ => Err(expr.incorrect_type()),
+                }
+            }
             _ => Err(Error::new_spanned(
                 expr.name(),
                 format!("Unknown parameter {:?}", expr.name().to_string()),
