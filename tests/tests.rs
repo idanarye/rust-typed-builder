@@ -147,7 +147,7 @@ fn test_into_with_strip_option() {
 fn test_strip_option_with_fallback() {
     #[derive(PartialEq, TypedBuilder)]
     struct Foo {
-        #[builder(setter(strip_option(fallback = "x_opt")))]
+        #[builder(setter(strip_option(fallback = x_opt)))]
         x: Option<i32>,
     }
 
@@ -159,7 +159,7 @@ fn test_strip_option_with_fallback() {
 fn test_into_with_strip_option_with_fallback() {
     #[derive(PartialEq, TypedBuilder)]
     struct Foo {
-        #[builder(setter(into, strip_option(fallback = "x_opt")))]
+        #[builder(setter(into, strip_option(fallback = x_opt)))]
         x: Option<i32>,
     }
 

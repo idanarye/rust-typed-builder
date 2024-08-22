@@ -3,9 +3,7 @@ use quote::quote_spanned;
 use syn::{parse::Error, spanned::Spanned};
 
 use crate::mutator::Mutator;
-use crate::util::{
-    expr_to_lit_string, ident_to_type, path_to_single_string, strip_raw_ident_prefix, ApplyMeta, AttrArg, SubAttr,
-};
+use crate::util::{expr_to_lit_string, ident_to_type, path_to_single_string, strip_raw_ident_prefix, ApplyMeta, AttrArg};
 
 #[derive(Debug)]
 pub struct FieldInfo<'a> {
@@ -129,7 +127,7 @@ pub struct SetterSettings {
     pub doc: Option<syn::Expr>,
     pub skip: Option<Span>,
     pub auto_into: Option<Span>,
-    pub strip_option: Option<StripOption>,
+    pub strip_option: Option<Strip>,
     pub strip_bool: Option<Span>,
     pub transform: Option<Transform>,
     pub prefix: Option<String>,
@@ -197,7 +195,7 @@ impl<'a> FieldBuilderAttr<'a> {
 
         let conflicting_transformations = [
             ("transform", self.setter.transform.as_ref().map(|t| &t.span)),
-            ("strip_option", self.setter.strip_option.as_ref().map(|s| s.span())),
+            ("strip_option", self.setter.strip_option.as_ref().map(|s| &s.span)),
             ("strip_bool", self.setter.strip_bool.as_ref()),
         ];
         let mut conflicting_transformations = conflicting_transformations
@@ -339,21 +337,23 @@ impl ApplyMeta for SetterSettings {
             "into" => expr.apply_flag_to_field(&mut self.auto_into, "calling into() on the argument"),
             "strip_option" => {
                 let caption = "putting the argument in Some(...)";
+
                 match expr {
                     AttrArg::Sub(sub) => {
+                        let span = sub.span();
+                        let mut strip_option = Strip::new(span);
+
                         if self.strip_option.is_none() {
-                            self.strip_option = Some(StripOption::from_args(sub)?);
+                            strip_option.apply_sub_attr(sub)?;
+                            self.strip_option = Some(strip_option);
                             Ok(())
                         } else {
-                            Err(Error::new(
-                                sub.span(),
-                                format!("Illegal setting - field is already {caption}"),
-                            ))
+                            Err(Error::new(span, format!("Illegal setting - field is already {caption}")))
                         }
                     }
                     AttrArg::Flag(flag) => {
                         if self.strip_option.is_none() {
-                            self.strip_option = Some(StripOption::Span(flag.span()));
+                            self.strip_option = Some(Strip::new(flag.span()));
                             Ok(())
                         } else {
                             Err(Error::new(
@@ -379,54 +379,30 @@ impl ApplyMeta for SetterSettings {
 }
 
 #[derive(Debug, Clone)]
-pub enum StripOption {
-    Span(Span),
-    WithFallback(Span, String),
+pub struct Strip {
+    pub fallback: Option<syn::Ident>,
+    span: Span,
 }
 
-impl StripOption {
-    fn span(&self) -> &Span {
-        match self {
-            StripOption::Span(span) => span,
-            StripOption::WithFallback(span, _) => span,
-        }
+impl Strip {
+    fn new(span: Span) -> Self {
+        Self { fallback: None, span }
     }
+}
 
-    pub fn from_args(sub: SubAttr) -> Result<Self, Error> {
-        let name = sub.name.clone();
-        let mut total = 0;
-        let mut result: Result<Self, Error> = Err(Error::new_spanned(
-            &name,
-            format!("Parameters required {:?}", name.to_string()),
-        ));
-
-        for arg in sub.args::<AttrArg>()? {
-            if total > 0 {
-                result = Err(Error::new_spanned(
-                    arg.name(),
-                    format!("Too many paramters {:?}", arg.name().to_string()),
-                ));
-
-                continue;
+impl ApplyMeta for Strip {
+    fn apply_meta(&mut self, expr: AttrArg) -> Result<(), Error> {
+        match expr.name().to_string().as_str() {
+            "fallback" => {
+                let ident: syn::Ident = expr.key_value().map(|kv| kv.parse_value())??;
+                self.fallback = Some(ident);
+                Ok(())
             }
-
-            if arg.name().to_string().as_str() != "fallback" {
-                result = Err(Error::new_spanned(
-                    arg.name(),
-                    format!("Invalid parameter used {:?}", arg.name().to_string()),
-                ));
-                continue;
-            }
-
-            let span = arg.span();
-            let string_expr: syn::Expr = arg.key_value().map(|kv| kv.parse_value())??;
-            let name: String = expr_to_lit_string(&string_expr)?;
-            result = Ok(Self::WithFallback(span, name));
-
-            total += 1;
+            _ => Err(Error::new_spanned(
+                expr.name(),
+                format!("Invalid parameter used {:?}", expr.name().to_string()),
+            )),
         }
-
-        result
     }
 }
 

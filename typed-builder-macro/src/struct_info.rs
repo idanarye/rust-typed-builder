@@ -3,7 +3,7 @@ use quote::{format_ident, quote, quote_spanned, ToTokens};
 use syn::{parse::Error, parse_quote, punctuated::Punctuated, GenericArgument, ItemFn, Token};
 
 use crate::builder_attr::{IntoSetting, TypeBuilderAttr};
-use crate::field_info::{FieldInfo, StripOption};
+use crate::field_info::FieldInfo;
 use crate::mutator::Mutator;
 use crate::util::{
     empty_type, empty_type_tuple, first_visibility, modify_types_generics_hack, phantom_data_for_generics, public_visibility,
@@ -284,12 +284,8 @@ impl<'a> StructInfo<'a> {
             let body = &transform.body;
             (quote!(#(#params),*), quote!({ #body }))
         } else if let Some(ref strip_option) = field.builder_attr.setter.strip_option {
-            if let StripOption::WithFallback(_, fallback_name) = strip_option {
-                strip_option_fallback = Some((
-                    syn::parse_str(fallback_name)?,
-                    quote!(#field_name: #field_type),
-                    quote!(#arg_expr),
-                ));
+            if let Some(ref fallback) = strip_option.fallback {
+                strip_option_fallback = Some((fallback.clone(), quote!(#field_name: #field_type), quote!(#arg_expr)));
             }
 
             (quote!(#field_name: #arg_type), quote!(Some(#arg_expr)))

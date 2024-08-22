@@ -381,19 +381,31 @@ impl<T> Optional<T> for (T,) {
 ///
 /// Handling multiple properties for `strip_option`
 ///
+/// ```no_run
+/// use typed_builder::TypedBuilder;
+///
+/// #[derive(TypedBuilder)]
+/// struct Foo {
+///     #[builder(setter(strip_option(fallback = value_opt, fallback = value_opt2)))]
+///     value: Option<i32>,
+/// }
+/// ```
+///
+/// Handling alternative properties for `strip_option`
+///
 /// ```compile_fail
 /// use typed_builder::TypedBuilder;
 ///
 /// #[derive(TypedBuilder)]
 /// struct Foo {
-///     #[builder(setter(strip_option(fallback= "value_opt", fallback="value_opt2")))]
+///     #[builder(setter(strip_option(type = value_opt, fallback = value_opt2)))]
 ///     value: Option<i32>,
 /// }
 /// ```
 ///
 /// Handling empty properties for `strip_option`
 ///
-/// ```compile_fail
+/// ```no_run
 /// use typed_builder::TypedBuilder;
 ///
 /// #[derive(TypedBuilder)]
