@@ -276,24 +276,28 @@ impl<'a> StructInfo<'a> {
             (arg_type.to_token_stream(), field_name.to_token_stream())
         };
 
-        let mut strip_bool_fallback: Option<(Ident, TokenStream, TokenStream)> = None;
-        let mut strip_option_fallback: Option<(Ident, TokenStream, TokenStream)> = None;
+        let strip_bool_fallback = field
+            .builder_attr
+            .setter
+            .strip_bool
+            .as_ref()
+            .and_then(|strip_bool| strip_bool.fallback.as_ref())
+            .map(|fallback| (fallback.clone(), quote!(#field_name: #field_type), quote!(#arg_expr)));
+        let strip_option_fallback = field
+            .builder_attr
+            .setter
+            .strip_option
+            .as_ref()
+            .and_then(|strip_option| strip_option.fallback.as_ref())
+            .map(|fallback| (fallback.clone(), quote!(#field_name: #field_type), quote!(#arg_expr)));
 
-        let (param_list, arg_expr) = if let Some(ref strip_bool) = field.builder_attr.setter.strip_bool {
-            if let Some(ref fallback) = strip_bool.fallback {
-                strip_bool_fallback = Some((fallback.clone(), quote!(#field_name: #field_type), quote!(#arg_expr)));
-            }
-
+        let (param_list, arg_expr) = if field.builder_attr.setter.strip_bool.is_some() {
             (quote!(), quote!(true))
         } else if let Some(transform) = &field.builder_attr.setter.transform {
             let params = transform.params.iter().map(|(pat, ty)| quote!(#pat: #ty));
             let body = &transform.body;
             (quote!(#(#params),*), quote!({ #body }))
-        } else if let Some(ref strip_option) = field.builder_attr.setter.strip_option {
-            if let Some(ref fallback) = strip_option.fallback {
-                strip_option_fallback = Some((fallback.clone(), quote!(#field_name: #field_type), quote!(#arg_expr)));
-            }
-
+        } else if field.builder_attr.setter.strip_option.is_some() {
             (quote!(#field_name: #arg_type), quote!(Some(#arg_expr)))
         } else {
             (quote!(#field_name: #arg_type), arg_expr)
