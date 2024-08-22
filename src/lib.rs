@@ -165,10 +165,9 @@ use core::ops::FnOnce;
 ///     one cannot set the field to `None` with the setter - so the only way to get it to be `None`
 ///     is by using `#[builder(default)]` and not calling the field's setter.
 ///
-///   - `strip_option(fallback = "field_opt")`: for `Option<...>` fields only. As above this
+///   - `strip_option(fallback = field_opt)`: for `Option<...>` fields only. As above this
 ///      still wraps the argument with `Some(...)`. The name given to the fallback method adds
-///      another method to the builder without wrapping the argument in `Some`. This is useful
-///      when the codebase sometimes needs to pass in optional values. You can now call with
+///      another method to the builder without wrapping the argument in `Some`. You can now call
 ///      `field_opt(Some(...))` instead of `field(...)`.
 ///
 ///   - `strip_bool`: for `bool` fields only, this makes the setter receive no arguments and simply

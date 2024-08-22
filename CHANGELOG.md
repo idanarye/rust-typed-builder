@@ -7,7 +7,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ## [Unreleased]
 
 ### Added
-- Add `#[builder(setter(strip_option(fallback = "field_opt")))]` to add a fallback unstripped method to the builder struct.
+- Add `#[builder(setter(strip_option(fallback = field_opt)))]` to add a fallback unstripped method to the builder struct.
 
 ## 0.19.1 - 2024-07-14
 ### Fixed
