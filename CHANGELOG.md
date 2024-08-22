@@ -6,6 +6,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+## 0.20.0 - 2024-08-22
 ### Added
 - Add `#[builder(setter(strip_option(fallback = field_opt)))]` to add a fallback unstripped method to the builder struct.
 - Add `#[builder(setter(strip_bool(fallback = field_bool)))]` to add a fallback setter that takes the `bool` value to the builder struct.
