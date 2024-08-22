@@ -336,74 +336,13 @@ impl ApplyMeta for SetterSettings {
             "skip" => expr.apply_flag_to_field(&mut self.skip, "skipped"),
             "into" => expr.apply_flag_to_field(&mut self.auto_into, "calling into() on the argument"),
             "strip_option" => {
-                let caption = "putting the argument in Some(...)";
-
-                match expr {
-                    AttrArg::Sub(sub) => {
-                        let span = sub.span();
-
-                        if self.strip_option.is_none() {
-                            let mut strip_option = Strip::new(span);
-                            strip_option.apply_sub_attr(sub)?;
-                            self.strip_option = Some(strip_option);
-
-                            Ok(())
-                        } else {
-                            Err(Error::new(span, format!("Illegal setting - field is already {caption}")))
-                        }
-                    }
-                    AttrArg::Flag(flag) => {
-                        if self.strip_option.is_none() {
-                            self.strip_option = Some(Strip::new(flag.span()));
-                            Ok(())
-                        } else {
-                            Err(Error::new(
-                                flag.span(),
-                                format!("Illegal setting - field is already {caption}"),
-                            ))
-                        }
-                    }
-                    AttrArg::Not { .. } => {
-                        self.strip_option = None;
-                        Ok(())
-                    }
-                    _ => Err(expr.incorrect_type()),
-                }
+                expr.apply_potentialy_empty_sub_to_field(&mut self.strip_option, "putting the argument in Some(...)", Strip::new)
             }
-            "strip_bool" => {
-                let caption = "zero arguments setter, sets the field to true";
-
-                match expr {
-                    AttrArg::Sub(sub) => {
-                        let span = sub.span();
-
-                        if self.strip_bool.is_none() {
-                            let mut strip_bool = Strip::new(span);
-                            strip_bool.apply_sub_attr(sub)?;
-                            self.strip_bool = Some(strip_bool);
-                            Ok(())
-                        } else {
-                            Err(Error::new(span, format!("Illegal setting - field is already {caption}")))
-                        }
-                    }
-                    AttrArg::Flag(flag) => {
-                        if self.strip_bool.is_none() {
-                            self.strip_bool = Some(Strip::new(flag.span()));
-                            Ok(())
-                        } else {
-                            Err(Error::new(
-                                flag.span(),
-                                format!("Illegal setting - field is already {caption}"),
-                            ))
-                        }
-                    }
-                    AttrArg::Not { .. } => {
-                        self.strip_bool = None;
-                        Ok(())
-                    }
-                    _ => Err(expr.incorrect_type()),
-                }
-            }
+            "strip_bool" => expr.apply_potentialy_empty_sub_to_field(
+                &mut self.strip_bool,
+                "zero arguments setter, sets the field to true",
+                Strip::new,
+            ),
             _ => Err(Error::new_spanned(
                 expr.name(),
                 format!("Unknown parameter {:?}", expr.name().to_string()),

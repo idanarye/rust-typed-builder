@@ -189,6 +189,45 @@ impl AttrArg {
             _ => Err(self.incorrect_type()),
         }
     }
+
+    pub fn apply_potentialy_empty_sub_to_field<T: ApplyMeta>(
+        self,
+        field: &mut Option<T>,
+        caption: &str,
+        init: impl FnOnce(Span) -> T,
+    ) -> syn::Result<()> {
+        match self {
+            AttrArg::Sub(sub) => {
+                if field.is_none() {
+                    let mut value = init(sub.span());
+                    value.apply_sub_attr(sub)?;
+                    *field = Some(value);
+                    Ok(())
+                } else {
+                    Err(Error::new(
+                        sub.span(),
+                        format!("Illegal setting - field is already {caption}"),
+                    ))
+                }
+            }
+            AttrArg::Flag(flag) => {
+                if field.is_none() {
+                    *field = Some(init(flag.span()));
+                    Ok(())
+                } else {
+                    Err(Error::new(
+                        flag.span(),
+                        format!("Illegal setting - field is already {caption}"),
+                    ))
+                }
+            }
+            AttrArg::Not { .. } => {
+                *field = None;
+                Ok(())
+            }
+            _ => Err(self.incorrect_type()),
+        }
+    }
 }
 
 pub struct KeyValue {
