@@ -341,11 +341,12 @@ impl ApplyMeta for SetterSettings {
                 match expr {
                     AttrArg::Sub(sub) => {
                         let span = sub.span();
-                        let mut strip_option = Strip::new(span);
 
                         if self.strip_option.is_none() {
+                            let mut strip_option = Strip::new(span);
                             strip_option.apply_sub_attr(sub)?;
                             self.strip_option = Some(strip_option);
+
                             Ok(())
                         } else {
                             Err(Error::new(span, format!("Illegal setting - field is already {caption}")))
@@ -394,6 +395,13 @@ impl ApplyMeta for Strip {
     fn apply_meta(&mut self, expr: AttrArg) -> Result<(), Error> {
         match expr.name().to_string().as_str() {
             "fallback" => {
+                if self.fallback.is_some() {
+                    return Err(Error::new_spanned(
+                        expr.name(),
+                        format!("Duplicate fallback parameter {:?}", expr.name().to_string()),
+                    ));
+                }
+
                 let ident: syn::Ident = expr.key_value().map(|kv| kv.parse_value())??;
                 self.fallback = Some(ident);
                 Ok(())
