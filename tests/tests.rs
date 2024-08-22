@@ -180,6 +180,19 @@ fn test_strip_bool() {
 }
 
 #[test]
+fn test_strip_bool_with_fallback() {
+    #[derive(PartialEq, TypedBuilder)]
+    struct Foo {
+        #[builder(setter(into, strip_bool(fallback = x_bool)))]
+        x: bool,
+    }
+
+    assert!(Foo::builder().x().build() == Foo { x: true });
+    assert!(Foo::builder().x_bool(false).build() == Foo { x: false });
+    assert!(Foo::builder().build() == Foo { x: false });
+}
+
+#[test]
 fn test_default() {
     #[derive(PartialEq, TypedBuilder)]
     struct Foo {

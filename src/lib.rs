@@ -173,6 +173,10 @@ use core::ops::FnOnce;
 ///   - `strip_bool`: for `bool` fields only, this makes the setter receive no arguments and simply
 ///     set the field's value to `true`. When used, the `default` is automatically set to `false`.
 ///
+///   - `strip_bool(fallback = field_bool)`: for `bool` fields only. As above this
+///      allows passing the boolean value. The name given to the fallback method adds
+///      another method to the builder without where the bool value can be specified.
+///
 ///   - `transform = |param1: Type1, param2: Type2 ...| expr`: this makes the setter accept
 ///     `param1: Type1, param2: Type2 ...` instead of the field type itself. The parameters are
 ///     transformed into the field type using the expression `expr`. The transformation is performed
@@ -399,6 +403,42 @@ impl<T> Optional<T> for (T,) {
 /// struct Foo {
 ///     #[builder(setter(strip_option(type = value_opt, fallback = value_opt2)))]
 ///     value: Option<i32>,
+/// }
+/// ```
+///
+/// Handling invalid property for `strip_bool`
+///
+/// ```compile_fail
+/// use typed_builder::TypedBuilder;
+///
+/// #[derive(TypedBuilder)]
+/// struct Foo {
+///     #[builder(setter(strip_bool(invalid_field = should_fail)))]
+///     value: bool,
+/// }
+/// ```
+///
+/// Handling multiple propertes for `strip_bool`
+///
+/// ```compile_fail
+/// use typed_builder::TypedBuilder;
+///
+/// #[derive(TypedBuilder)]
+/// struct Foo {
+///     #[builder(setter(strip_bool(fallback = value_bool, fallback = value_bool2)))]
+///     value: bool,
+/// }
+/// ```
+///
+/// Handling alternative propertes for `strip_bool`
+///
+/// ```compile_fail
+/// use typed_builder::TypedBuilder;
+///
+/// #[derive(TypedBuilder)]
+/// struct Foo {
+///     #[builder(setter(strip_bool(invalid = value_bool, fallback = value_bool2)))]
+///     value: bool,
 /// }
 /// ```
 fn _compile_fail_tests() {}

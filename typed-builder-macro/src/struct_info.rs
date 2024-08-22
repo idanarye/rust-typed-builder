@@ -276,8 +276,14 @@ impl<'a> StructInfo<'a> {
             (arg_type.to_token_stream(), field_name.to_token_stream())
         };
 
+        let mut strip_bool_fallback: Option<(Ident, TokenStream, TokenStream)> = None;
         let mut strip_option_fallback: Option<(Ident, TokenStream, TokenStream)> = None;
-        let (param_list, arg_expr) = if field.builder_attr.setter.strip_bool.is_some() {
+
+        let (param_list, arg_expr) = if let Some(ref strip_bool) = field.builder_attr.setter.strip_bool {
+            if let Some(ref fallback) = strip_bool.fallback {
+                strip_bool_fallback = Some((fallback.clone(), quote!(#field_name: #field_type), quote!(#arg_expr)));
+            }
+
             (quote!(), quote!(true))
         } else if let Some(transform) = &field.builder_attr.setter.transform {
             let params = transform.params.iter().map(|(pat, ty)| quote!(#pat: #ty));
@@ -305,7 +311,25 @@ impl<'a> StructInfo<'a> {
 
         let method_name = field.setter_method_name();
 
-        let fallback_method = if let Some((method_name, param_list, arg_expr)) = strip_option_fallback {
+        let strip_option_fallback_method = if let Some((method_name, param_list, arg_expr)) = strip_option_fallback {
+            Some(quote! {
+                #deprecated
+                #doc
+                #[allow(clippy::used_underscore_binding, clippy::no_effect_underscore_binding)]
+                pub fn #method_name (self, #param_list) -> #builder_name <#target_generics> {
+                    let #field_name = (#arg_expr,);
+                    let ( #(#destructuring,)* ) = self.fields;
+                    #builder_name {
+                        fields: ( #(#reconstructing,)* ),
+                        phantom: self.phantom,
+                    }
+                }
+            })
+        } else {
+            None
+        };
+
+        let strip_bool_fallback_method = if let Some((method_name, param_list, arg_expr)) = strip_bool_fallback {
             Some(quote! {
                 #deprecated
                 #doc
@@ -338,7 +362,8 @@ impl<'a> StructInfo<'a> {
                         phantom: self.phantom,
                     }
                 }
-                #fallback_method
+                #strip_option_fallback_method
+                #strip_bool_fallback_method
             }
             #[doc(hidden)]
             #[allow(dead_code, non_camel_case_types, non_snake_case)]
