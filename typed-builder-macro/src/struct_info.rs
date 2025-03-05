@@ -516,6 +516,8 @@ impl<'a> StructInfo<'a> {
         let ItemFn { attrs, vis, .. } = mutator_fn;
         let sig = mutator.outer_sig(parse_quote!(#builder_name <#ty_generics>));
         let fn_name = &sig.ident;
+        let (_fn_impl_generics, fn_ty_generics, _fn_where_clause) = &sig.generics.split_for_impl();
+        let fn_call_turbofish = fn_ty_generics.as_turbofish();
         let mutator_args = mutator.arguments();
 
         // Generics for the mutator - should be similar to the struct's generics
@@ -549,7 +551,7 @@ impl<'a> StructInfo<'a> {
                     // This dance is required to keep mutator args and destrucutre fields from interfering.
                     {
                         let (#mutator_args) = __args;
-                        __mutator.#fn_name(#mutator_args);
+                        __mutator.#fn_name #fn_call_turbofish(#mutator_args);
                     }
 
                     let #mutator_struct_name {
