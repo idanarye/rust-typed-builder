@@ -15,14 +15,27 @@ pub struct FieldInfo<'a> {
 }
 
 impl<'a> FieldInfo<'a> {
-    pub fn new(ordinal: usize, field: &'a syn::Field, field_defaults: FieldBuilderAttr<'a>) -> Result<FieldInfo<'a>, Error> {
+    pub fn new(ordinal: usize, field: &'a syn::Field, field_defaults: FieldBuilderAttr<'a>, field_global_defaults: &FieldBuilderAttr<'a>,) -> Result<FieldInfo<'a>, Error> {
         if let Some(ref name) = field.ident {
+            let mut builder_attr = field_defaults.with(name, &field.attrs)?;
+
+            // **Apply global defaults if not explicitly set**
+            if builder_attr.default.is_none() {
+                builder_attr.default = field_global_defaults.default.clone();
+            }
+            if builder_attr.setter.strip_option.is_none() {
+                builder_attr.setter.strip_option = field_global_defaults.setter.strip_option.clone();
+            }
+            if builder_attr.setter.strip_bool.is_none() {
+                builder_attr.setter.strip_bool = field_global_defaults.setter.strip_bool.clone();
+            }
+
             FieldInfo {
                 ordinal,
                 name,
                 generic_ident: syn::Ident::new(&format!("__{}", strip_raw_ident_prefix(name.to_string())), Span::call_site()),
                 ty: &field.ty,
-                builder_attr: field_defaults.with(name, &field.attrs)?,
+                builder_attr: builder_attr,
             }
             .post_process()
         } else {

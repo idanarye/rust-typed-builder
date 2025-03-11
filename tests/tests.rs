@@ -991,3 +991,19 @@ fn test_mutators_for_generic_fields() {
 
     assert_eq!(Foo::builder().x_plus(1).y(2).build(), Foo { x: 1, y: 2 });
 }
+
+#[test]
+fn test_fields_global_defaults() {
+    #[derive(Debug, PartialEq, TypedBuilder)]
+    #[builder(field_global_defaults(default, setter(strip_option)))]
+    struct Foo {
+        x: Option<u32>,
+        y: Option<i32>,
+        z: Option<i32>,
+    }
+
+    let foo = Foo::builder().x(2).z(3).build();
+    assert_eq!(foo, Foo { x: Some(2), y: None, z: Some(3) });
+    let foo = Foo::builder().x(5).y(4).z(2).build();
+    assert_eq!(foo, Foo { x: Some(5), y: Some(4), z: Some(2) });
+}

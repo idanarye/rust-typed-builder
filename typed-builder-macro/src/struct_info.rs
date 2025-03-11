@@ -60,7 +60,7 @@ impl<'a> StructInfo<'a> {
             generics: &ast.generics,
             fields: fields
                 .enumerate()
-                .map(|(i, f)| FieldInfo::new(i, f, builder_attr.field_defaults.clone()))
+                .map(|(i, f)| FieldInfo::new(i, f, builder_attr.field_defaults.clone(), &builder_attr.field_global_defaults))
                 .collect::<Result<_, _>>()?,
             builder_attr,
             builder_name: syn::Ident::new(&builder_name, proc_macro2::Span::call_site()),

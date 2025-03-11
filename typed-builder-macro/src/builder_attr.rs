@@ -113,6 +113,8 @@ pub struct TypeBuilderAttr<'a> {
 
     pub field_defaults: FieldBuilderAttr<'a>,
 
+    pub field_global_defaults: FieldBuilderAttr<'a>,
+
     pub crate_module_path: syn::Path,
 
     /// Functions that are able to mutate fields in the builder that are already set
@@ -127,6 +129,7 @@ impl Default for TypeBuilderAttr<'_> {
             builder_type: Default::default(),
             build_method: Default::default(),
             field_defaults: Default::default(),
+            field_global_defaults: Default::default(),
             crate_module_path: syn::parse_quote!(::typed_builder),
             mutators: Default::default(),
         }
@@ -190,6 +193,7 @@ impl ApplyMeta for TypeBuilderAttr<'_> {
                 Ok(())
             }
             "field_defaults" => self.field_defaults.apply_sub_attr(expr.sub_attr()?),
+            "field_global_defaults" => self.field_global_defaults.apply_sub_attr(expr.sub_attr()?),
             "builder_method" => self.builder_method.apply_sub_attr(expr.sub_attr()?),
             "builder_type" => self.builder_type.apply_sub_attr(expr.sub_attr()?),
             "build_method" => self.build_method.apply_sub_attr(expr.sub_attr()?),
