@@ -991,3 +991,30 @@ fn test_mutators_for_generic_fields() {
 
     assert_eq!(Foo::builder().x_plus(1).y(2).build(), Foo { x: 1, y: 2 });
 }
+
+#[test]
+fn test_mutators_with_type_param() {
+    use core::ops::AddAssign;
+
+    trait HasS {
+        type MyS: Default + AddAssign;
+    }
+
+    #[derive(Debug, PartialEq, TypedBuilder)]
+    struct Foo<S: Default + AddAssign> {
+        #[builder(via_mutators, mutators(
+            fn x_plus<H: HasS<MyS = S>>(self, s: <H as HasS>::MyS) {
+                self.x += s;
+            }
+        ))]
+        x: S,
+    }
+
+    struct HasSImpl;
+
+    impl HasS for HasSImpl {
+        type MyS = u32;
+    }
+
+    assert_eq!(Foo::builder().x_plus::<HasSImpl>(1).build(), Foo { x: 1 });
+}
