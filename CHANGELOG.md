@@ -5,6 +5,8 @@ The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+
+## 0.20.1 - 2025-03-14
 ### Fixed
 - Fix mutator with type parameter using associated type (see issue #157)
 
