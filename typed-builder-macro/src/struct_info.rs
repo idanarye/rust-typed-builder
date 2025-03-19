@@ -264,10 +264,19 @@ impl<'a> StructInfo<'a> {
         let arg_type = if field.builder_attr.setter.strip_option.is_some() && field.builder_attr.setter.transform.is_none() {
             if let Some(inner_type) = field.type_from_inside_option() {
                 inner_type
-            } else if field.builder_attr.setter.strip_option.as_ref().map_or(false, |s| s.ignore_invalid) {
+            } else if field
+                .builder_attr
+                .setter
+                .strip_option
+                .as_ref()
+                .map_or(false, |s| s.ignore_invalid)
+            {
                 field_type
             } else {
-                return Err(Error::new_spanned(field_type, "can't `strip_option` - field is not `Option<...>`"));
+                return Err(Error::new_spanned(
+                    field_type,
+                    "can't `strip_option` - field is not `Option<...>`",
+                ));
             }
         } else {
             field_type
@@ -286,27 +295,22 @@ impl<'a> StructInfo<'a> {
             .and_then(|strip_bool| strip_bool.fallback.as_ref())
             .map(|fallback| (fallback.clone(), quote!(#field_name: #field_type), quote!(#arg_expr)));
 
-        let strip_option_fallback = field
-            .builder_attr
-            .setter
-            .strip_option
-            .as_ref()
-            .and_then(|strip_option| {
-                if let Some(ref fallback) = strip_option.fallback {
-                    Some((fallback.clone(), quote!(#field_name: #field_type), quote!(#arg_expr)))
-                } else if let (Some(prefix), Some(suffix)) = (&strip_option.fallback_prefix, &strip_option.fallback_suffix) {
-                    let fallback_name = syn::Ident::new(&format!("{}{}{}", prefix, field_name, suffix), field_name.span());
-                    Some((fallback_name, quote!(#field_name: #field_type), quote!(#arg_expr)))
-                } else if let Some(prefix) = &strip_option.fallback_prefix {
-                    let fallback_name = syn::Ident::new(&format!("{}{}", prefix, field_name), field_name.span());
-                    Some((fallback_name, quote!(#field_name: #field_type), quote!(#arg_expr)))
-                } else if let Some(suffix) = &strip_option.fallback_suffix {
-                    let fallback_name = syn::Ident::new(&format!("{}{}", field_name, suffix), field_name.span());
-                    Some((fallback_name, quote!(#field_name: #field_type), quote!(#arg_expr)))
-                } else {
-                    None
-                }
-            });
+        let strip_option_fallback = field.builder_attr.setter.strip_option.as_ref().and_then(|strip_option| {
+            if let Some(ref fallback) = strip_option.fallback {
+                Some((fallback.clone(), quote!(#field_name: #field_type), quote!(#arg_expr)))
+            } else if let (Some(prefix), Some(suffix)) = (&strip_option.fallback_prefix, &strip_option.fallback_suffix) {
+                let fallback_name = syn::Ident::new(&format!("{}{}{}", prefix, field_name, suffix), field_name.span());
+                Some((fallback_name, quote!(#field_name: #field_type), quote!(#arg_expr)))
+            } else if let Some(prefix) = &strip_option.fallback_prefix {
+                let fallback_name = syn::Ident::new(&format!("{}{}", prefix, field_name), field_name.span());
+                Some((fallback_name, quote!(#field_name: #field_type), quote!(#arg_expr)))
+            } else if let Some(suffix) = &strip_option.fallback_suffix {
+                let fallback_name = syn::Ident::new(&format!("{}{}", field_name, suffix), field_name.span());
+                Some((fallback_name, quote!(#field_name: #field_type), quote!(#arg_expr)))
+            } else {
+                None
+            }
+        });
 
         let (param_list, arg_expr) = if field.builder_attr.setter.strip_bool.is_some() {
             (quote!(), quote!(true))

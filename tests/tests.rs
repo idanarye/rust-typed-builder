@@ -532,7 +532,6 @@ fn test_field_defaults_setter_options() {
     assert!(Foo::builder().x(1).y(2).build() == Foo { x: Some(1), y: 2 });
 }
 
-
 #[test]
 fn test_field_defaults_strip_option_ignore_invalid() {
     #[derive(TypedBuilder)]
@@ -544,10 +543,7 @@ fn test_field_defaults_strip_option_ignore_invalid() {
         z: Option<i32>,
     }
 
-    let foo = Foo::builder()
-        .x(42)
-        .y(10)
-        .build();
+    let foo = Foo::builder().x(42).y(10).build();
 
     assert_eq!(foo.x, Some(42));
     assert_eq!(foo.y, 10);
@@ -564,13 +560,9 @@ fn test_field_defaults_strip_option_fallback_suffix() {
         z: Option<i32>,
     }
 
-    let foo1 = Foo::builder()
-        .x(42)
-        .build();
+    let foo1 = Foo::builder().x(42).build();
 
-    let foo2 = Foo::builder()
-        .x_opt(None)
-        .build();
+    let foo2 = Foo::builder().x_opt(None).build();
 
     assert_eq!(foo1.x, Some(42));
     assert_eq!(foo1.z, Some(13));
@@ -588,13 +580,9 @@ fn test_field_defaults_strip_option_fallback_prefix() {
         z: Option<i32>,
     }
 
-    let foo1 = Foo::builder()
-        .x(42)
-        .build();
+    let foo1 = Foo::builder().x(42).build();
 
-    let foo2 = Foo::builder()
-        .opt_x(None)
-        .build();
+    let foo2 = Foo::builder().opt_x(None).build();
 
     assert_eq!(foo1.x, Some(42));
     assert_eq!(foo1.z, Some(13));
@@ -612,13 +600,9 @@ fn test_field_defaults_strip_option_fallback_prefix_and_suffix() {
         z: Option<i32>,
     }
 
-    let foo1 = Foo::builder()
-        .x(42)
-        .build();
+    let foo1 = Foo::builder().x(42).build();
 
-    let foo2 = Foo::builder()
-        .opt_x_val(None)
-        .build();
+    let foo2 = Foo::builder().opt_x_val(None).build();
 
     assert_eq!(foo1.x, Some(42));
     assert_eq!(foo1.z, Some(13));
