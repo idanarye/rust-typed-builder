@@ -6,6 +6,15 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+### Added
+- Added `ignore_invalid` option to `strip_option` to skip stripping for non-Option fields
+- Added `fallback_prefix` and `fallback_suffix` options to `strip_option` for customizing fallback method names
+- Added support for field defaults with `strip_option` and its fallback options
+
+### Changed
+- Improved handling of `strip_option` to work better with field defaults
+- Made `strip_option` more flexible with non-Option fields when `ignore_invalid` is set
+
 ## 0.20.1 - 2025-03-14
 ### Fixed
 - Fix mutator with type parameter using associated type (see issue #157)
@@ -44,7 +53,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Added
 - `#[builder(mutators(...))]` to generate functions on builder to mutate fields
-- `#[builder(via_mutator)]` on fields to allow defining fields initialized 
+- `#[builder(via_mutator)]` on fields to allow defining fields initialized
   during `::builder()` for use with `mutators`
 - `mutable_during_default_resolution` to allow `default` expression mutate
   previous fields.

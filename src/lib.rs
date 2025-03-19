@@ -122,6 +122,29 @@ use core::ops::FnOnce;
 ///    struct Point { x: f32, y: f32 }
 ///    ```
 ///
+///     The `setter(strip_option)` attribute now supports several new features:
+///
+///     - `ignore_invalid`: Skip stripping for non-Option fields instead of causing a compile error
+///     - `fallback_prefix`: Add a prefix to the fallback method name
+///     - `fallback_suffix`: Add a suffix to the fallback method name
+///
+///     Example:
+///
+///     ```
+///     use typed_builder::TypedBuilder;
+///
+///     #[derive(TypedBuilder)]
+///     #[builder(field_defaults(setter(strip_option(
+///         ignore_invalid,
+///         fallback_prefix = "opt_",
+///         fallback_suffix = "_val"
+///     ))))]
+///     struct Foo {
+///         x: Option<i32>,  // Can use .x(42) or .opt_x_val(None)
+///         y: i32,          // Uses .y(42) only since it's not an Option
+///     }
+///     ```
+///
 /// - `mutators(...)` takes functions, that can mutate fields inside of the builder.
 ///   See [mutators](#mutators) for details.
 ///

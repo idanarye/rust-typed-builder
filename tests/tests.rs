@@ -532,6 +532,100 @@ fn test_field_defaults_setter_options() {
     assert!(Foo::builder().x(1).y(2).build() == Foo { x: Some(1), y: 2 });
 }
 
+
+#[test]
+fn test_field_defaults_strip_option_ignore_invalid() {
+    #[derive(TypedBuilder)]
+    #[builder(field_defaults(setter(strip_option(ignore_invalid))))]
+    struct Foo {
+        x: Option<i32>,
+        y: i32,
+        #[builder(default = Some(13))]
+        z: Option<i32>,
+    }
+
+    let foo = Foo::builder()
+        .x(42)
+        .y(10)
+        .build();
+
+    assert_eq!(foo.x, Some(42));
+    assert_eq!(foo.y, 10);
+    assert_eq!(foo.z, Some(13));
+}
+
+#[test]
+fn test_field_defaults_strip_option_fallback_suffix() {
+    #[derive(TypedBuilder)]
+    #[builder(field_defaults(setter(strip_option(fallback_suffix = "_opt"))))]
+    struct Foo {
+        x: Option<i32>,
+        #[builder(default = Some(13))]
+        z: Option<i32>,
+    }
+
+    let foo1 = Foo::builder()
+        .x(42)
+        .build();
+
+    let foo2 = Foo::builder()
+        .x_opt(None)
+        .build();
+
+    assert_eq!(foo1.x, Some(42));
+    assert_eq!(foo1.z, Some(13));
+    assert_eq!(foo2.x, None);
+    assert_eq!(foo2.z, Some(13));
+}
+
+#[test]
+fn test_field_defaults_strip_option_fallback_prefix() {
+    #[derive(TypedBuilder)]
+    #[builder(field_defaults(setter(strip_option(fallback_prefix = "opt_"))))]
+    struct Foo {
+        x: Option<i32>,
+        #[builder(default = Some(13))]
+        z: Option<i32>,
+    }
+
+    let foo1 = Foo::builder()
+        .x(42)
+        .build();
+
+    let foo2 = Foo::builder()
+        .opt_x(None)
+        .build();
+
+    assert_eq!(foo1.x, Some(42));
+    assert_eq!(foo1.z, Some(13));
+    assert_eq!(foo2.x, None);
+    assert_eq!(foo2.z, Some(13));
+}
+
+#[test]
+fn test_field_defaults_strip_option_fallback_prefix_and_suffix() {
+    #[derive(TypedBuilder)]
+    #[builder(field_defaults(setter(strip_option(fallback_prefix = "opt_", fallback_suffix = "_val"))))]
+    struct Foo {
+        x: Option<i32>,
+        #[builder(default = Some(13))]
+        z: Option<i32>,
+    }
+
+    let foo1 = Foo::builder()
+        .x(42)
+        .build();
+
+    let foo2 = Foo::builder()
+        .opt_x_val(None)
+        .build();
+
+    assert_eq!(foo1.x, Some(42));
+    assert_eq!(foo1.z, Some(13));
+    assert_eq!(foo2.x, None);
+    assert_eq!(foo2.z, Some(13));
+}
+
 #[test]
 fn test_clone_builder() {
     #[derive(PartialEq, Default)]

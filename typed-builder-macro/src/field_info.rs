@@ -354,12 +354,21 @@ impl ApplyMeta for SetterSettings {
 #[derive(Debug, Clone)]
 pub struct Strip {
     pub fallback: Option<syn::Ident>,
+    pub fallback_prefix: Option<String>,
+    pub fallback_suffix: Option<String>,
+    pub ignore_invalid: bool,
     span: Span,
 }
 
 impl Strip {
     fn new(span: Span) -> Self {
-        Self { fallback: None, span }
+        Self {
+            fallback: None,
+            fallback_prefix: None,
+            fallback_suffix: None,
+            ignore_invalid: false,
+            span,
+        }
     }
 }
 
@@ -378,9 +387,43 @@ impl ApplyMeta for Strip {
                 self.fallback = Some(ident);
                 Ok(())
             }
+            "fallback_prefix" => {
+                if self.fallback_prefix.is_some() {
+                    return Err(Error::new_spanned(
+                        expr.name(),
+                        format!("Duplicate fallback_prefix parameter {:?}", expr.name().to_string()),
+                    ));
+                }
+
+                self.fallback_prefix = Some(expr.key_value()?.parse_value::<syn::LitStr>()?.value());
+                Ok(())
+            }
+            "fallback_suffix" => {
+                if self.fallback_suffix.is_some() {
+                    return Err(Error::new_spanned(
+                        expr.name(),
+                        format!("Duplicate fallback_suffix parameter {:?}", expr.name().to_string()),
+                    ));
+                }
+
+                self.fallback_suffix = Some(expr.key_value()?.parse_value::<syn::LitStr>()?.value());
+                Ok(())
+            }
+            "ignore_invalid" => {
+                if self.ignore_invalid {
+                    return Err(Error::new_spanned(
+                        expr.name(),
+                        format!("Duplicate ignore_invalid parameter {:?}", expr.name().to_string()),
+                    ));
+                }
+
+                expr.flag()?;
+                self.ignore_invalid = true;
+                Ok(())
+            }
             _ => Err(Error::new_spanned(
                 expr.name(),
-                format!("Invalid parameter used {:?}", expr.name().to_string()),
+                format!("Unknown parameter {:?}", expr.name().to_string()),
             )),
         }
     }
