@@ -6,6 +6,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+## 0.21.0 - 2025-03-20
 ### Added
 - Added `ignore_invalid` option to `strip_option` to skip stripping for non-Option fields
 - Added `fallback_prefix` and `fallback_suffix` options to `strip_option` for customizing fallback method names
