@@ -122,29 +122,6 @@ use core::ops::FnOnce;
 ///    struct Point { x: f32, y: f32 }
 ///    ```
 ///
-///     The `setter(strip_option)` attribute now supports several new features:
-///
-///     - `ignore_invalid`: Skip stripping for non-Option fields instead of causing a compile error
-///     - `fallback_prefix`: Add a prefix to the fallback method name
-///     - `fallback_suffix`: Add a suffix to the fallback method name
-///
-///     Example:
-///
-///     ```
-///     use typed_builder::TypedBuilder;
-///
-///     #[derive(TypedBuilder)]
-///     #[builder(field_defaults(setter(strip_option(
-///         ignore_invalid,
-///         fallback_prefix = "opt_",
-///         fallback_suffix = "_val"
-///     ))))]
-///     struct Foo {
-///         x: Option<i32>,  // Can use .x(42) or .opt_x_val(None)
-///         y: i32,          // Uses .y(42) only since it's not an Option
-///     }
-///     ```
-///
 /// - `mutators(...)` takes functions, that can mutate fields inside of the builder.
 ///   See [mutators](#mutators) for details.
 ///
@@ -189,9 +166,32 @@ use core::ops::FnOnce;
 ///     is by using `#[builder(default)]` and not calling the field's setter.
 ///
 ///   - `strip_option(fallback = field_opt)`: for `Option<...>` fields only. As above this
-///      still wraps the argument with `Some(...)`. The name given to the fallback method adds
-///      another method to the builder without wrapping the argument in `Some`. You can now call
-///      `field_opt(Some(...))` instead of `field(...)`.
+///     still wraps the argument with `Some(...)`. The name given to the fallback method adds
+///     another method to the builder without wrapping the argument in `Some`. You can now call
+///     `field_opt(Some(...))` instead of `field(...)`.
+///
+///     The `setter(strip_option)` attribute supports several `field_defaults` features:
+///
+///     - `ignore_invalid`: Skip stripping for non-Option fields instead of causing a compile error
+///     - `fallback_prefix`: Add a prefix to every fallback method name
+///     - `fallback_suffix`: Add a suffix to every fallback method name
+///
+///     Example:
+///
+///     ```
+///     use typed_builder::TypedBuilder;
+///
+///     #[derive(TypedBuilder)]
+///     #[builder(field_defaults(setter(strip_option(
+///         ignore_invalid,
+///         fallback_prefix = "opt_",
+///         fallback_suffix = "_val"
+///     ))))]
+///     struct Foo {
+///         x: Option<i32>,  // Can use .x(42) or .opt_x_val(None)
+///         y: i32,          // Uses .y(42) only since it's not an Option
+///     }
+///     ```
 ///
 ///   - `strip_bool`: for `bool` fields only, this makes the setter receive no arguments and simply
 ///     set the field's value to `true`. When used, the `default` is automatically set to `false`.
