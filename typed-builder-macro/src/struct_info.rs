@@ -318,12 +318,8 @@ impl<'a> StructInfo<'a> {
             let params = transform.params.iter().map(|(pat, ty)| quote!(#pat: #ty));
             let body = &transform.body;
             (quote!(#(#params),*), quote!({ #body }))
-        } else if field.builder_attr.setter.strip_option.is_some() {
-            if option_was_stripped {
-                (quote!(#field_name: #arg_type), quote!(Some(#arg_expr)))
-            } else {
-                (quote!(#field_name: #arg_type), arg_expr)
-            }
+        } else if option_was_stripped {
+            (quote!(#field_name: #arg_type), quote!(Some(#arg_expr)))
         } else {
             (quote!(#field_name: #arg_type), arg_expr)
         };
