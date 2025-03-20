@@ -261,10 +261,10 @@ impl<'a> StructInfo<'a> {
 
         let deprecated = &field.builder_attr.deprecated;
 
-        let options_was_stripped;
+        let option_was_stripped;
         let arg_type = if field.builder_attr.setter.strip_option.is_some() && field.builder_attr.setter.transform.is_none() {
             if let Some(inner_type) = field.type_from_inside_option() {
-                options_was_stripped = true;
+                option_was_stripped = true;
                 inner_type
             } else if field
                 .builder_attr
@@ -273,7 +273,7 @@ impl<'a> StructInfo<'a> {
                 .as_ref()
                 .map_or(false, |s| s.ignore_invalid)
             {
-                options_was_stripped = false;
+                option_was_stripped = false;
                 field_type
             } else {
                 return Err(Error::new_spanned(
@@ -282,7 +282,7 @@ impl<'a> StructInfo<'a> {
                 ));
             }
         } else {
-            options_was_stripped = false;
+            option_was_stripped = false;
             field_type
         };
         let (arg_type, arg_expr) = if field.builder_attr.setter.auto_into.is_some() {
@@ -319,7 +319,7 @@ impl<'a> StructInfo<'a> {
             let body = &transform.body;
             (quote!(#(#params),*), quote!({ #body }))
         } else if field.builder_attr.setter.strip_option.is_some() {
-            if options_was_stripped {
+            if option_was_stripped {
                 (quote!(#field_name: #arg_type), quote!(Some(#arg_expr)))
             } else {
                 (quote!(#field_name: #arg_type), arg_expr)
