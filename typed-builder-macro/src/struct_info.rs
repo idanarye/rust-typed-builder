@@ -2,12 +2,14 @@ use proc_macro2::{Ident, Span, TokenStream};
 use quote::{format_ident, quote, quote_spanned, ToTokens};
 use syn::{parse::Error, parse_quote, punctuated::Punctuated, GenericArgument, ItemFn, Token};
 
-use crate::builder_attr::{IntoSetting, TypeBuilderAttr};
-use crate::field_info::FieldInfo;
-use crate::mutator::Mutator;
-use crate::util::{
-    empty_type, empty_type_tuple, first_visibility, modify_types_generics_hack, phantom_data_for_generics, public_visibility,
-    strip_raw_ident_prefix, type_tuple,
+use crate::{
+    builder_attr::{IntoSetting, TypeBuilderAttr},
+    field_info::FieldInfo,
+    mutator::Mutator,
+    util::{
+        empty_type, empty_type_tuple, first_visibility, modify_types_generics_hack, phantom_data_for_generics, public_visibility,
+        strip_raw_ident_prefix, type_tuple,
+    },
 };
 
 #[derive(Debug)]
@@ -305,9 +307,10 @@ impl<'a> StructInfo<'a> {
             } else if strip_option.fallback_prefix.is_none() && strip_option.fallback_suffix.is_none() {
                 None
             } else {
+                let method = strip_raw_ident_prefix(field_name.to_string());
                 let prefix = strip_option.fallback_prefix.as_deref().unwrap_or_default();
                 let suffix = strip_option.fallback_suffix.as_deref().unwrap_or_default();
-                let fallback_name = syn::Ident::new(&format!("{}{}{}", prefix, field_name, suffix), field_name.span());
+                let fallback_name = syn::Ident::new(&format!("{}{}{}", prefix, method, suffix), field_name.span());
                 Some((fallback_name, quote!(#field_name: #field_type), quote!(#arg_expr)))
             }
         });
