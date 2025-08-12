@@ -6,6 +6,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+## 0.21.1 - 2025-08-12
+### Fixed
+- Strip raw ident prefix from base method name before assembling prefixed/suffixed fallback method names
+
 ## 0.21.0 - 2025-03-20
 ### Added
 - Added `ignore_invalid` option to `strip_option` to skip stripping for non-Option fields
