@@ -1,3 +1,5 @@
+use std::ops::Deref;
+
 use proc_macro2::{Ident, Span, TokenStream};
 use quote::quote_spanned;
 use syn::{parse::Error, spanned::Spanned};
@@ -50,7 +52,13 @@ impl<'a> FieldInfo<'a> {
     }
 
     pub fn type_from_inside_option(&self) -> Option<&syn::Type> {
-        let path = if let syn::Type::Path(type_path) = self.ty {
+        let typ = if let syn::Type::Group(type_group) = self.ty {
+            type_group.elem.deref()
+        } else {
+            self.ty
+        };
+
+        let path = if let syn::Type::Path(type_path) = typ {
             if type_path.qself.is_some() {
                 return None;
             }
