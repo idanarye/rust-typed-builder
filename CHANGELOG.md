@@ -6,6 +6,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+## 0.21.2 - 2025-08-21
+### Fixed
+- Recognize `TypeGroup` when checking for `Option`.
+
 ## 0.21.1 - 2025-08-12
 ### Fixed
 - Strip raw ident prefix from base method name before assembling prefixed/suffixed fallback method names
