@@ -764,6 +764,45 @@ fn test_field_setter_transform() {
 }
 
 #[test]
+fn test_field_setter_transform_with_generics() {
+    struct Signal<T>(Box<dyn Fn() -> T>);
+
+    struct FromT;
+    struct FromClosure;
+
+    trait IntoSignal<T, M> {
+        fn into_signal(self) -> Signal<T>;
+    }
+
+    impl<T> IntoSignal<T, FromT> for T
+    where
+        T: Clone + 'static,
+    {
+        fn into_signal(self) -> Signal<T> {
+            Signal(Box::new(move || self.clone()))
+        }
+    }
+
+    impl<T, F> IntoSignal<T, FromClosure> for F
+    where
+        F: Fn() -> T + 'static,
+    {
+        fn into_signal(self) -> Signal<T> {
+            Signal(Box::new(self))
+        }
+    }
+
+    #[derive(TypedBuilder)]
+    struct Foo {
+        #[builder(setter(transform_generics = "<M>", transform = |value: impl IntoSignal<usize, M>| value.into_signal()))]
+        sig: Signal<usize>,
+    }
+
+    assert!((Foo::builder().sig(2).build().sig.0)() == 2);
+    assert!((Foo::builder().sig(|| 2).build().sig.0)() == 2);
+}
+
+#[test]
 fn test_build_method() {
     #[derive(PartialEq, TypedBuilder)]
     #[builder(build_method(vis="", name=__build))]

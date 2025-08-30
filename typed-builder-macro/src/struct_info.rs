@@ -315,16 +315,27 @@ impl<'a> StructInfo<'a> {
             }
         });
 
-        let (param_list, arg_expr) = if field.builder_attr.setter.strip_bool.is_some() {
-            (quote!(), quote!(true))
+        let (method_generics, param_list, arg_expr) = if field.builder_attr.setter.strip_bool.is_some() {
+            (quote!(), quote!(), quote!(true))
         } else if let Some(transform) = &field.builder_attr.setter.transform {
             let params = transform.params.iter().map(|(pat, ty)| quote!(#pat: #ty));
             let body = &transform.body;
-            (quote!(#(#params),*), quote!({ #body }))
+            let method_generics = field
+                .builder_attr
+                .setter
+                .transform_generics
+                .as_ref()
+                .map_or(quote!(), |g| g.to_token_stream());
+
+            // if field.builder_attr.setter.transform_generics.is_some() {
+            //     panic!("Generics: {:?}", method_generics);
+            // }
+
+            (method_generics, quote!(#(#params),*), quote!({ #body }))
         } else if option_was_stripped {
-            (quote!(#field_name: #arg_type), quote!(Some(#arg_expr)))
+            (quote!(), quote!(#field_name: #arg_type), quote!(Some(#arg_expr)))
         } else {
-            (quote!(#field_name: #arg_type), arg_expr)
+            (quote!(), quote!(#field_name: #arg_type), arg_expr)
         };
 
         let repeated_fields_error_type_name = syn::Ident::new(
@@ -344,7 +355,7 @@ impl<'a> StructInfo<'a> {
                 #deprecated
                 #doc
                 #[allow(clippy::used_underscore_binding, clippy::no_effect_underscore_binding)]
-                pub fn #method_name (self, #param_list) -> #builder_name <#target_generics> {
+                pub fn #method_name #method_generics (self, #param_list) -> #builder_name <#target_generics> {
                     let #field_name = (#arg_expr,);
                     let ( #(#destructuring,)* ) = self.fields;
                     #builder_name {
@@ -362,7 +373,7 @@ impl<'a> StructInfo<'a> {
                 #deprecated
                 #doc
                 #[allow(clippy::used_underscore_binding, clippy::no_effect_underscore_binding)]
-                pub fn #method_name (self, #param_list) -> #builder_name <#target_generics> {
+                pub fn #method_name #method_generics (self, #param_list) -> #builder_name <#target_generics> {
                     let #field_name = (#arg_expr,);
                     let ( #(#destructuring,)* ) = self.fields;
                     #builder_name {
@@ -382,7 +393,7 @@ impl<'a> StructInfo<'a> {
                 #deprecated
                 #doc
                 #[allow(clippy::used_underscore_binding, clippy::no_effect_underscore_binding)]
-                pub fn #method_name (self, #param_list) -> #builder_name <#target_generics> {
+                pub fn #method_name #method_generics (self, #param_list) -> #builder_name <#target_generics> {
                     let #field_name = (#arg_expr,);
                     let ( #(#destructuring,)* ) = self.fields;
                     #builder_name {
@@ -405,7 +416,7 @@ impl<'a> StructInfo<'a> {
                     note = #repeated_fields_error_message
                 )]
                 #doc
-                pub fn #method_name (self, _: #repeated_fields_error_type_name) -> #builder_name <#target_generics> {
+                pub fn #method_name #method_generics (self, _: #repeated_fields_error_type_name) -> #builder_name <#target_generics> {
                     self
                 }
             }

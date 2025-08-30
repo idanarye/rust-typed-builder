@@ -138,6 +138,7 @@ pub struct SetterSettings {
     pub strip_option: Option<Strip>,
     pub strip_bool: Option<Strip>,
     pub transform: Option<Transform>,
+    pub transform_generics: Option<syn::Generics>,
     pub prefix: Option<String>,
     pub suffix: Option<String>,
 }
@@ -320,6 +321,16 @@ impl ApplyMeta for SetterSettings {
             "transform" => {
                 self.transform = if let Some(key_value) = expr.key_value_or_not()? {
                     Some(parse_transform_closure(key_value.name.span(), key_value.parse_value()?)?)
+                } else {
+                    None
+                };
+                Ok(())
+            }
+            "transform_generics" => {
+                self.transform_generics = if let Some(key_value) = expr.key_value_or_not()? {
+                    let lit_str: syn::LitStr = syn::parse2(key_value.value)?;
+                    let generics: syn::Generics = lit_str.parse()?;
+                    Some(generics)
                 } else {
                     None
                 };
