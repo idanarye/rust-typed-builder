@@ -765,41 +765,46 @@ fn test_field_setter_transform() {
 
 #[test]
 fn test_field_setter_transform_with_generics() {
-    struct Signal<T>(Box<dyn Fn() -> T>);
+    struct MBaseCase;
 
-    struct FromT;
-    struct FromClosure;
+    struct MClosure;
 
-    trait IntoSignal<T, M> {
-        fn into_signal(self) -> Signal<T>;
+    // Lifetime is not needed, just added to test.
+    trait IntoValue<'a, T, M> {
+        fn into_value(self) -> T;
     }
 
-    impl<T> IntoSignal<T, FromT> for T
+    impl<T, I> IntoValue<'_, T, MBaseCase> for I
     where
-        T: Clone + 'static,
+        I: Into<T>,
     {
-        fn into_signal(self) -> Signal<T> {
-            Signal(Box::new(move || self.clone()))
+        fn into_value(self) -> T {
+            self.into()
         }
     }
 
-    impl<T, F> IntoSignal<T, FromClosure> for F
+    impl<T, F> IntoValue<'_, T, MClosure> for F
     where
-        F: Fn() -> T + 'static,
+        F: FnOnce() -> T,
     {
-        fn into_signal(self) -> Signal<T> {
-            Signal(Box::new(self))
+        fn into_value(self) -> T {
+            self()
         }
     }
 
     #[derive(TypedBuilder)]
     struct Foo {
-        #[builder(setter(transform_generics = "<M>", transform = |value: impl IntoSignal<usize, M>| value.into_signal()))]
-        sig: Signal<usize>,
+        #[builder(
+            setter(
+                transform_generics = "<'__a, __Marker>",
+                transform = |value: impl IntoValue<'__a, String, __Marker>| value.into_value()
+            )
+        )]
+        s: String,
     }
 
-    assert!((Foo::builder().sig(2).build().sig.0)() == 2);
-    assert!((Foo::builder().sig(|| 2).build().sig.0)() == 2);
+    assert_eq!(Foo::builder().s("foo").build().s, "foo".to_owned());
+    assert_eq!(Foo::builder().s(|| "foo".to_owned()).build().s, "foo".to_owned());
 }
 
 #[test]

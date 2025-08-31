@@ -327,10 +327,6 @@ impl<'a> StructInfo<'a> {
                 .as_ref()
                 .map_or(quote!(), |g| g.to_token_stream());
 
-            // if field.builder_attr.setter.transform_generics.is_some() {
-            //     panic!("Generics: {:?}", method_generics);
-            // }
-
             (method_generics, quote!(#(#params),*), quote!({ #body }))
         } else if option_was_stripped {
             (quote!(), quote!(#field_name: #arg_type), quote!(Some(#arg_expr)))

@@ -205,6 +205,11 @@ use core::ops::FnOnce;
 ///     transformed into the field type using the expression `expr`. The transformation is performed
 ///     when the setter is called.
 ///
+///   - `transform_generics = <'a, A, B, C, ...>`: used in conjunction with `transform`,
+///     these generics will be added to the builder method, and therefore available in the provided
+///     `transform` setter. Using prefix underscores, e.g. `'__a`/`__A` is recommended
+///     to avoid name clashes with others on the builder struct.
+///
 ///   - `prefix = "..."` prepends the setter method with the specified prefix. For example, setting
 ///     `prefix = "with_"` results in setters like `with_x` or `with_y`. This option is combinable
 ///     with `suffix = "..."`.

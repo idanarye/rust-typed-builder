@@ -6,6 +6,9 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+### Added
+- `#[builder(setter(transform_generics = "<...>"))]` attribute for adding custom generics and lifetimes to the closure provided to `#[builder(setter(transform = ...))]`
+
 ## 0.21.2 - 2025-08-21
 ### Fixed
 - Recognize `TypeGroup` when checking for `Option`.
