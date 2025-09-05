@@ -204,11 +204,8 @@ use core::ops::FnOnce;
 ///     `param1: Type1, param2: Type2 ...` instead of the field type itself. The parameters are
 ///     transformed into the field type using the expression `expr`. The transformation is performed
 ///     when the setter is called.
-///
-///   - `transform_generics = <'a, A, B, C, ...>`: used in conjunction with `transform`,
-///     these generics will be added to the builder method, and therefore available in the provided
-///     `transform` setter. Using prefix underscores, e.g. `'__a`/`__A` is recommended
-///     to avoid name clashes with others on the builder struct.
+///     `#[generics(<'a, A, B, ...>)]` can be added as an attribute of the transform closure,
+///     to add these to the builder method. E.g. `transform = #[generics(<A>)] |value: impl Foo<A>| expr`
 ///
 ///   - `prefix = "..."` prepends the setter method with the specified prefix. For example, setting
 ///     `prefix = "with_"` results in setters like `with_x` or `with_y`. This option is combinable

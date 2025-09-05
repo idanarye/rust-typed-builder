@@ -7,7 +7,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ## [Unreleased]
 
 ### Added
-- `#[builder(setter(transform_generics = "<...>"))]` attribute for adding custom generics and lifetimes to the closure provided to `#[builder(setter(transform = ...))]`
+- `#[generics(<'a, A, B, ...>)]` can now be added as an attribute to the transform closure, e.g. `#[builder(setter(transform = #[generics(<A>)] |value: impl Foo<A>| expr))]`, to allow adding custom generics, bounds and lifetimes to the builder method.
 
 ## 0.21.2 - 2025-08-21
 ### Fixed

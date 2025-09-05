@@ -796,8 +796,7 @@ fn test_field_setter_transform_with_generics() {
     struct Foo {
         #[builder(
             setter(
-                transform_generics = "<'__a, __Marker>",
-                transform = |value: impl IntoValue<'__a, String, __Marker>| value.into_value()
+                transform = #[generics(<'__a, __Marker>)] |value: impl IntoValue<'__a, String, __Marker>| value.into_value()
             )
         )]
         s: String,

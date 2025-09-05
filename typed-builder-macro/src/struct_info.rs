@@ -320,12 +320,7 @@ impl<'a> StructInfo<'a> {
         } else if let Some(transform) = &field.builder_attr.setter.transform {
             let params = transform.params.iter().map(|(pat, ty)| quote!(#pat: #ty));
             let body = &transform.body;
-            let method_generics = field
-                .builder_attr
-                .setter
-                .transform_generics
-                .as_ref()
-                .map_or(quote!(), |g| g.to_token_stream());
+            let method_generics = transform.generics.as_ref().map_or(quote!(), |g| g.to_token_stream());
 
             (method_generics, quote!(#(#params),*), quote!({ #body }))
         } else if option_was_stripped {

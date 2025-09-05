@@ -138,7 +138,6 @@ pub struct SetterSettings {
     pub strip_option: Option<Strip>,
     pub strip_bool: Option<Strip>,
     pub transform: Option<Transform>,
-    pub transform_generics: Option<syn::Generics>,
     pub prefix: Option<String>,
     pub suffix: Option<String>,
 }
@@ -326,16 +325,6 @@ impl ApplyMeta for SetterSettings {
                 };
                 Ok(())
             }
-            "transform_generics" => {
-                self.transform_generics = if let Some(key_value) = expr.key_value_or_not()? {
-                    let lit_str: syn::LitStr = syn::parse2(key_value.value)?;
-                    let generics: syn::Generics = lit_str.parse()?;
-                    Some(generics)
-                } else {
-                    None
-                };
-                Ok(())
-            }
             "prefix" => {
                 self.prefix = if let Some(key_value) = expr.key_value_or_not()? {
                     Some(expr_to_lit_string(&key_value.parse_value()?)?)
@@ -452,6 +441,7 @@ impl ApplyMeta for Strip {
 pub struct Transform {
     pub params: Vec<(syn::Pat, syn::Type)>,
     pub body: syn::Expr,
+    pub generics: Option<syn::Generics>,
     span: Span,
 }
 
@@ -460,6 +450,17 @@ fn parse_transform_closure(span: Span, expr: syn::Expr) -> Result<Transform, Err
         syn::Expr::Closure(closure) => closure,
         _ => return Err(Error::new_spanned(expr, "Expected closure")),
     };
+
+    let mut generics: Option<syn::Generics> = None;
+    for attr in &closure.attrs {
+        if attr.path().is_ident("generics") {
+            if generics.is_some() {
+                return Err(Error::new_spanned(attr, "Duplicate generics attribute on transform closure"));
+            }
+            generics = Some(attr.parse_args()?);
+        }
+    }
+
     if let Some(kw) = &closure.asyncness {
         return Err(Error::new(kw.span, "Transform closure cannot be async"));
     }
@@ -480,6 +481,7 @@ fn parse_transform_closure(span: Span, expr: syn::Expr) -> Result<Transform, Err
         params,
         body: *closure.body,
         span,
+        generics,
     })
 }
 
