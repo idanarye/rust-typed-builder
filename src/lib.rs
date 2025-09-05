@@ -203,9 +203,21 @@ use core::ops::FnOnce;
 ///   - `transform = |param1: Type1, param2: Type2 ...| expr`: this makes the setter accept
 ///     `param1: Type1, param2: Type2 ...` instead of the field type itself. The parameters are
 ///     transformed into the field type using the expression `expr`. The transformation is performed
-///     when the setter is called.
-///     `#[generics(<'a, A, B, ...>)]` can be added as an attribute of the transform closure,
-///     to add these to the builder method. E.g. `transform = #[generics(<A>)] |value: impl Foo<A>| expr`
+///     when the setter is called. `transform` can also be provided in full `fn` syntax,
+///     to allow custom lifetimes, a generic and a where clause.
+///     Example:
+///     ```rust
+///     #[builder(
+///         setter(
+///             fn transform<'a, M>(value: impl IntoValue<'a, String, M>) -> String
+///             where
+///                 M: 'a,
+///             {
+///                 value.into_value()
+///             },
+///         )
+///     )]
+///     ```
 ///
 ///   - `prefix = "..."` prepends the setter method with the specified prefix. For example, setting
 ///     `prefix = "with_"` results in setters like `with_x` or `with_y`. This option is combinable

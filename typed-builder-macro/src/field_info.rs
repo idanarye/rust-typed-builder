@@ -3,6 +3,7 @@ use std::ops::Deref;
 use proc_macro2::{Ident, Span, TokenStream};
 use quote::quote_spanned;
 use syn::{parse::Error, spanned::Spanned};
+use syn::{Expr, ExprBlock};
 
 use crate::mutator::Mutator;
 use crate::util::{expr_to_lit_string, ident_to_type, path_to_single_string, strip_raw_ident_prefix, ApplyMeta, AttrArg};
@@ -248,6 +249,7 @@ impl ApplyMeta for FieldBuilderAttr<'_> {
                     Ok(())
                 }
                 AttrArg::Sub(_) => Err(expr.incorrect_type()),
+                AttrArg::Fn(_) => Err(expr.incorrect_type()),
             },
             "default_code" => {
                 use std::str::FromStr;
@@ -295,6 +297,7 @@ impl ApplyMeta for FieldBuilderAttr<'_> {
                             self.via_mutators = Some(via_mutators);
                         }
                     }
+                    AttrArg::Fn(_) => return Err(expr.incorrect_type()),
                 }
                 Ok(())
             }
@@ -318,8 +321,16 @@ impl ApplyMeta for SetterSettings {
                 Ok(())
             }
             "transform" => {
-                self.transform = if let Some(key_value) = expr.key_value_or_not()? {
-                    Some(parse_transform_closure(key_value.name.span(), key_value.parse_value()?)?)
+                self.transform = if let AttrArg::Fn(func) = expr {
+                    Some(parse_transform(func.span(), FnOrClosure::Fn(func))?)
+                } else if let Some(key_value) = expr.key_value_or_not()? {
+                    let span = key_value.name.span();
+                    let expr = key_value.parse_value::<Expr>()?;
+                    let closure = match expr {
+                        syn::Expr::Closure(closure) => closure,
+                        _ => return Err(Error::new_spanned(expr, "Expected closure")),
+                    };
+                    Some(parse_transform(span, FnOrClosure::Closure(closure))?)
                 } else {
                     None
                 };
@@ -445,41 +456,61 @@ pub struct Transform {
     span: Span,
 }
 
-fn parse_transform_closure(span: Span, expr: syn::Expr) -> Result<Transform, Error> {
-    let closure = match expr {
-        syn::Expr::Closure(closure) => closure,
-        _ => return Err(Error::new_spanned(expr, "Expected closure")),
-    };
+enum FnOrClosure {
+    Fn(syn::ItemFn),
+    Closure(syn::ExprClosure),
+}
 
+fn parse_transform(span: Span, expr: FnOrClosure) -> Result<Transform, Error> {
     let mut generics: Option<syn::Generics> = None;
-    for attr in &closure.attrs {
-        if attr.path().is_ident("generics") {
-            if generics.is_some() {
-                return Err(Error::new_spanned(attr, "Duplicate generics attribute on transform closure"));
+    let (params, body) = match expr {
+        FnOrClosure::Fn(func) => {
+            if let Some(kw) = &func.sig.asyncness {
+                return Err(Error::new(kw.span, "Transform function cannot be async"));
             }
-            generics = Some(attr.parse_args()?);
+            generics = Some(func.sig.generics);
+            let params = func
+                .sig
+                .inputs
+                .into_iter()
+                .map(|input| match input {
+                    syn::FnArg::Typed(pat_type) => Ok((*pat_type.pat, *pat_type.ty)),
+                    syn::FnArg::Receiver(_) => Err(Error::new_spanned(input, "Transform function cannot have self parameter")),
+                })
+                .collect::<Result<Vec<_>, _>>()?;
+            (
+                params,
+                Expr::Block(ExprBlock {
+                    attrs: Vec::new(),
+                    label: None,
+                    block: *func.block,
+                }),
+            )
         }
-    }
+        FnOrClosure::Closure(closure) => {
+            if let Some(kw) = &closure.asyncness {
+                return Err(Error::new(kw.span, "Transform closure cannot be async"));
+            }
+            if let Some(kw) = &closure.capture {
+                return Err(Error::new(kw.span, "Transform closure cannot be move"));
+            }
 
-    if let Some(kw) = &closure.asyncness {
-        return Err(Error::new(kw.span, "Transform closure cannot be async"));
-    }
-    if let Some(kw) = &closure.capture {
-        return Err(Error::new(kw.span, "Transform closure cannot be move"));
-    }
+            let params = closure
+                .inputs
+                .into_iter()
+                .map(|input| match input {
+                    syn::Pat::Type(pat_type) => Ok((*pat_type.pat, *pat_type.ty)),
+                    _ => Err(Error::new_spanned(input, "Transform closure must explicitly declare types")),
+                })
+                .collect::<Result<Vec<_>, _>>()?;
 
-    let params = closure
-        .inputs
-        .into_iter()
-        .map(|input| match input {
-            syn::Pat::Type(pat_type) => Ok((*pat_type.pat, *pat_type.ty)),
-            _ => Err(Error::new_spanned(input, "Transform closure must explicitly declare types")),
-        })
-        .collect::<Result<Vec<_>, _>>()?;
+            (params, *closure.body)
+        }
+    };
 
     Ok(Transform {
         params,
-        body: *closure.body,
+        body,
         span,
         generics,
     })
