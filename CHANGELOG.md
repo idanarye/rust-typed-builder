@@ -6,7 +6,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
-## 0.21.3 - 2025-09-05
+## 0.21.3 - 2025-09-08
 
 ### Added
 - New optional alternate `transform` syntax using a full fn, to allow support for custom lifetimes, generics and a where clause to custom builder method.

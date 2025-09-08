@@ -321,18 +321,13 @@ impl ApplyMeta for SetterSettings {
                 Ok(())
             }
             "transform" => {
-                self.transform = if let AttrArg::Fn(func) = expr {
-                    Some(parse_transform(func.span(), FnOrClosure::Fn(func))?)
-                } else if let Some(key_value) = expr.key_value_or_not()? {
-                    let span = key_value.name.span();
-                    let expr = key_value.parse_value::<Expr>()?;
-                    let closure = match expr {
-                        syn::Expr::Closure(closure) => closure,
-                        _ => return Err(Error::new_spanned(expr, "Expected closure")),
-                    };
-                    Some(parse_transform(span, FnOrClosure::Closure(closure))?)
-                } else {
-                    None
+                self.transform = match expr {
+                    AttrArg::Fn(func) => Some(parse_transform_fn(func.span(), func)?),
+                    AttrArg::KeyValue(key_value) => {
+                        Some(parse_transform_closure(key_value.name.span(), key_value.parse_value()?)?)
+                    }
+                    AttrArg::Not { .. } => None,
+                    _ => return Err(expr.incorrect_type()),
                 };
                 Ok(())
             }
@@ -453,66 +448,68 @@ pub struct Transform {
     pub params: Vec<(syn::Pat, syn::Type)>,
     pub body: syn::Expr,
     pub generics: Option<syn::Generics>,
+    pub return_type: syn::ReturnType,
     span: Span,
 }
 
-enum FnOrClosure {
-    Fn(syn::ItemFn),
-    Closure(syn::ExprClosure),
-}
+fn parse_transform_fn(span: Span, func: syn::ItemFn) -> Result<Transform, Error> {
+    if let Some(kw) = &func.sig.asyncness {
+        return Err(Error::new(kw.span, "Transform function cannot be async"));
+    }
 
-fn parse_transform(span: Span, expr: FnOrClosure) -> Result<Transform, Error> {
-    let mut generics: Option<syn::Generics> = None;
-    let (params, body) = match expr {
-        FnOrClosure::Fn(func) => {
-            if let Some(kw) = &func.sig.asyncness {
-                return Err(Error::new(kw.span, "Transform function cannot be async"));
-            }
-            generics = Some(func.sig.generics);
-            let params = func
-                .sig
-                .inputs
-                .into_iter()
-                .map(|input| match input {
-                    syn::FnArg::Typed(pat_type) => Ok((*pat_type.pat, *pat_type.ty)),
-                    syn::FnArg::Receiver(_) => Err(Error::new_spanned(input, "Transform function cannot have self parameter")),
-                })
-                .collect::<Result<Vec<_>, _>>()?;
-            (
-                params,
-                Expr::Block(ExprBlock {
-                    attrs: Vec::new(),
-                    label: None,
-                    block: *func.block,
-                }),
-            )
-        }
-        FnOrClosure::Closure(closure) => {
-            if let Some(kw) = &closure.asyncness {
-                return Err(Error::new(kw.span, "Transform closure cannot be async"));
-            }
-            if let Some(kw) = &closure.capture {
-                return Err(Error::new(kw.span, "Transform closure cannot be move"));
-            }
+    let params = func
+        .sig
+        .inputs
+        .into_iter()
+        .map(|input| match input {
+            syn::FnArg::Typed(pat_type) => Ok((*pat_type.pat, *pat_type.ty)),
+            syn::FnArg::Receiver(_) => Err(Error::new_spanned(input, "Transform function cannot have self parameter")),
+        })
+        .collect::<Result<Vec<_>, _>>()?;
 
-            let params = closure
-                .inputs
-                .into_iter()
-                .map(|input| match input {
-                    syn::Pat::Type(pat_type) => Ok((*pat_type.pat, *pat_type.ty)),
-                    _ => Err(Error::new_spanned(input, "Transform closure must explicitly declare types")),
-                })
-                .collect::<Result<Vec<_>, _>>()?;
-
-            (params, *closure.body)
-        }
-    };
+    let body = Expr::Block(ExprBlock {
+        attrs: Vec::new(),
+        label: None,
+        block: *func.block,
+    });
 
     Ok(Transform {
         params,
         body,
         span,
-        generics,
+        generics: Some(func.sig.generics),
+        return_type: func.sig.output,
+    })
+}
+
+fn parse_transform_closure(span: Span, expr: syn::Expr) -> Result<Transform, Error> {
+    let closure = match expr {
+        syn::Expr::Closure(closure) => closure,
+        _ => return Err(Error::new_spanned(expr, "Expected closure")),
+    };
+
+    if let Some(kw) = &closure.asyncness {
+        return Err(Error::new(kw.span, "Transform closure cannot be async"));
+    }
+    if let Some(kw) = &closure.capture {
+        return Err(Error::new(kw.span, "Transform closure cannot be move"));
+    }
+
+    let params = closure
+        .inputs
+        .into_iter()
+        .map(|input| match input {
+            syn::Pat::Type(pat_type) => Ok((*pat_type.pat, *pat_type.ty)),
+            _ => Err(Error::new_spanned(input, "Transform closure must explicitly declare types")),
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+
+    Ok(Transform {
+        params,
+        body: *closure.body,
+        span,
+        generics: None,
+        return_type: closure.output,
     })
 }
 

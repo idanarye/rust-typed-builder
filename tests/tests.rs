@@ -796,7 +796,7 @@ fn test_field_setter_transform_fn() {
     struct Foo {
         #[builder(
             setter(
-                fn transform<'a, M>(value: impl IntoValue<'a, String, M>) -> String
+                fn transform<'a, M>(value: impl IntoValue<'a, String, M>)
                 where
                     M: 'a,
                  {
@@ -807,7 +807,7 @@ fn test_field_setter_transform_fn() {
         s: String,
     }
 
-    // Check where clause
+    // Check where clause and return type
     #[derive(TypedBuilder)]
     struct Bar {
         #[builder(

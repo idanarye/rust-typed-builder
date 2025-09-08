@@ -326,7 +326,16 @@ impl<'a> StructInfo<'a> {
                 .as_ref()
                 .and_then(|g| g.where_clause.as_ref())
                 .map_or(quote!(), |w| w.to_token_stream());
-            (method_generics, quote!(#(#params),*), quote!({ #body }), method_where_clause)
+
+            let body = match &transform.return_type {
+                syn::ReturnType::Default => quote!({ #body }),
+                syn::ReturnType::Type(_, ty) => quote!({
+                    let value: #ty = { #body };
+                    value
+                }),
+            };
+
+            (method_generics, quote!(#(#params),*), body, method_where_clause)
         } else if option_was_stripped {
             (quote!(), quote!(#field_name: #arg_type), quote!(Some(#arg_expr)), quote!())
         } else {
