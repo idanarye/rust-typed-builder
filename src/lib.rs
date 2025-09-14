@@ -133,10 +133,10 @@ use core::ops::FnOnce;
 /// - `default = ...`: make the field optional, defaulting to the expression `...`.
 ///
 /// - `default_code = "..."`: make the field optional, defaulting to the expression `...`. Note that
-///    you need to enclose it in quotes, which allows you to use it together with other custom
-///    derive proc-macro crates that complain about "expected literal".
-///    Note that if `...` contains a string, you can use raw string literals to avoid escaping the
-///    double quotes - e.g. `#[builder(default_code = r#""default text".to_owned()"#)]`.
+///   you need to enclose it in quotes, which allows you to use it together with other custom
+///   derive proc-macro crates that complain about "expected literal". Note that if `...` contains
+///   a string, you can use raw string literals to avoid escaping the double quotes - e.g.
+///   `#[builder(default_code = r#""default text".to_owned()"#)]`.
 ///
 /// - `via_mutators`: initialize the field when constructing the builder, useful in combination
 ///   with [mutators](#mutators).
@@ -196,9 +196,9 @@ use core::ops::FnOnce;
 ///   - `strip_bool`: for `bool` fields only, this makes the setter receive no arguments and simply
 ///     set the field's value to `true`. When used, the `default` is automatically set to `false`.
 ///
-///   - `strip_bool(fallback = field_bool)`: for `bool` fields only. As above this
-///      allows passing the boolean value. The name given to the fallback method adds
-///      another method to the builder without where the bool value can be specified.
+///   - `strip_bool(fallback = field_bool)`: for `bool` fields only. As above this allows passing
+///     the boolean value. The name given to the fallback method adds another method to the builder
+///     without where the bool value can be specified.
 ///
 ///   - `transform = |param1: Type1, param2: Type2 ...| expr`: this makes the setter accept
 ///     `param1: Type1, param2: Type2 ...` instead of the field type itself. The parameters are

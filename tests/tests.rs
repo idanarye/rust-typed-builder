@@ -646,6 +646,7 @@ fn test_clone_builder() {
 #[test]
 #[allow(clippy::items_after_statements)]
 fn test_clone_builder_with_generics() {
+    #[allow(dead_code)]
     #[derive(PartialEq, Default)]
     struct Uncloneable;
 

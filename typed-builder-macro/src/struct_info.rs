@@ -273,7 +273,7 @@ impl<'a> StructInfo<'a> {
                 .setter
                 .strip_option
                 .as_ref()
-                .map_or(false, |s| s.ignore_invalid)
+                .is_some_and(|s| s.ignore_invalid)
             {
                 option_was_stripped = false;
                 field_type

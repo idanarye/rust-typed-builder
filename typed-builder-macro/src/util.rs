@@ -110,6 +110,7 @@ pub fn expr_to_lit_string(expr: &syn::Expr) -> Result<String, Error> {
     }
 }
 
+#[allow(clippy::large_enum_variant)]
 pub enum AttrArg {
     Flag(Ident),
     KeyValue(KeyValue),
