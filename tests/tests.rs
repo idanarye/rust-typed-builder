@@ -742,7 +742,7 @@ fn test_unsized_generic_params() {
 }
 
 #[test]
-fn test_field_setter_transform() {
+fn test_field_setter_transform_closure() {
     #[derive(PartialEq)]
     struct Point {
         x: i32,
@@ -761,6 +761,72 @@ fn test_field_setter_transform() {
                 point: Point { x: 1, y: 2 }
             }
     );
+}
+
+#[test]
+fn test_field_setter_transform_fn() {
+    struct MBaseCase;
+
+    struct MClosure;
+
+    // Lifetime is not needed, just added to test.
+    trait IntoValue<'a, T, M> {
+        fn into_value(self) -> T;
+    }
+
+    impl<T, I> IntoValue<'_, T, MBaseCase> for I
+    where
+        I: Into<T>,
+    {
+        fn into_value(self) -> T {
+            self.into()
+        }
+    }
+
+    impl<T, F> IntoValue<'_, T, MClosure> for F
+    where
+        F: FnOnce() -> T,
+    {
+        fn into_value(self) -> T {
+            self()
+        }
+    }
+
+    #[derive(TypedBuilder)]
+    struct Foo {
+        #[builder(
+            setter(
+                fn transform<'a, M>(value: impl IntoValue<'a, String, M>)
+                where
+                    M: 'a,
+                 {
+                    value.into_value()
+                },
+            )
+        )]
+        s: String,
+    }
+
+    // Check where clause and return type
+    #[derive(TypedBuilder)]
+    struct Bar {
+        #[builder(
+            setter(
+                fn transform<A>(value: A) -> String
+                where
+                    A: std::fmt::Display,
+                 {
+                    value.to_string()
+                },
+            )
+        )]
+        s: String,
+    }
+
+    assert_eq!(Foo::builder().s("foo").build().s, "foo".to_owned());
+    assert_eq!(Foo::builder().s(|| "foo".to_owned()).build().s, "foo".to_owned());
+
+    assert_eq!(Bar::builder().s(42).build().s, "42".to_owned());
 }
 
 #[test]

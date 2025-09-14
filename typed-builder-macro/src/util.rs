@@ -115,6 +115,7 @@ pub enum AttrArg {
     KeyValue(KeyValue),
     Sub(SubAttr),
     Not { not: Token![!], name: Ident },
+    Fn(syn::ItemFn),
 }
 
 impl AttrArg {
@@ -124,6 +125,7 @@ impl AttrArg {
             AttrArg::KeyValue(KeyValue { name, .. }) => name,
             AttrArg::Sub(SubAttr { name, .. }) => name,
             AttrArg::Not { name, .. } => name,
+            AttrArg::Fn(func) => &func.sig.ident,
         }
     }
 
@@ -133,6 +135,7 @@ impl AttrArg {
             AttrArg::KeyValue(KeyValue { name, .. }) => format!("{:?} is not supported as key-value", name.to_string()),
             AttrArg::Sub(SubAttr { name, .. }) => format!("{:?} is not supported as nested attribute", name.to_string()),
             AttrArg::Not { name, .. } => format!("{:?} cannot be nullified", name.to_string()),
+            AttrArg::Fn(func) => format!("{:?} is not supported as a function", func.sig.ident.to_string()),
         };
         syn::Error::new_spanned(self, message)
     }
@@ -308,6 +311,11 @@ fn get_token_stream_up_to_cursor(input: syn::parse::ParseStream, cursor: syn::bu
 
 impl Parse for AttrArg {
     fn parse(input: syn::parse::ParseStream) -> syn::Result<Self> {
+        // Check for standalone function first
+        if input.peek(Token![fn]) {
+            return Ok(Self::Fn(input.parse()?));
+        }
+
         if input.peek(Token![!]) {
             Ok(Self::Not {
                 not: input.parse()?,
@@ -325,8 +333,6 @@ impl Parse for AttrArg {
                     args: args.parse()?,
                 }))
             } else if input.peek(Token![=]) {
-                // Try parsing as a type first, because it _should_ be simpler
-
                 Ok(Self::KeyValue(KeyValue {
                     name,
                     eq: input.parse()?,
@@ -337,7 +343,7 @@ impl Parse for AttrArg {
                     },
                 }))
             } else {
-                Err(input.error("expected !<ident>, <ident>=<value> or <ident>(…)"))
+                Err(input.error("expected !<ident>, <ident>=<value>, <ident>(…), or fn"))
             }
         }
     }
@@ -353,6 +359,7 @@ impl ToTokens for AttrArg {
                 not.to_tokens(tokens);
                 name.to_tokens(tokens);
             }
+            AttrArg::Fn(func) => func.to_tokens(tokens),
         }
     }
 }

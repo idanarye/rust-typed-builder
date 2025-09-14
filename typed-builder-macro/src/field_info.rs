@@ -3,6 +3,7 @@ use std::ops::Deref;
 use proc_macro2::{Ident, Span, TokenStream};
 use quote::quote_spanned;
 use syn::{parse::Error, spanned::Spanned};
+use syn::{Expr, ExprBlock};
 
 use crate::mutator::Mutator;
 use crate::util::{expr_to_lit_string, ident_to_type, path_to_single_string, strip_raw_ident_prefix, ApplyMeta, AttrArg};
@@ -248,6 +249,7 @@ impl ApplyMeta for FieldBuilderAttr<'_> {
                     Ok(())
                 }
                 AttrArg::Sub(_) => Err(expr.incorrect_type()),
+                AttrArg::Fn(_) => Err(expr.incorrect_type()),
             },
             "default_code" => {
                 use std::str::FromStr;
@@ -295,6 +297,7 @@ impl ApplyMeta for FieldBuilderAttr<'_> {
                             self.via_mutators = Some(via_mutators);
                         }
                     }
+                    AttrArg::Fn(_) => return Err(expr.incorrect_type()),
                 }
                 Ok(())
             }
@@ -318,10 +321,13 @@ impl ApplyMeta for SetterSettings {
                 Ok(())
             }
             "transform" => {
-                self.transform = if let Some(key_value) = expr.key_value_or_not()? {
-                    Some(parse_transform_closure(key_value.name.span(), key_value.parse_value()?)?)
-                } else {
-                    None
+                self.transform = match expr {
+                    AttrArg::Fn(func) => Some(parse_transform_fn(func.span(), func)?),
+                    AttrArg::KeyValue(key_value) => {
+                        Some(parse_transform_closure(key_value.name.span(), key_value.parse_value()?)?)
+                    }
+                    AttrArg::Not { .. } => None,
+                    _ => return Err(expr.incorrect_type()),
                 };
                 Ok(())
             }
@@ -441,7 +447,39 @@ impl ApplyMeta for Strip {
 pub struct Transform {
     pub params: Vec<(syn::Pat, syn::Type)>,
     pub body: syn::Expr,
+    pub generics: Option<syn::Generics>,
+    pub return_type: syn::ReturnType,
     span: Span,
+}
+
+fn parse_transform_fn(span: Span, func: syn::ItemFn) -> Result<Transform, Error> {
+    if let Some(kw) = &func.sig.asyncness {
+        return Err(Error::new(kw.span, "Transform function cannot be async"));
+    }
+
+    let params = func
+        .sig
+        .inputs
+        .into_iter()
+        .map(|input| match input {
+            syn::FnArg::Typed(pat_type) => Ok((*pat_type.pat, *pat_type.ty)),
+            syn::FnArg::Receiver(_) => Err(Error::new_spanned(input, "Transform function cannot have self parameter")),
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+
+    let body = Expr::Block(ExprBlock {
+        attrs: Vec::new(),
+        label: None,
+        block: *func.block,
+    });
+
+    Ok(Transform {
+        params,
+        body,
+        span,
+        generics: Some(func.sig.generics),
+        return_type: func.sig.output,
+    })
 }
 
 fn parse_transform_closure(span: Span, expr: syn::Expr) -> Result<Transform, Error> {
@@ -449,6 +487,7 @@ fn parse_transform_closure(span: Span, expr: syn::Expr) -> Result<Transform, Err
         syn::Expr::Closure(closure) => closure,
         _ => return Err(Error::new_spanned(expr, "Expected closure")),
     };
+
     if let Some(kw) = &closure.asyncness {
         return Err(Error::new(kw.span, "Transform closure cannot be async"));
     }
@@ -469,6 +508,8 @@ fn parse_transform_closure(span: Span, expr: syn::Expr) -> Result<Transform, Err
         params,
         body: *closure.body,
         span,
+        generics: None,
+        return_type: closure.output,
     })
 }
 

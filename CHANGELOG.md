@@ -6,6 +6,29 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+## 0.21.3 - 2025-09-08
+
+### Added
+- New optional alternate `transform` syntax using a full fn, to allow support for custom lifetimes, generics and a where clause to custom builder method.
+
+Example:
+```rust
+#[derive(TypedBuilder)]
+struct Foo {
+    #[builder(
+        setter(
+            fn transform<'a, M>(value: impl IntoValue<'a, String, M>) -> String
+            where
+              M: std::fmt::Display
+            {
+                value.into_value()
+            },
+        )
+    )]
+    s: String,
+}
+```
+
 ## 0.21.2 - 2025-08-21
 ### Fixed
 - Recognize `TypeGroup` when checking for `Option`.
