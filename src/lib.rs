@@ -297,6 +297,13 @@ impl<T> Optional<T> for (T,) {
     }
 }
 
+#[doc(hidden)]
+pub trait TypedBuilderNextFieldDefault<TypedBuilderExistingFields> {
+    type Output;
+
+    fn resolve(input: TypedBuilderExistingFields) -> Self::Output;
+}
+
 // It'd be nice for the compilation tests to live in tests/ with the rest, but short of pulling in
 // some other test runner for that purpose (e.g. compiletest_rs), rustdoc compile_fail in this
 // crate is all we can use.
