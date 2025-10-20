@@ -1,4 +1,4 @@
-use proc_macro2::{Ident, Span, TokenStream};
+use proc_macro2::TokenStream;
 use quote::{format_ident, quote, ToTokens};
 use syn::{parse::Error, parse_quote, punctuated::Punctuated, GenericArgument, ItemFn, Token};
 
@@ -634,26 +634,7 @@ impl<'a> StructInfo<'a> {
             let mut generics = self.generics.clone();
             for field in self.included_fields() {
                 if field.builder_attr.default.is_some() {
-                    let trait_ref = syn::TraitBound {
-                        paren_token: None,
-                        lifetimes: None,
-                        modifier: syn::TraitBoundModifier::None,
-                        path: {
-                            let mut path = self.builder_attr.crate_module_path.clone();
-                            path.segments.push(syn::PathSegment {
-                                ident: Ident::new("Optional", Span::call_site()),
-                                arguments: syn::PathArguments::AngleBracketed(syn::AngleBracketedGenericArguments {
-                                    colon2_token: None,
-                                    lt_token: Default::default(),
-                                    args: [syn::GenericArgument::Type(field.ty.clone())].into_iter().collect(),
-                                    gt_token: Default::default(),
-                                }),
-                            });
-                            path
-                        },
-                    };
-                    let mut generic_param: syn::TypeParam = field.generic_ident.clone().into();
-                    generic_param.bounds.push(trait_ref.into());
+                    let generic_param: syn::TypeParam = field.generic_ident.clone().into();
                     generics.params.push(generic_param.into());
                 }
             }
