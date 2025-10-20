@@ -15,11 +15,11 @@ use crate::{
 #[derive(Debug)]
 pub struct StructInfo<'a> {
     vis: &'a syn::Visibility,
-    name: &'a syn::Ident,
-    generics: &'a syn::Generics,
-    fields: Vec<FieldInfo<'a>>,
+    pub name: &'a syn::Ident,
+    pub generics: &'a syn::Generics,
+    pub fields: Vec<FieldInfo<'a>>,
 
-    builder_attr: TypeBuilderAttr<'a>,
+    pub builder_attr: TypeBuilderAttr<'a>,
     builder_name: syn::Ident,
 }
 
@@ -820,14 +820,23 @@ impl<'a> StructInfo<'a> {
 
     pub fn derive(&self) -> syn::Result<TokenStream> {
         let builder_creation = self.builder_creation_impl()?;
+
         let fields = self
             .setter_fields()
             .map(|f| self.field_impl(f))
             .collect::<Result<TokenStream, _>>()?;
+
+        let next_field_default_impls = self
+            .fields
+            .iter()
+            .filter_map(|field| field.gen_next_field_default_trait_impl(self).transpose())
+            .collect::<Result<TokenStream, _>>()?;
+
         let required_fields = self
             .setter_fields()
             .filter(|f| f.builder_attr.default.is_none())
             .map(|f| self.required_field_impl(f));
+
         let mutators = self
             .fields
             .iter()
@@ -835,11 +844,13 @@ impl<'a> StructInfo<'a> {
             .chain(&self.builder_attr.mutators)
             .map(|m| self.mutator_impl(m))
             .collect::<Result<TokenStream, _>>()?;
+
         let build_method = self.build_method_impl();
 
         Ok(quote! {
             #builder_creation
             #fields
+            #next_field_default_impls
             #(#required_fields)*
             #mutators
             #build_method

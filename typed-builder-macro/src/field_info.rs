@@ -1,11 +1,12 @@
 use std::ops::Deref;
 
 use proc_macro2::{Ident, Span, TokenStream};
-use quote::quote_spanned;
+use quote::{quote, quote_spanned};
 use syn::{parse::Error, spanned::Spanned};
 use syn::{Expr, ExprBlock};
 
 use crate::mutator::Mutator;
+use crate::struct_info::StructInfo;
 use crate::util::{expr_to_lit_string, ident_to_type, path_to_single_string, strip_raw_ident_prefix, ApplyMeta, AttrArg};
 
 #[derive(Debug)]
@@ -116,6 +117,47 @@ impl<'a> FieldInfo<'a> {
             }));
         }
         Ok(self)
+    }
+
+    pub fn gen_next_field_default_trait_impl(&self, struct_info: &StructInfo) -> syn::Result<Option<TokenStream>> {
+        let Some(default_expr) = self.builder_attr.default.as_ref() else {
+            return Ok(None);
+        };
+
+        let crate_module_path = &struct_info.builder_attr.crate_module_path;
+        let struct_name = struct_info.name;
+        let (impl_generics, ty_generics, where_clause) = struct_info.generics.split_for_impl();
+        let field_type = self.ty;
+
+        let (dep_types, dep_names): (Vec<_>, Vec<_>) = struct_info
+            .fields
+            .iter()
+            .take(self.ordinal)
+            .map(|dep| {
+                let dep_type = dep.ty;
+                (quote!(&#dep_type), dep.name)
+            })
+            .unzip();
+
+        Ok(Some(quote! {
+            #[automatically_derived]
+            impl #impl_generics #crate_module_path::TypedBuilderNextFieldDefault<(#(#dep_types,)* (#field_type,))> for #struct_name #ty_generics #where_clause {
+                type Output = #field_type;
+
+                fn resolve((.., (input,)): (#(#dep_types,)* (#field_type,))) -> Self::Output {
+                    input
+                }
+            }
+
+            #[automatically_derived]
+            impl #impl_generics #crate_module_path::TypedBuilderNextFieldDefault<(#(#dep_types,)* ())> for #struct_name #ty_generics #where_clause {
+                type Output = #field_type;
+
+                fn resolve((#(#dep_names,)* ()): (#(#dep_types,)* ())) -> Self::Output {
+                    #default_expr
+                }
+            }
+        }))
     }
 }
 
