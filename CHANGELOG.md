@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ## [Unreleased]
 ### Added
 - `default_where` option to add generic bounds on `default`.
+- `builder_type(attributes(...))` for adding attributes to the builder type
+  (mainly for `derive`)
 
 ### Changed
 - [**BREAKING**] When `default` is an expression that uses previous fields,

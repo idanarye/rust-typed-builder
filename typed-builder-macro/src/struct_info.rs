@@ -53,6 +53,7 @@ impl<'a> StructInfo<'a> {
         let builder_attr = TypeBuilderAttr::new(&ast.attrs)?;
         let builder_name = builder_attr
             .builder_type
+            .common
             .get_name()
             .map(|name| strip_raw_ident_prefix(name.to_string()))
             .unwrap_or_else(|| strip_raw_ident_prefix(format!("{}Builder", ast.ident)));
@@ -110,7 +111,7 @@ impl<'a> StructInfo<'a> {
         let builder_method_name = self.builder_attr.builder_method.get_name().unwrap_or_else(|| quote!(builder));
         let builder_method_visibility = first_visibility(&[
             self.builder_attr.builder_method.vis.as_ref(),
-            self.builder_attr.builder_type.vis.as_ref(),
+            self.builder_attr.builder_type.common.vis.as_ref(),
             Some(vis),
         ]);
         let builder_method_doc = self.builder_attr.builder_method.get_doc_or(|| {
@@ -142,9 +143,9 @@ impl<'a> StructInfo<'a> {
             )
         });
 
-        let builder_type_visibility = first_visibility(&[self.builder_attr.builder_type.vis.as_ref(), Some(vis)]);
+        let builder_type_visibility = first_visibility(&[self.builder_attr.builder_type.common.vis.as_ref(), Some(vis)]);
         let builder_type_doc = if self.builder_attr.doc {
-            self.builder_attr.builder_type.get_doc_or(|| {
+            self.builder_attr.builder_type.common.get_doc_or(|| {
                 format!(
                     "
                     Builder for [`{name}`] instances.
@@ -167,6 +168,8 @@ impl<'a> StructInfo<'a> {
             b_generics_where.predicates.extend(predicates.predicates.clone());
         }
 
+        let builder_type_attributes = &self.builder_attr.builder_type.attributes;
+
         Ok(quote! {
             #[automatically_derived]
             impl #impl_generics #name #ty_generics #where_clause {
@@ -183,6 +186,7 @@ impl<'a> StructInfo<'a> {
             #[must_use]
             #builder_type_doc
             #[allow(dead_code, non_camel_case_types, non_snake_case)]
+            #(#builder_type_attributes)*
             #builder_type_visibility struct #builder_name #b_generics #b_generics_where_extras_predicates {
                 fields: #all_fields_param,
                 phantom: #phantom_data,

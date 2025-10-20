@@ -1201,3 +1201,17 @@ fn test_custom_default_with_generic_bounds() {
 
     assert_eq!(Foo::builder().x("42").build(), Foo { x: "42", y: 42 });
 }
+
+#[test]
+fn test_builder_type_with_derive_attribute() {
+    #[derive(TypedBuilder)]
+    #[builder(builder_type(attributes(#[derive(PartialEq, Debug)])))]
+    #[allow(dead_code)]
+    struct Foo {
+        x: i32,
+        y: i32,
+    }
+
+    assert_eq!(Foo::builder().x(1), Foo::builder().x(1));
+    assert_ne!(Foo::builder().x(1), Foo::builder().x(2));
+}

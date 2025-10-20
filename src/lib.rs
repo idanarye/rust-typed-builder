@@ -88,6 +88,28 @@
 ///     type is set, but `into` is specified, the return type will be generic and the user can
 ///     decide which type shall be constructed. In both cases an [`Into`] conversion is required to
 ///     be defined from the original type to the target type.
+/// 
+/// - The `builder_type(...)` subsection also has:
+///   - `attributes` - for adding attributes to the builder type. Note that the full attribute
+///     syntax is required **inside** this section -
+///     ```ignore
+///     #[builder(builder_type(attributes(
+///         #[derive(...)]
+///         #[some_other_attribute]
+///     )))]
+///     ```
+///
+///     Example:
+///     
+///     ```
+///     use typed_builder::TypedBuilder;
+///
+///     #[derive(TypedBuilder)]
+///     #[builder(builder_type(attributes(#[derive(Debug)])))]
+///     struct Foo {
+///         x: i32,
+///     }
+///     ```
 ///
 /// - `field_defaults(...)` is structured like the `#[builder(...)]` attribute you can put on the
 ///   fields and sets default options for fields of the type. If specific field need to revert some

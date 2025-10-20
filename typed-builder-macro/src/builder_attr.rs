@@ -52,6 +52,33 @@ impl CommonDeclarationSettings {
     }
 }
 
+#[derive(Debug, Default, Clone)]
+pub struct BuilderTypeSettings {
+    pub common: CommonDeclarationSettings,
+    pub attributes: Vec<syn::Attribute>,
+}
+
+struct InlineAttributes(Vec<syn::Attribute>);
+
+impl syn::parse::Parse for InlineAttributes {
+    fn parse(input: syn::parse::ParseStream) -> syn::Result<Self> {
+        Ok(Self(input.call(syn::Attribute::parse_outer)?))
+    }
+}
+
+impl ApplyMeta for BuilderTypeSettings {
+    fn apply_meta(&mut self, expr: AttrArg) -> Result<(), Error> {
+        match expr.name().to_string().as_str() {
+            "attributes" => {
+                let InlineAttributes(attributes) = syn::parse2(expr.sub_attr()?.args)?;
+                self.attributes = attributes;
+                Ok(())
+            }
+            _ => self.common.apply_meta(expr),
+        }
+    }
+}
+
 /// Setting of the `into` argument.
 #[derive(Debug, Clone)]
 pub enum IntoSetting {
@@ -106,7 +133,7 @@ pub struct TypeBuilderAttr<'a> {
     pub builder_method: CommonDeclarationSettings,
 
     /// Customize builder type, ex. visibility, name
-    pub builder_type: CommonDeclarationSettings,
+    pub builder_type: BuilderTypeSettings,
 
     /// Customize build method, ex. visibility, name
     pub build_method: BuildMethodSettings,
@@ -152,7 +179,7 @@ impl<'a> TypeBuilderAttr<'a> {
             result.apply_subsections(list)?;
         }
 
-        if result.builder_type.doc.is_some() || result.build_method.common.doc.is_some() {
+        if result.builder_type.common.doc.is_some() || result.build_method.common.doc.is_some() {
             result.doc = true;
         }
 
