@@ -682,25 +682,27 @@ impl<'a> StructInfo<'a> {
 
         let crate_module_path = &self.builder_attr.crate_module_path;
 
-        let where_predicates_for_defaults: Vec<syn::WherePredicate> = self.fields.iter().enumerate().filter(|(_, field)| field.builder_attr.default.is_some()).map(|(field_index, field)| {
-            let types = self.fields.iter().take(field_index).map(|dep_field| {
-                let dep_type = dep_field.ty;
-                let dep_mut = if let Some(span) = dep_field.builder_attr.mutable_during_default_resolution {
-                    quote_spanned!(span => mut)
-                } else {
-                    quote!()
-                };
-                quote!(&'__typed_builder_lifetime_for_default #dep_mut #dep_type)
-            }).chain(core::iter::once({
-                let generic_argument: syn::Type = field.type_ident();
-                quote!(#generic_argument)
-            }));
-            let field_type = field.ty;
-            parse_quote!{
-                #name_with_generics: for<'__typed_builder_lifetime_for_default> #crate_module_path::NextFieldDefault<(#(#types,)*), Output = #field_type>
-            }
+        let where_predicates_for_defaults: Vec<syn::WherePredicate> = self.fields.iter().enumerate()
+            .filter(|(_, field)| field.builder_attr.default.is_some() && field.builder_attr.setter.skip.is_none())
+            .map(|(field_index, field)| {
+                let types = self.fields.iter().take(field_index).map(|dep_field| {
+                    let dep_type = dep_field.ty;
+                    let dep_mut = if let Some(span) = dep_field.builder_attr.mutable_during_default_resolution {
+                        quote_spanned!(span => mut)
+                    } else {
+                        quote!()
+                    };
+                    quote!(&'__typed_builder_lifetime_for_default #dep_mut #dep_type)
+                }).chain(core::iter::once({
+                    let generic_argument: syn::Type = field.type_ident();
+                    quote!(#generic_argument)
+                }));
+                let field_type = field.ty;
+                parse_quote!{
+                    #name_with_generics: for<'__typed_builder_lifetime_for_default> #crate_module_path::NextFieldDefault<(#(#types,)*), Output = #field_type>
+                }
 
-        }).collect::<Vec<_>>();
+            }).collect::<Vec<_>>();
         let where_clause_storage;
         let where_clause = if where_predicates_for_defaults.is_empty() {
             where_clause
@@ -737,7 +739,23 @@ impl<'a> StructInfo<'a> {
 
                 if let Some(ref default) = field.builder_attr.default {
                     if field.builder_attr.setter.skip.is_some() {
-                        quote!(let #maybe_mut #name = #default;)
+                        let make_fields_refs = self.fields.iter().take(field_index).map(|dep_field| {
+                            let dep_name = dep_field.name;
+                            let dep_mut = if let Some(span) = dep_field.builder_attr.mutable_during_default_resolution {
+                                quote_spanned!(span => mut)
+                            } else {
+                                quote!()
+                            };
+                            quote! {
+                                let #dep_name = &#dep_mut #dep_name;
+                            }
+                        });
+                        quote! {
+                            let #maybe_mut #name = {
+                                #(#make_fields_refs)*
+                                #default
+                            };
+                        }
                     } else {
                         let (types, values): (Vec<_>, Vec<_>) = self
                             .fields

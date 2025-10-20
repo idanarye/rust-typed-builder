@@ -120,6 +120,9 @@ impl<'a> FieldInfo<'a> {
     }
 
     pub fn gen_next_field_default_trait_impl(&self, struct_info: &StructInfo) -> syn::Result<Option<TokenStream>> {
+        if self.builder_attr.setter.skip.is_some() {
+            return Ok(None);
+        }
         let Some(default_expr) = self.builder_attr.default.as_ref() else {
             return Ok(None);
         };

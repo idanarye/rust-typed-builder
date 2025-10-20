@@ -1,7 +1,7 @@
 #![allow(unused_imports, unused_attributes)]
 
-use typed_builder::TypedBuilder;
 use typed_builder::NextFieldDefault;
+use typed_builder::TypedBuilder;
 
 #[derive(Debug, PartialEq, TypedBuilder)]
 pub struct Foo {
@@ -9,7 +9,7 @@ pub struct Foo {
     pub bar: i32,
     #[builder(default = format!("{bar}"))]
     pub baz: String,
-    #[builder(default = *bar)]
+    #[builder(default = *bar, setter(skip))]
     pub qux: i32,
 }
 
