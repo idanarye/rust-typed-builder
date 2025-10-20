@@ -697,7 +697,7 @@ impl<'a> StructInfo<'a> {
             }));
             let field_type = field.ty;
             parse_quote!{
-                #name_with_generics: for<'__typed_builder_lifetime_for_default> #crate_module_path::TypedBuilderNextFieldDefault<(#(#types,)*), Output = #field_type>
+                #name_with_generics: for<'__typed_builder_lifetime_for_default> #crate_module_path::NextFieldDefault<(#(#types,)*), Output = #field_type>
             }
 
         }).collect::<Vec<_>>();
@@ -763,7 +763,7 @@ impl<'a> StructInfo<'a> {
                             let #maybe_mut #name = <
                                 #name_with_generics
                                 as
-                                #crate_module_path::TypedBuilderNextFieldDefault<(#(#types,)*)>>::resolve((#(#values,)*));
+                                #crate_module_path::NextFieldDefault<(#(#types,)*)>>::resolve((#(#values,)*));
                         }
                     }
                 } else {

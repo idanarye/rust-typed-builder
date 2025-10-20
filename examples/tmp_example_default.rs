@@ -1,7 +1,7 @@
 #![allow(unused_imports, unused_attributes)]
 
 use typed_builder::TypedBuilder;
-use typed_builder::TypedBuilderNextFieldDefault;
+use typed_builder::NextFieldDefault;
 
 #[derive(Debug, PartialEq, TypedBuilder)]
 pub struct Foo {

@@ -298,7 +298,7 @@ impl<T> Optional<T> for (T,) {
 }
 
 #[doc(hidden)]
-pub trait TypedBuilderNextFieldDefault<TypedBuilderExistingFields> {
+pub trait NextFieldDefault<TypedBuilderExistingFields> {
     type Output;
 
     fn resolve(input: TypedBuilderExistingFields) -> Self::Output;

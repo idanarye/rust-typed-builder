@@ -28,8 +28,8 @@ mod scope {
     #[allow(non_camel_case_types)]
     impl<__z: typed_builder::Optional<i32>, __y: typed_builder::Optional<Option<i32>>> FooBuilder<((i32,), __y, __z)>
     where
-        for<'a> Foo: typed_builder::TypedBuilderNextFieldDefault<(&'a i32, __y), Output = Option<i32>>,
-        for<'a> Foo: typed_builder::TypedBuilderNextFieldDefault<(&'a i32, &'a Option<i32>, __z), Output = i32>,
+        for<'a> Foo: typed_builder::NextFieldDefault<(&'a i32, __y), Output = Option<i32>>,
+        for<'a> Foo: typed_builder::NextFieldDefault<(&'a i32, &'a Option<i32>, __z), Output = i32>,
     {
         pub fn build(self) -> Bar {
             let foo = self.__build();
