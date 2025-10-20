@@ -113,7 +113,7 @@ fn test_field_dependencies_in_build() {
         x: Option<i32>,
         #[builder(default = 10)]
         y: i32,
-        #[builder(default = [y, 30, 40])]
+        #[builder(default = [*y, 30, 40])]
         z: [i32; 3],
     }
 

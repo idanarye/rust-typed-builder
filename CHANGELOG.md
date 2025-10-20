@@ -8,6 +8,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## 0.22.0 - 2025-09-08
 
+### Changed
+- [**BREAKING**] When `default` is an expression that uses previous fields,
+  it'll receive them as reference.
+
 ### Added
 - New optional alternate `transform` syntax using a full fn, to allow support for custom lifetimes, generics and a where clause to custom builder method.
 

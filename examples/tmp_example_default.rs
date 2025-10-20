@@ -9,6 +9,8 @@ pub struct Foo {
     pub bar: i32,
     #[builder(default = format!("{bar}"))]
     pub baz: String,
+    #[builder(default = *bar)]
+    pub qux: i32,
 }
 
 fn main() {
