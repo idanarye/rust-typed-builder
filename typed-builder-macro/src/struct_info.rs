@@ -1,5 +1,5 @@
 use proc_macro2::{Ident, Span, TokenStream};
-use quote::{format_ident, quote, quote_spanned, ToTokens};
+use quote::{format_ident, quote, ToTokens};
 use syn::{parse::Error, parse_quote, punctuated::Punctuated, GenericArgument, ItemFn, Token};
 
 use crate::{
@@ -687,11 +687,7 @@ impl<'a> StructInfo<'a> {
             .map(|(field_index, field)| {
                 let types = self.fields.iter().take(field_index).map(|dep_field| {
                     let dep_type = dep_field.ty;
-                    let dep_mut = if let Some(span) = dep_field.builder_attr.mutable_during_default_resolution {
-                        quote_spanned!(span => mut)
-                    } else {
-                        quote!()
-                    };
+                    let dep_mut = dep_field.maybe_mut();
                     quote!(&'__typed_builder_lifetime_for_default #dep_mut #dep_type)
                 }).chain(core::iter::once({
                     let generic_argument: syn::Type = field.type_ident();
@@ -730,22 +726,13 @@ impl<'a> StructInfo<'a> {
             .enumerate()
             .map(|(field_index, field)| {
                 let name = &field.name;
-
-                let maybe_mut = if let Some(span) = field.builder_attr.mutable_during_default_resolution {
-                    quote_spanned!(span => mut)
-                } else {
-                    quote!()
-                };
+                let maybe_mut = field.maybe_mut();
 
                 if let Some(ref default) = field.builder_attr.default {
                     if field.builder_attr.setter.skip.is_some() {
                         let make_fields_refs = self.fields.iter().take(field_index).map(|dep_field| {
                             let dep_name = dep_field.name;
-                            let dep_mut = if let Some(span) = dep_field.builder_attr.mutable_during_default_resolution {
-                                quote_spanned!(span => mut)
-                            } else {
-                                quote!()
-                            };
+                            let dep_mut = dep_field.maybe_mut();
                             quote! {
                                 let #dep_name = &#dep_mut #dep_name;
                             }
@@ -764,11 +751,7 @@ impl<'a> StructInfo<'a> {
                             .map(|dep_field| {
                                 let dep_type = dep_field.ty;
                                 let dep_name = dep_field.name;
-                                let dep_mut = if let Some(span) = dep_field.builder_attr.mutable_during_default_resolution {
-                                    quote_spanned!(span => mut)
-                                } else {
-                                    quote!()
-                                };
+                                let dep_mut = dep_field.maybe_mut();
                                 (quote!(&#dep_mut #dep_type), quote!(&#dep_mut #dep_name))
                             })
                             .chain(core::iter::once({

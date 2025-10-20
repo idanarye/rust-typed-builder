@@ -119,6 +119,14 @@ impl<'a> FieldInfo<'a> {
         Ok(self)
     }
 
+    pub fn maybe_mut(&self) -> TokenStream {
+        if let Some(span) = self.builder_attr.mutable_during_default_resolution {
+            quote_spanned!(span => mut)
+        } else {
+            quote!()
+        }
+    }
+
     pub fn gen_next_field_default_trait_impl(&self, struct_info: &StructInfo) -> syn::Result<Option<TokenStream>> {
         if self.builder_attr.setter.skip.is_some() {
             return Ok(None);
@@ -136,9 +144,10 @@ impl<'a> FieldInfo<'a> {
             .fields
             .iter()
             .take(self.ordinal)
-            .map(|dep| {
-                let dep_type = dep.ty;
-                (quote!(&#dep_type), dep.name)
+            .map(|dep_field| {
+                let dep_type = dep_field.ty;
+                let dep_mut = dep_field.maybe_mut();
+                (quote!(&#dep_mut #dep_type), dep_field.name)
             })
             .unzip();
 
