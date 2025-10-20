@@ -5,6 +5,7 @@ use typed_builder::TypedBuilderNextFieldDefault;
 
 #[derive(Debug, PartialEq, TypedBuilder)]
 pub struct Foo {
+    #[builder(default)]
     pub bar: i32,
     #[builder(default = format!("{bar}"))]
     pub baz: String,

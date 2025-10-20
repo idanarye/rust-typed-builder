@@ -141,19 +141,19 @@ impl<'a> FieldInfo<'a> {
 
         Ok(Some(quote! {
             #[automatically_derived]
-            impl #impl_generics #crate_module_path::TypedBuilderNextFieldDefault<(#(#dep_types,)* (#field_type,))> for #struct_name #ty_generics #where_clause {
+            impl #impl_generics #crate_module_path::TypedBuilderNextFieldDefault<(#(#dep_types,)* (#field_type,),)> for #struct_name #ty_generics #where_clause {
                 type Output = #field_type;
 
-                fn resolve((.., (input,)): (#(#dep_types,)* (#field_type,))) -> Self::Output {
+                fn resolve((.., (input,),): (#(#dep_types,)* (#field_type,),)) -> Self::Output {
                     input
                 }
             }
 
             #[automatically_derived]
-            impl #impl_generics #crate_module_path::TypedBuilderNextFieldDefault<(#(#dep_types,)* ())> for #struct_name #ty_generics #where_clause {
+            impl #impl_generics #crate_module_path::TypedBuilderNextFieldDefault<(#(#dep_types,)* (),)> for #struct_name #ty_generics #where_clause {
                 type Output = #field_type;
 
-                fn resolve((#(#dep_names,)* ()): (#(#dep_types,)* ())) -> Self::Output {
+                fn resolve((#(#dep_names,)* (),): (#(#dep_types,)* (),)) -> Self::Output {
                     #default_expr
                 }
             }
