@@ -2,14 +2,14 @@ use std::collections::HashSet;
 
 use proc_macro2::Ident;
 use syn::{
+    Error, Expr, FnArg, ItemFn, PatIdent, ReturnType, Signature, Token, Type,
     parse::{Parse, ParseStream},
     parse_quote,
     punctuated::Punctuated,
     spanned::Spanned,
-    Error, Expr, FnArg, ItemFn, PatIdent, ReturnType, Signature, Token, Type,
 };
 
-use crate::util::{pat_to_ident, ApplyMeta, AttrArg};
+use crate::util::{ApplyMeta, AttrArg, pat_to_ident};
 
 #[derive(Debug, Clone)]
 pub struct Mutator {
@@ -44,7 +44,7 @@ impl ApplyMeta for MutatorAttribute {
                 return Err(Error::new_spanned(
                     expr,
                     "Only list of field names [field1, field2, …] supported",
-                ))
+                ));
             }
         }
         Ok(())

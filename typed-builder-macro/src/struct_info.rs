@@ -1,6 +1,6 @@
 use proc_macro2::TokenStream;
-use quote::{format_ident, quote, ToTokens};
-use syn::{parse::Error, parse_quote, punctuated::Punctuated, GenericArgument, ItemFn, Token};
+use quote::{ToTokens, format_ident, quote};
+use syn::{GenericArgument, ItemFn, Token, parse::Error, parse_quote, punctuated::Punctuated};
 
 use crate::{
     builder_attr::{IntoSetting, TypeBuilderAttr},
@@ -440,11 +440,9 @@ impl<'a> StructInfo<'a> {
     }
 
     fn required_field_impl(&self, field: &FieldInfo) -> TokenStream {
-        let StructInfo { ref builder_name, .. } = self;
+        let StructInfo { builder_name, .. } = &self;
 
-        let FieldInfo {
-            name: ref field_name, ..
-        } = field;
+        let FieldInfo { name: field_name, .. } = field;
         let mut builder_generics: Vec<syn::GenericArgument> = self
             .generics
             .params

@@ -1,13 +1,13 @@
 use std::iter;
 
 use proc_macro2::{Ident, Span, TokenStream, TokenTree};
-use quote::{format_ident, quote, ToTokens};
+use quote::{ToTokens, format_ident, quote};
 use syn::{
-    parenthesized,
+    Attribute, Error, Pat, PatIdent, Token, parenthesized,
     parse::{Parse, ParseStream, Parser},
     punctuated::Punctuated,
     spanned::Spanned,
-    token, Attribute, Error, Pat, PatIdent, Token,
+    token,
 };
 
 pub fn path_to_single_string(path: &syn::Path) -> Option<String> {

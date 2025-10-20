@@ -1,5 +1,5 @@
 use proc_macro2::TokenStream;
-use syn::{parse::Error, parse_macro_input, spanned::Spanned, DeriveInput};
+use syn::{DeriveInput, parse::Error, parse_macro_input, spanned::Spanned};
 
 mod builder_attr;
 mod field_info;

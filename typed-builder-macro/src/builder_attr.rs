@@ -1,10 +1,10 @@
 use proc_macro2::TokenStream;
-use quote::{quote, ToTokens};
+use quote::{ToTokens, quote};
 use syn::parse::Error;
 
 use crate::field_info::FieldBuilderAttr;
 use crate::mutator::Mutator;
-use crate::util::{path_to_single_string, ApplyMeta, AttrArg};
+use crate::util::{ApplyMeta, AttrArg, path_to_single_string};
 
 #[derive(Debug, Default, Clone)]
 pub struct CommonDeclarationSettings {

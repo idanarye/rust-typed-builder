@@ -5,14 +5,15 @@ The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+### Changed
+- Upgrae Rust edition to 2024.
+- [**BREAKING**] When `default` is an expression that uses previous fields,
+  it'll receive them as reference.
+
 ### Added
 - `default_where` option to add generic bounds on `default`.
 - `builder_type(attributes(...))` for adding attributes to the builder type
   (mainly for `derive`)
-
-### Changed
-- [**BREAKING**] When `default` is an expression that uses previous fields,
-  it'll receive them as reference.
 
 ### Removed
 - [**BREAKING**] The `Optional` trait. This is an internal implementation

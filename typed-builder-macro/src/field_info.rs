@@ -4,12 +4,12 @@ use proc_macro2::{Ident, Span, TokenStream};
 use quote::{quote, quote_spanned};
 use syn::parse::Parser;
 use syn::punctuated::Punctuated;
-use syn::{parse::Error, spanned::Spanned};
 use syn::{Expr, ExprBlock};
+use syn::{parse::Error, spanned::Spanned};
 
 use crate::mutator::Mutator;
 use crate::struct_info::StructInfo;
-use crate::util::{expr_to_lit_string, ident_to_type, path_to_single_string, strip_raw_ident_prefix, ApplyMeta, AttrArg};
+use crate::util::{ApplyMeta, AttrArg, expr_to_lit_string, ident_to_type, path_to_single_string, strip_raw_ident_prefix};
 
 #[derive(Debug)]
 pub struct FieldInfo<'a> {
@@ -118,7 +118,9 @@ impl<'a> FieldInfo<'a> {
                 }),
             }));
         }
-        if let (None, Some(default_where)) = (&self.builder_attr.default, self.builder_attr.default_where.as_ref()) {
+        if self.builder_attr.default.is_none()
+            && let Some(default_where) = self.builder_attr.default_where.as_ref()
+        {
             return Err(Error::new(
                 default_where.span(),
                 "default_where is not allowed without a default",
