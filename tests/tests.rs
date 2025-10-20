@@ -1163,3 +1163,41 @@ fn test_mutators_with_type_param() {
 
     assert_eq!(Foo::builder().x_plus::<HasSImpl>(1).build(), Foo { x: 1 });
 }
+
+#[test]
+fn test_default_with_generic_bounds() {
+    #[derive(Debug, PartialEq, TypedBuilder)]
+    struct Foo<T> {
+        #[builder(default, default_where(T: Default))]
+        x: T,
+    }
+
+    #[derive(Debug, PartialEq)]
+    struct HasNoDefault {
+        y: i32,
+    }
+
+    assert_eq!(Foo::builder().build(), Foo { x: 0 });
+
+    assert_eq!(
+        Foo::builder().x(HasNoDefault { y: 7 }).build(),
+        Foo {
+            x: HasNoDefault { y: 7 }
+        }
+    );
+}
+
+#[test]
+fn test_custom_default_with_generic_bounds() {
+    use core::fmt::Debug;
+    use core::str::FromStr;
+
+    #[derive(Debug, PartialEq, TypedBuilder)]
+    struct Foo<T> {
+        x: &'static str,
+        #[builder(default = x.parse().unwrap(), default_where(T: FromStr, <T as FromStr>::Err : Debug))]
+        y: T,
+    }
+
+    assert_eq!(Foo::builder().x("42").build(), Foo { x: "42", y: 42 });
+}

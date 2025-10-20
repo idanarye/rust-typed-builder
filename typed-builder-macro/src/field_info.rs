@@ -2,6 +2,8 @@ use std::ops::Deref;
 
 use proc_macro2::{Ident, Span, TokenStream};
 use quote::{quote, quote_spanned};
+use syn::parse::Parser;
+use syn::punctuated::Punctuated;
 use syn::{parse::Error, spanned::Spanned};
 use syn::{Expr, ExprBlock};
 
@@ -43,7 +45,7 @@ impl<'a> FieldInfo<'a> {
     }
 
     pub fn tuplized_type_ty_param(&self) -> syn::Type {
-        let mut types = syn::punctuated::Punctuated::default();
+        let mut types = Punctuated::default();
         types.push(self.ty.clone());
         types.push_punct(Default::default());
         syn::TypeTuple {
@@ -116,6 +118,12 @@ impl<'a> FieldInfo<'a> {
                 }),
             }));
         }
+        if let (None, Some(default_where)) = (&self.builder_attr.default, self.builder_attr.default_where.as_ref()) {
+            return Err(Error::new(
+                default_where.span(),
+                "default_where is not allowed without a default",
+            ));
+        }
         Ok(self)
     }
 
@@ -151,6 +159,22 @@ impl<'a> FieldInfo<'a> {
             })
             .unzip();
 
+        let where_clause_storage;
+        let where_clause_for_default = if let Some(default_where) = self.builder_attr.default_where.as_ref() {
+            let mut predicates: Punctuated<_, _> = Default::default();
+            if let Some(where_clause) = where_clause {
+                predicates.extend(where_clause.predicates.iter().cloned());
+            }
+            predicates.extend(default_where.iter().cloned());
+            where_clause_storage = syn::WhereClause {
+                where_token: Default::default(),
+                predicates,
+            };
+            Some(&where_clause_storage)
+        } else {
+            where_clause
+        };
+
         Ok(Some(quote! {
             #[automatically_derived]
             impl #impl_generics #crate_module_path::NextFieldDefault<(#(#dep_types,)* (#field_type,),)> for #struct_name #ty_generics #where_clause {
@@ -162,7 +186,7 @@ impl<'a> FieldInfo<'a> {
             }
 
             #[automatically_derived]
-            impl #impl_generics #crate_module_path::NextFieldDefault<(#(#dep_types,)* (),)> for #struct_name #ty_generics #where_clause {
+            impl #impl_generics #crate_module_path::NextFieldDefault<(#(#dep_types,)* (),)> for #struct_name #ty_generics #where_clause_for_default {
                 type Output = #field_type;
 
                 fn resolve((#(#dep_names,)* (),): (#(#dep_types,)* (),)) -> Self::Output {
@@ -176,6 +200,7 @@ impl<'a> FieldInfo<'a> {
 #[derive(Debug, Default, Clone)]
 pub struct FieldBuilderAttr<'a> {
     pub default: Option<syn::Expr>,
+    pub default_where: Option<Punctuated<syn::WherePredicate, syn::token::Comma>>,
     pub via_mutators: Option<ViaMutators>,
     pub deprecated: Option<&'a syn::Attribute>,
     pub doc_comments: Vec<&'a syn::Expr>,
@@ -305,6 +330,16 @@ impl ApplyMeta for FieldBuilderAttr<'_> {
                 AttrArg::Sub(_) => Err(expr.incorrect_type()),
                 AttrArg::Fn(_) => Err(expr.incorrect_type()),
             },
+            "default_where" => {
+                let sub_attr = expr.sub_attr()?;
+                let span = sub_attr.args.span();
+                self.default_where = Some(
+                    Punctuated::parse_terminated
+                        .parse2(sub_attr.args)
+                        .map_err(|e| Error::new(span, format!("{e}")))?,
+                );
+                Ok(())
+            }
             "default_code" => {
                 use std::str::FromStr;
 

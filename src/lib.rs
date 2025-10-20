@@ -130,6 +130,22 @@
 ///
 /// - `default = ...`: make the field optional, defaulting to the expression `...`.
 ///
+/// - `default_where(...)`: add trait bounds to the default. This means that the `default`
+///   expression (or type default) is allowed to rely on these bounds, but the field will not have
+///   a default if these trait bounds are not fulfilled.
+///
+///   Example:
+///
+///    ```
+///    use typed_builder::TypedBuilder;
+///
+///    #[derive(TypedBuilder)]
+///    struct Foo<T> {
+///        #[builder(default, default_where(T: Default))]
+///        bar: T,
+///    }
+///    ```
+///
 /// - `default_code = "..."`: make the field optional, defaulting to the expression `...`. Note that
 ///   you need to enclose it in quotes, which allows you to use it together with other custom
 ///   derive proc-macro crates that complain about "expected literal". Note that if `...` contains
