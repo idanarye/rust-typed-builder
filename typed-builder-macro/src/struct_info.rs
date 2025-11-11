@@ -717,6 +717,7 @@ impl<'a> StructInfo<'a> {
                             let dep_name = dep_field.name;
                             let dep_mut = dep_field.maybe_mut();
                             quote! {
+                                #[allow(unused_variables)]
                                 let #dep_name = &#dep_mut #dep_name;
                             }
                         });
