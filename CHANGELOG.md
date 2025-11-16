@@ -6,6 +6,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+## 0.23.1 - 2025-11-16
+### Fixed
+- Clippy warnings for unused variables in the new default implementation.
+
 ## 0.23.0 - 2025-10-20
 ### Changed
 - Upgrae Rust edition to 2024.
