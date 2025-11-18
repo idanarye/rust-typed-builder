@@ -80,20 +80,15 @@ impl ApplyMeta for BuilderTypeSettings {
 }
 
 /// Setting of the `into` argument.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub enum IntoSetting {
     /// Do not run any conversion on the built value.
+    #[default]
     NoConversion,
     /// Convert the build value into the generic parameter passed to the `build` method.
     GenericConversion,
     /// Convert the build value into a specific type specified in the attribute.
     TypeConversionToSpecificType(syn::TypePath),
-}
-
-impl Default for IntoSetting {
-    fn default() -> Self {
-        Self::NoConversion
-    }
 }
 
 #[derive(Debug, Default, Clone)]
